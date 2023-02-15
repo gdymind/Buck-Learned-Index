@@ -17,20 +17,20 @@
 #define SIZE 64
 
 
-struct KV_PTR
+struct KVPTR
 {
     KEY_TYPE key;
     uint64_t* ptr; // 8 bytes; if it points to bucket/segment/segment group, cast it to correct type
 };
 
 
-struct model {
+struct Model {
     double a;
     double b;
 };
 
 
-struct bucket
+struct Bucket
 {
     bool bsucket_type; //0: d-bucket; 1:s-bucket // differentiate them
     //size_t capacity; //total size of bucket // fixed size
@@ -39,12 +39,12 @@ struct bucket
     // KEY_TYPE base; // key compression
 
 
-    KV_PTR kv_pairs[SIZE];
+    KVPTR kv_pairs[SIZE];
     // KEY_TYPE* keys;
     // uint64_t** ptrs;
 };
 
-struct s-bucket
+struct SBucket
 {
     bool bsucket_type; //0: d-bucket; 1:s-bucket // differentiate them; Why?
     size_t capacity; //total size of bucket
@@ -53,26 +53,44 @@ struct s-bucket
     // KEY_TYPE base; // key compression
 
 
-    KV_PTR* kv_pairs;
+    //KV_PTR* kv_pairs;
+    KVPTR kv_pairs[SIZE];
     // KEY_TYPE* keys;
     // uint64_t** ptrs;
 };
 
-struct segment
+struct Segment
 {
     bool segement_type; //0: segment; 1: segment group
                         // if it is segment, it points to d-bucket
                         // else, it points to segment/segment groups
-    model m;
+    Model m;
     size_t num_bucket; // total num of buckets
     size_t bucket_size; // size of each bucket
     KEY_TYPE pivot; // smallest element
     // KEY_TYPE base; // key compression
 
-    //bucket* bucket_list;
+    Bucket* bucket_list;
     // array of anchors, should include all element in all s-buckets
-    KEY_PTR* key_anchor_list;
+    //KEY_PTR* key_anchor_list;
     // KEY_TYPE* keys;
     // uint64_t** ptrs;
 };
 
+struct SegmentGroup
+{
+    bool segement_type; //0: segment; 1: segment group
+                        // if it is segment, it points to d-bucket
+                        // else, it points to segment/segment groups
+    Model m;
+    size_t num_bucket; // total num of buckets
+    size_t bucket_size; // size of each bucket
+    KEY_TYPE pivot; // smallest element
+    // KEY_TYPE base; // key compression
+
+    SBucket* bucket_list;
+    // array of anchors, should include all element in all s-buckets
+    //KEY_PTR* key_anchor_list;
+    // KEY_TYPE* keys;
+    // uint64_t** ptrs;
+};
