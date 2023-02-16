@@ -1,4 +1,5 @@
-
+#ifndef _NODE_TYPE_H_
+#define _NODE_TYPE_H_
 // Minimum requirement:
 
 // node type: segment group, segment, bucket
@@ -74,3 +75,5 @@ struct SegmentGroup
 
     SBucket* bucket_list;
 };
+
+#endif

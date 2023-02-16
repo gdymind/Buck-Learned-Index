@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.10)
+project(BuckIndex)
+include_directories(./include)
+aux_source_directory(./src DIR_SRCS)
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -pthread")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -pthread")
+add_executable(BuckIndex main.cpp src/global.cpp include/node_layout.h include/global.h)
