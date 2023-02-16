@@ -11,15 +11,18 @@
 
 #include <cstdint>
 
-#define KEY_TYPE unsigned long long 
-#define VALUE_TYPE unsigned long long 
+typedef unsigned long long key_type;
+typedef unsigned long long value_type;
 
-#define SIZE 64
+
+const int BUCKET_SIZE = 64;
+const int SBUCKET_SIZE = 8;
+
 
 
 struct KVPTR
 {
-    KEY_TYPE key;
+    key_type key;
     uint64_t* ptr; // 8 bytes; if it points to bucket/segment/segment group, cast it to correct type
 };
 
@@ -32,65 +35,42 @@ struct Model {
 
 struct Bucket
 {
-    bool bsucket_type; //0: d-bucket; 1:s-bucket // differentiate them
-    //size_t capacity; //total size of bucket // fixed size
-    size_t write_pos; // size of already occupied slot // can be changed to a bitmap
-    KEY_TYPE pivot; // smallest element
-    // KEY_TYPE base; // key compression
+    unsigned char write_pos; // size of already occupied slot // can be changed to a bitmap
+    key_type pivot; // smallest element
+    // key_type base; // key compression
 
 
-    KVPTR kv_pairs[SIZE];
-    // KEY_TYPE* keys;
-    // uint64_t** ptrs;
+    KVPTR kv_pairs[BUCKET_SIZE];
 };
 
 struct SBucket
 {
-    bool bsucket_type; //0: d-bucket; 1:s-bucket // differentiate them; Why?
-    size_t capacity; //total size of bucket
     size_t write_pos; // size of already occupied slot // can be changed to a bitmap
-    KEY_TYPE pivot; // smallest element
-    // KEY_TYPE base; // key compression
+    key_type pivot; // smallest element
+    // key_type base; // key compression
 
 
     //KV_PTR* kv_pairs;
-    KVPTR kv_pairs[SIZE];
-    // KEY_TYPE* keys;
-    // uint64_t** ptrs;
+    KVPTR kv_pairs[SBUCKET_SIZE];
 };
 
 struct Segment
 {
-    bool segement_type; //0: segment; 1: segment group
-                        // if it is segment, it points to d-bucket
-                        // else, it points to segment/segment groups
     Model m;
     size_t num_bucket; // total num of buckets
-    size_t bucket_size; // size of each bucket
-    KEY_TYPE pivot; // smallest element
-    // KEY_TYPE base; // key compression
+    key_type pivot; // smallest element
+    // key_type base; // key compression
 
     Bucket* bucket_list;
-    // array of anchors, should include all element in all s-buckets
-    //KEY_PTR* key_anchor_list;
-    // KEY_TYPE* keys;
-    // uint64_t** ptrs;
 };
 
 struct SegmentGroup
 {
-    bool segement_type; //0: segment; 1: segment group
-                        // if it is segment, it points to d-bucket
-                        // else, it points to segment/segment groups
     Model m;
     size_t num_bucket; // total num of buckets
     size_t bucket_size; // size of each bucket
-    KEY_TYPE pivot; // smallest element
-    // KEY_TYPE base; // key compression
+    key_type pivot; // smallest element
+    // key_type base; // key compression
 
     SBucket* bucket_list;
-    // array of anchors, should include all element in all s-buckets
-    //KEY_PTR* key_anchor_list;
-    // KEY_TYPE* keys;
-    // uint64_t** ptrs;
 };
