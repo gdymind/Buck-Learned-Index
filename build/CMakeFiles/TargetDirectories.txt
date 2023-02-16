@@ -1,3 +1,0 @@
-/home/huibing/BuckIndex/build/CMakeFiles/rebuild_cache.dir
-/home/huibing/BuckIndex/build/CMakeFiles/BuckIndex.dir
-/home/huibing/BuckIndex/build/CMakeFiles/edit_cache.dir
