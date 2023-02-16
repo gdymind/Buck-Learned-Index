@@ -1,0 +1,1 @@
+./build/BuckIndex ./config.cfg
