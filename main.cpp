@@ -1,6 +1,7 @@
 #include<iostream>
 
 #include "include/global.h"
+#include "segment.h"
 
 int main(int argc, char** argv) {
     string cfgfile = argv[1];
