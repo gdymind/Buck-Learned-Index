@@ -1,4 +1,4 @@
-#include "../include/global.h"
+#include "global.h"
 
 
 string g_data_path; 
