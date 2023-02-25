@@ -12,6 +12,7 @@
 
 #include<cstdint>
 #include<cstddef>
+#include<cassert>
 #include<climits>
 #include <immintrin.h> //SIMD
 
@@ -22,7 +23,9 @@ const unsigned int BUCKET_SIZE = 128;
 const unsigned int SBUCKET_SIZE = 8;
 
 const unsigned int MAX_BITS = 10000;
-const unsigned int INT_BITS = sizeof(int) * 8;
+const unsigned int INT_BITS = sizeof(unsigned int) * 8;
+
+const key_type UNDEFINED_KEY = ULLONG_MAX;
 
 
 struct KVPTR
@@ -32,99 +35,70 @@ struct KVPTR
 };
 
 
-
-class BucketBase {
+template<size_t SIZE>
+class Bucket {
 public:
-    key_type pivot = ULLONG_MAX; // smallest element
-    int cnt = 0;
+    key_type pivot = UNDEFINED_KEY; // smallest element
+    // int cnt = 0; // the number of valid kvs in the bucket
     // key_type base; // key compression
 
-    BucketBase() { }
+    Bucket() { }
 
-    inline void set_bit(int i) {
-        bitmap[i / INT_BITS] |= (1 << (i % INT_BITS));
+    inline void set_bit(int pos) {
+        assert(pos >= 0 && pos < SIZE);
+        int bitmap_pos = pos >> 5;
+        int bit_pos = pos - (bitmap_pos << 5);
+        bitmap_[bitmap_pos] |= (1U << bit_pos);
     }
 
-    inline void reset(int i) {
-        bitmap[i / INT_BITS] &= ~(1 << (i % INT_BITS));
+    inline void reset_bit(int pos) {
+        assert(pos >= 0 && pos < SIZE);
+        int bitmap_pos = pos >> 5;
+        int bit_pos = pos - (bitmap_pos << 5);
+        bitmap_[bitmap_pos] &= ~(1U << bit_pos);
     } 
 
-    inline bool read(int i) {
-        return (bitmap[i / INT_BITS] & (1 << (i % INT_BITS))) != 0;
+    inline bool read(int pos) {
+        assert(pos >= 0 && pos < SIZE);
+        int bitmap_pos = pos >> 5;
+        int bit_pos = pos - (bitmap_pos << 5);
+        return (bitmap_[bitmap_pos]  & (1U << bit_pos)) != 0;
     }
 
-    int find_first_zero() {
-        for (int i = 0; i <= MAX_BITS / INT_BITS; i++) {
-            if (bitmap[i] != -1) {
-                for (int j = 0; j < INT_BITS; j++) {
-                    if ((bitmap[i] & (1 << j)) == 0) {
-                        return i * INT_BITS + j;
-                    }
-                }
-            }
-        }
-        return -1; // No zero bit found
-    }
+//     inline KVPTR read_KV(int pos) { return kv_pairs[pos]; }
+    bool insertKV(KVPTR kv);
 
+    inline int find_first_zero_bit() { // return the offset of the first bit=0
+        for (int i = 0; i < SIZE; i++) {
+            int pos = __builtin_ffs(bitmap_[i]);
+            if (pos != 0) return i*INT_BITS + pos - 1;
 
-    int find_first_zero_SIMD() {
-        // Load a vector of all ones
-        __m256i ones = _mm256_set1_epi32(-1);
-
-        for (int i = 0; i <= MAX_BITS / (8 * sizeof(__m256i)); i++) {
-            // Load a vector of bitmap integers
-            __m256i mp = _mm256_loadu_si256((__m256i*)(bitmap + 8 * i));
-
-            // Compare the bitmap vector to the vector of ones
-            __m256i cmp = _mm256_cmpeq_epi32(mp, ones);
-
-            // Check if any element in the vector is zero
-            int mask = _mm256_movemask_ps((__m256)cmp);
-
-            if (mask != 0xFFFFFFFF) {
-                // Found a zero bit in the bitmap vector
-                int j = __builtin_ctz(~mask);
-                return i * 8 * sizeof(__m256i) + j;
-            }
         }
         return -1; // No zero bit found
     }
 
 
 private:
-    int bitmap[MAX_BITS/INT_BITS + (MAX_BITS%INT_BITS != 0)] __attribute__((aligned(32))) = {0}; // size of already occupied slot // can be changed to a bitmap
+    // MAX_BITS is a templete argument
+    uint32_t bitmap_[SIZE * 8 / INT_BITS + (SIZE * 8 % INT_BITS != 0)] __attribute__((aligned(32))) = {0}; // size of already occupied slot // can be changed to a bitmap
+    
+    // KVPTR kv_pairs[SIZE]; //TODO: change to key array + pointer array
+    key_type keys_[SIZE];
+    uint64_t* value_ptrs_[SIZE];
 };
 
+template<size_t SIZE>
+bool Bucket<SIZE>::insertKV(KVPTR kv) {
+    int pos = find_first_zero_bit();
+    if (pos == -1) return false; // return false if the Bucket is already full
+    // int pos = find_first_zero_SIMD();
+    keys_[pos] = kv.key;
+    value_ptrs_[pos] = kv.ptr;
+    // kv_pairs[pos] = kv;
+    set_bit(pos);
+    if (kv.key < pivot) { pivot = kv.key; }
+    return true;
+}
 
-class Bucket: BucketBase
-{
-public:
-    inline KVPTR read_KV(int pos) { return kv_pairs[pos]; }
-
-    bool insertKV(KVPTR kv) {
-        int pos = find_first_zero();
-        // int pos = find_first_zero_SIMD();
-        kv_pairs[pos] = kv;
-        set_bit(pos);
-        if (kv.key < pivot) { pivot = kv.key; }
-    }
-private:
-    KVPTR kv_pairs[BUCKET_SIZE]; //TODO: change to key array + pointer array
-};
-
-class SBucket: BucketBase
-{
-public:
-    bool insertKV(KVPTR kv) {
-        int pos = find_first_zero();
-        // int pos = find_first_zero_SIMD();
-        kv_pairs[pos] = kv;
-        set_bit(pos);
-        if (kv.key < pivot) { pivot = kv.key; }
-    }
-
-private:
-    KVPTR kv_pairs[SBUCKET_SIZE]; //TODO: change to key array + pointer array
-};
 
 #endif
