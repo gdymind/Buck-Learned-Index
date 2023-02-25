@@ -32,6 +32,8 @@ struct KVPTR
 {
     key_type key;
     uint64_t* ptr; // 8 bytes; if it points to bucket/segment/segment group, cast it to correct type
+
+    KVPTR(key_type k, uint64_t* p): key(k), ptr(p) {}
 };
 
 
@@ -43,6 +45,33 @@ public:
     // key_type base; // key compression
 
     Bucket() { }
+
+    value_type lookup(key_type key, value_type &value) {
+        value_type v;
+        return v;
+    }
+
+    bool insert(KVPTR kv);
+
+    inline int find_first_zero_bit() { // return the offset of the first bit=0
+        for (int i = 0; i < SIZE; i++) {
+            int pos = __builtin_ffs(bitmap_[i]);
+            if (pos != 0) return i*INT_BITS + pos - 1;
+
+        }
+        return -1; // No zero bit found
+    }
+
+
+private:
+    // MAX_BITS is a templete argument
+    uint32_t bitmap_[SIZE * 8 / INT_BITS + (SIZE * 8 % INT_BITS != 0)] __attribute__((aligned(32))) = {0}; // size of already occupied slot // can be changed to a bitmap
+    
+    // KVPTR kv_pairs[SIZE]; //TODO: change to key array + pointer array
+    key_type keys_[SIZE];
+    uint64_t* value_ptrs_[SIZE];
+
+    inline KVPTR read_KV(int pos) { return KVPTR(keys_[pos], value_ptrs_[pos]); }
 
     inline void set_bit(int pos) {
         assert(pos >= 0 && pos < SIZE);
@@ -64,31 +93,10 @@ public:
         int bit_pos = pos - (bitmap_pos << 5);
         return (bitmap_[bitmap_pos]  & (1U << bit_pos)) != 0;
     }
-
-//     inline KVPTR read_KV(int pos) { return kv_pairs[pos]; }
-    bool insertKV(KVPTR kv);
-
-    inline int find_first_zero_bit() { // return the offset of the first bit=0
-        for (int i = 0; i < SIZE; i++) {
-            int pos = __builtin_ffs(bitmap_[i]);
-            if (pos != 0) return i*INT_BITS + pos - 1;
-
-        }
-        return -1; // No zero bit found
-    }
-
-
-private:
-    // MAX_BITS is a templete argument
-    uint32_t bitmap_[SIZE * 8 / INT_BITS + (SIZE * 8 % INT_BITS != 0)] __attribute__((aligned(32))) = {0}; // size of already occupied slot // can be changed to a bitmap
-    
-    // KVPTR kv_pairs[SIZE]; //TODO: change to key array + pointer array
-    key_type keys_[SIZE];
-    uint64_t* value_ptrs_[SIZE];
 };
 
 template<size_t SIZE>
-bool Bucket<SIZE>::insertKV(KVPTR kv) {
+bool Bucket<SIZE>::insert(KVPTR kv) {
     int pos = find_first_zero_bit();
     if (pos == -1) return false; // return false if the Bucket is already full
     // int pos = find_first_zero_SIMD();

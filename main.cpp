@@ -2,6 +2,7 @@
 
 #include "src/global.h"
 #include "src/segment.h"
+#include "include/buck_index.h"
 
 int main(int argc, char** argv) {
     string cfgfile = argv[1];
