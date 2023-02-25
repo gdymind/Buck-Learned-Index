@@ -22,6 +22,8 @@ using namespace std;
 #define PRIMER_CAPACITY 736
 
 extern string g_data_path;
+extern bool g_bulk_load;
+extern float g_read_ratio;
 
 int Parse(string cfgfile);
 

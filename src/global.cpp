@@ -2,6 +2,8 @@
 
 
 string g_data_path; 
+bool g_bulk_load = false;
+float g_read_ratio = 0.5;
 
 int Parse(string cfgfile){
     ifstream filestream(cfgfile, ios_base::in);
@@ -24,9 +26,16 @@ int Parse(string cfgfile){
             case hash_("g_data_path"):
                 g_data_path = value;
                 break;
+            case hash_("g_bulk_load"):
+                g_bulk_load = stoi(value);
+                break;
+            case hash_("g_read_ratio"):
+                g_read_ratio = stof(value);
+                break;
+            
             
             default:
-                cout<<"unknown cfg: "<<key<<endl;
+                cout << "unknown cfg: " << key << endl;
                 return -1;
         }
     }
