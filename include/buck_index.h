@@ -22,8 +22,8 @@ public:
     }
 private:
     template<size_t SEG_SIZE>
-    bool adjust_segment(Segment<SEG_SIZE> *old_seg, vector<Segment<SEG_SIZE> *> &new_segs) { //scale, run segmentation, and retrain
-                                                                                             //TODO: how to seg new_segs with different SEG_SIZE?
+    bool adjust_segment(Segment<SEG_SIZE> *old_seg) { //scale, run segmentation, and retrain the old_seg, and possibly split into multiple new Segment
+    
         return true;
     }
 };
