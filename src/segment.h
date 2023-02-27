@@ -33,67 +33,60 @@ public:
 };
 
 
-template<size_t SEG_SIZE>
+template<size_t SBUCKET_SIZE>
 class Segment {
 public:
+    bool is_leaf; // true -> segment; false -> segment group
     size_t num_bucket; // total num of buckets
+
+    // Segment* parent = nullptr; // the parent Segment node, which enables bottom-up tranversal
     key_type pivot; // smallest element
     // key_type base; // key compression
 
-    Bucket<SEG_SIZE>* bucket_list;
-    key_type* child_pivots;
-    Segment* parent = nullptr;
-
-    unsigned int predict(key_type key) {
-        unsigned int buckID = (unsigned int)(model_.predict(key) / BUCKET_SIZE + 0.5);
-        buckID = std::min(buckID, (unsigned int)(BUCKET_SIZE-1));
-        return buckID;
-    }
+    Bucket<SBUCKET_SIZE>* sbucket_list; // a list of S-Buckets
 
 
-    value_type lookup();
-    bool insert();
-    bool add_bucket();
-    bool bucket_rebalance(unsigned int buckID0);
+    uint64_t* lookup(key_type key); //return the child pointer
+    bool insert(KVPTR kvptr); // insert an entry to the target S-Bucket; If the target S-Bucket is full, reblance the bucket with its right neighbor; If bucket_rebalance does not work, insert() return false
 
+    
 private:
     Model model_;
 
+    void train_model();
+
+    inline unsigned int predict_buck(key_type key) { // get the predicted S-Bucket ID based on the model computing
+        unsigned int buckID = (unsigned int)(model_.predict(key) / SBUCKET_SIZE + 0.5); //TODO: if SBUCKET_SIZE is the power of 2, change division to right shift
+        buckID = std::min(buckID, (unsigned int)(num_bucket-1));
+        return buckID;
+    }
+
+    inline unsigned int locate_buck(key_type key) { // precition may be incorrect, this function is to find the exact bucket whose range covers the key based on prediction
+        // Step1: call predict_buck to get an intial position
+        // Step2: search neighbors to find the exact match
+    }
+
+    bool bucket_rebalance(unsigned int buckID0);
+
 };
 
-template<size_t SEG_SIZE>
-bool Segment<SEG_SIZE>::add_bucket() {
-    return true;
-}
 
-template<size_t SEG_SIZE>
-bool Segment<SEG_SIZE>::bucket_rebalance(unsigned int buckID0) {
+template<size_t BUCKET_SIZE>
+bool Segment<BUCKET_SIZE>::bucket_rebalance(unsigned int buckID0) {
     unsigned int buckID1 = buckID0 +1;
+    //TODO
     return true;
 }
 
-template<size_t SEG_SIZE>
-value_type Segment<SEG_SIZE>::lookup() {
+template<size_t BUCKET_SIZE>
+uint64_t* Segment<BUCKET_SIZE>::lookup(key_type key) {
     value_type ret;
     return ret;
 }
 
-template<size_t SEG_SIZE>
-bool Segment<SEG_SIZE>::insert() {
+template<size_t BUCKET_SIZE>
+bool Segment<BUCKET_SIZE>::insert(KVPTR kvptr) {
     return true;
 }
-
-// template<size_t SEG_GROUP_SIZE>
-// struct SegmentGroup
-// {
-//     Model m;
-//     size_t num_bucket; // total num of buckets
-//     size_t bucket_size; // size of each bucket
-//     key_type pivot; // smallest element
-//     // key_type base; // key compression
-
-//     key_type* child_pivots;
-//     Bucket<SEG_GROUP_SIZE>* bucket_list;
-// };
 
 #endif
