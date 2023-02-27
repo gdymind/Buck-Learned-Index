@@ -53,7 +53,7 @@ public:
     uint64_t* lookup(key_type key);
 
     // The return value indicate whether insert is successful.
-    bool insert(KVPTR kv);
+    bool insert(KVPTR kvptr);
 
 
 private:
@@ -89,7 +89,7 @@ private:
         bitmap_[bitmap_pos] &= ~(1U << bit_pos);
     } 
 
-    inline bool read(int pos) {
+    inline bool read_bit(int pos) {
         assert(pos >= 0 && pos < SIZE);
         int bitmap_pos = pos >> 5;
         int bit_pos = pos - (bitmap_pos << 5);
@@ -105,15 +105,15 @@ uint64_t* Bucket<SIZE>::lookup(key_type key) {
 }
 
 template<size_t SIZE>
-bool Bucket<SIZE>::insert(KVPTR kv) {
+bool Bucket<SIZE>::insert(KVPTR kvptr) {
     int pos = find_first_zero_bit();
     if (pos == -1) return false; // return false if the Bucket is already full
     // int pos = find_first_zero_SIMD();
-    keys_[pos] = kv.key;
-    value_ptrs_[pos] = kv.ptr;
+    keys_[pos] = kvptr.key;
+    value_ptrs_[pos] = kvptr.ptr;
     // kv_pairs[pos] = kv;
     set_bit(pos);
-    if (kv.key < pivot) { pivot = kv.key; }
+    if (kvptr.key < pivot) { pivot = kvptr.key; }
     return true;
 }
 
