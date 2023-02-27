@@ -32,13 +32,14 @@ struct KVPTR
 {
     key_type key;
     uint64_t* ptr; // 8 bytes; if it points to bucket/segment/segment group, cast it to correct type
+                   // In D-bucket, use the ptr field for the actual value(i.e., casting uint64_t* to value type)
 
     KVPTR(key_type k, uint64_t* p): key(k), ptr(p) {}
 };
 
 
 template<size_t SIZE>
-class Bucket {
+class Bucket { // can be an S-Bucket or a D-Bucket. S-Bucket and D-Bucket and different size
 public:
     key_type pivot = UNDEFINED_KEY; // smallest element
     // int cnt = 0; // the number of valid kvs in the bucket
@@ -46,12 +47,24 @@ public:
 
     Bucket() { }
 
-    value_type lookup(key_type key, value_type &value) {
-        value_type v;
-        return v;
-    }
+    // D-Bucket lookup returns a value
+    // S-Bucket lookup returns a pointer
+    // If no matches -> return nullptr;
+    uint64_t* lookup(key_type key);
 
+    // The return value indicate whether insert is successful.
     bool insert(KVPTR kv);
+
+
+private:
+    // MAX_BITS is a templete argument
+    uint32_t bitmap_[SIZE * 8 / INT_BITS + (SIZE * 8 % INT_BITS != 0)] __attribute__((aligned(32))) = {0}; // size of already occupied slot // can be changed to a bitmap
+    
+    // KVPTR kv_pairs[SIZE]; //TODO: change to key array + pointer array
+    key_type keys_[SIZE];
+    uint64_t* value_ptrs_[SIZE]; // the pointers are actual
+
+    inline KVPTR read_KV(int pos) { return KVPTR(keys_[pos], value_ptrs_[pos]); }
 
     inline int find_first_zero_bit() { // return the offset of the first bit=0
         for (int i = 0; i < SIZE; i++) {
@@ -61,17 +74,6 @@ public:
         }
         return -1; // No zero bit found
     }
-
-
-private:
-    // MAX_BITS is a templete argument
-    uint32_t bitmap_[SIZE * 8 / INT_BITS + (SIZE * 8 % INT_BITS != 0)] __attribute__((aligned(32))) = {0}; // size of already occupied slot // can be changed to a bitmap
-    
-    // KVPTR kv_pairs[SIZE]; //TODO: change to key array + pointer array
-    key_type keys_[SIZE];
-    uint64_t* value_ptrs_[SIZE];
-
-    inline KVPTR read_KV(int pos) { return KVPTR(keys_[pos], value_ptrs_[pos]); }
 
     inline void set_bit(int pos) {
         assert(pos >= 0 && pos < SIZE);
@@ -94,6 +96,13 @@ private:
         return (bitmap_[bitmap_pos]  & (1U << bit_pos)) != 0;
     }
 };
+
+template<size_t SIZE>
+uint64_t* Bucket<SIZE>::lookup(key_type key) {
+    uint64_t* vptr = nullptr;
+    //TODO
+    return vptr;
+}
 
 template<size_t SIZE>
 bool Bucket<SIZE>::insert(KVPTR kv) {
