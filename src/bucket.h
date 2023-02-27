@@ -2,13 +2,11 @@
 #define _NODE_TYPE_H_
 // Minimum requirement:
 
-// node type: segment group, segment, bucket
 
-// segment group: model, metadata, list of {bucket}
 
 // segment: model, metadata, list of {bucket}
 
-// bucket: metadata, list of {key,ptr}
+// bucket: metadata, list of {key_,ptr}
 
 #include<cstdint>
 #include<cstddef>
@@ -16,6 +14,7 @@
 #include<climits>
 #include <immintrin.h> //SIMD
 
+// Key type always use template class T; value type
 typedef unsigned long long key_type;
 typedef unsigned long long value_type;
 
@@ -28,21 +27,22 @@ const unsigned int INT_BITS = sizeof(unsigned int) * 8;
 const key_type UNDEFINED_KEY = ULLONG_MAX;
 
 
+template<class T>
 struct KVPTR
 {
-    key_type key;
-    uint64_t* ptr; // 8 bytes; if it points to bucket/segment/segment group, cast it to correct type
-                   // In D-bucket, use the ptr field for the actual value(i.e., casting uint64_t* to value type)
+    T key_;
+    uint64_t* ptr_; // 8 bytes; 
+                    // In S-bucke, it points to bucket/segment/segment group as a normal pointer
+                    // In D-bucket, it is used for the actual value(i.e., casting uint64_t* to value type)
 
-    KVPTR(key_type k, uint64_t* p): key(k), ptr(p) {}
+    KVPTR(T k, uint64_t* p): key_(k), ptr_(p) {}
 };
 
 
-template<size_t SIZE>
+template<class T, size_t SIZE, T MAX_KEY>
 class Bucket { // can be an S-Bucket or a D-Bucket. S-Bucket and D-Bucket and different size
 public:
-    key_type pivot = UNDEFINED_KEY; // smallest element
-    // int cnt = 0; // the number of valid kvs in the bucket
+    T pivot = MAX_KEY; // smallest element
     // key_type base; // key compression
 
     Bucket() { }
@@ -50,22 +50,23 @@ public:
     // D-Bucket lookup returns a value
     // S-Bucket lookup returns a pointer
     // If no matches -> return nullptr;
-    uint64_t* lookup(key_type key);
+    uint64_t* lookup(T key);
 
     // The return value indicate whether insert is successful.
-    bool insert(KVPTR kvptr);
+    bool insert(KVPTR<T> kvptr);
 
 
 private:
     // MAX_BITS is a templete argument
-    uint32_t bitmap_[SIZE * 8 / INT_BITS + (SIZE * 8 % INT_BITS != 0)] __attribute__((aligned(32))) = {0}; // size of already occupied slot // can be changed to a bitmap
+    uint32_t bitmap_[SIZE * 8 / INT_BITS + (SIZE * 8 % INT_BITS != 0)] __attribute__((aligned(32))) = {0}; // indicate whether the entries in keys_ and value_ptrs_ are valid
     
     // KVPTR kv_pairs[SIZE]; //TODO: change to key array + pointer array
-    key_type keys_[SIZE];
+    T keys_[SIZE];
     uint64_t* value_ptrs_[SIZE]; // the pointers are actual
 
-    inline KVPTR read_KV(int pos) { return KVPTR(keys_[pos], value_ptrs_[pos]); }
+    inline KVPTR<T> read_KV(int pos) { return KVPTR<T>(keys_[pos], value_ptrs_[pos]); }
 
+    //bitmap operations
     inline int find_first_zero_bit() { // return the offset of the first bit=0
         for (int i = 0; i < SIZE; i++) {
             int pos = __builtin_ffs(bitmap_[i]);
@@ -97,23 +98,23 @@ private:
     }
 };
 
-template<size_t SIZE>
-uint64_t* Bucket<SIZE>::lookup(key_type key) {
+template<class T, size_t SIZE, T MAX_KEY>
+uint64_t* Bucket<T, SIZE, MAX_KEY>::lookup(T key_) {
     uint64_t* vptr = nullptr;
     //TODO
     return vptr;
 }
 
-template<size_t SIZE>
-bool Bucket<SIZE>::insert(KVPTR kvptr) {
+template<class T, size_t SIZE, T MAX_KEY>
+bool Bucket<T, SIZE, MAX_KEY>::insert(KVPTR<T> kvptr) {
     int pos = find_first_zero_bit();
     if (pos == -1) return false; // return false if the Bucket is already full
     // int pos = find_first_zero_SIMD();
-    keys_[pos] = kvptr.key;
-    value_ptrs_[pos] = kvptr.ptr;
+    keys_[pos] = kvptr.key_;
+    value_ptrs_[pos] = kvptr.ptr_;
     // kv_pairs[pos] = kv;
     set_bit(pos);
-    if (kvptr.key < pivot) { pivot = kvptr.key; }
+    if (kvptr.key_ < pivot) { pivot = kvptr.key_; }
     return true;
 }
 
