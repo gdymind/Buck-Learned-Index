@@ -27,19 +27,19 @@ const unsigned int INT_BITS = sizeof(unsigned int) * 8;
 const key_type UNDEFINED_KEY = ULLONG_MAX;
 
 
-template<class T>
-struct KVPTR
+template<class T, class V>
+struct KeyValue
 {
     T key_;
-    uint64_t* ptr_; // 8 bytes; 
-                    // In S-bucke, it points to bucket/segment/segment group as a normal pointer
+    V value_; // 8 bytes; 
+                    // In S-bucket, it points to bucket/segment/segment group as a normal pointer
                     // In D-bucket, it is used for the actual value(i.e., casting uint64_t* to value type)
 
-    KVPTR(T k, uint64_t* p): key_(k), ptr_(p) {}
+    KeyValue(T k, V v): key_(k), value_(v) {}
 };
 
 
-template<class T, size_t SIZE, T MAX_KEY>
+template<class T, class V, size_t SIZE, T MAX_KEY>
 class Bucket { // can be an S-Bucket or a D-Bucket. S-Bucket and D-Bucket and different size
 public:
     T pivot = MAX_KEY; // smallest element
@@ -53,18 +53,18 @@ public:
     uint64_t* lookup(T key);
 
     // The return value indicate whether insert is successful.
-    bool insert(KVPTR<T> kvptr);
+    bool insert(KeyValue<T, V> kvptr);
 
 
 private:
     // MAX_BITS is a templete argument
     uint32_t bitmap_[SIZE * 8 / INT_BITS + (SIZE * 8 % INT_BITS != 0)] __attribute__((aligned(32))) = {0}; // indicate whether the entries in keys_ and value_ptrs_ are valid
     
-    // KVPTR kv_pairs[SIZE]; //TODO: change to key array + pointer array
+    // KeyValue kv_pairs[SIZE]; //TODO: change to key array + pointer array
     T keys_[SIZE];
     uint64_t* value_ptrs_[SIZE]; // the pointers are actual
 
-    inline KVPTR<T> read_KV(int pos) { return KVPTR<T>(keys_[pos], value_ptrs_[pos]); }
+    inline KeyValue<T, V> read_KV(int pos) { return KeyValue<T, V>(keys_[pos], value_ptrs_[pos]); }
 
     //bitmap operations
     inline int find_first_zero_bit() { // return the offset of the first bit=0
@@ -98,20 +98,20 @@ private:
     }
 };
 
-template<class T, size_t SIZE, T MAX_KEY>
-uint64_t* Bucket<T, SIZE, MAX_KEY>::lookup(T key_) {
+template<class T, class V, size_t SIZE, T MAX_KEY>
+uint64_t* Bucket<T, V, SIZE, MAX_KEY>::lookup(T key_) {
     uint64_t* vptr = nullptr;
     //TODO
     return vptr;
 }
 
-template<class T, size_t SIZE, T MAX_KEY>
-bool Bucket<T, SIZE, MAX_KEY>::insert(KVPTR<T> kvptr) {
+template<class T, class V, size_t SIZE, T MAX_KEY>
+bool Bucket<T, V, SIZE, MAX_KEY>::insert(KeyValue<T, V> kvptr) {
     int pos = find_first_zero_bit();
     if (pos == -1) return false; // return false if the Bucket is already full
     // int pos = find_first_zero_SIMD();
     keys_[pos] = kvptr.key_;
-    value_ptrs_[pos] = kvptr.ptr_;
+    value_ptrs_[pos] = kvptr.value_;
     // kv_pairs[pos] = kv;
     set_bit(pos);
     if (kvptr.key_ < pivot) { pivot = kvptr.key_; }

@@ -11,29 +11,29 @@
 template<class T>
 class Model {
 public:
-    double a = 0.0;
-    double b = 0.0;
+    double a_ = 0.0;
+    double b_ = 0.0;
     
     Model() = default;
-    Model(double a, double b) : a(a), b(b) {}
-    Model(const Model& other) : a(other.a), b(other.b) {}
+    Model(double a, double b) : a_(a), b_(b) {}
+    Model(const Model& other) : a_(other.a), b_(other.b) {}
 
     void expand(double expansion_factor) {
         a *= expansion_factor;
         b *= expansion_factor;
     }
     
-    inline int predict(T key) const {
-        return static_cast<int>(a * static_cast<double>(key) + b);
+    inline unsigned int predict(T key) const {
+        return static_cast<int>(a_ * static_cast<double>(key) + b_);
     }
 
     inline double predict_double(T key) const {
-        return a * static_cast<double>(key) + b;
+        return a_ * static_cast<double>(key) + b_;
     }
 };
 
 
-template<class T, size_t SBUCKET_SIZE, T MAX_KEY>
+template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
 class Segment {
 public:
     bool is_leaf_; // true -> segment; false -> segment group
@@ -43,11 +43,11 @@ public:
     T pivot_; // smallest element
     // T base; // key compression
 
-    Bucket<T, SBUCKET_SIZE, MAX_KEY>* sbucket_list_; // a list of S-Buckets
+    Bucket<T, V, SBUCKET_SIZE, MAX_KEY>* sbucket_list_; // a list of S-Buckets
 
 
     uint64_t* lookup(T key); //return the child pointer
-    bool insert(KVPTR<T> kvptr); // insert an entry to the target S-Bucket; If the target S-Bucket is full, reblance the bucket with its right neighbor; If bucket_rebalance does not work, insert() return false
+    bool insert(KeyValue<T, V> kvptr); // insert an entry to the target S-Bucket; If the target S-Bucket is full, reblance the bucket with its right neighbor; If bucket_rebalance does not work, insert() return false
 
     
 private:
@@ -71,21 +71,21 @@ private:
 };
 
 
-template<class T, size_t SBUCKET_SIZE, T MAX_KEY>
-bool Segment<T, SBUCKET_SIZE, MAX_KEY>::bucket_rebalance(unsigned int buckID0) {
+template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
+bool Segment<T, V, SBUCKET_SIZE, MAX_KEY>::bucket_rebalance(unsigned int buckID0) {
     unsigned int buckID1 = buckID0 +1;
     //TODO
     return true;
 }
 
-template<class T, size_t SBUCKET_SIZE, T MAX_KEY>
-uint64_t* Segment<T, SBUCKET_SIZE, MAX_KEY>::lookup(T key) {
+template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
+uint64_t* Segment<T, V, SBUCKET_SIZE, MAX_KEY>::lookup(T key) {
     value_type ret;
     return ret;
 }
 
-template<class T, size_t SBUCKET_SIZE, T MAX_KEY>
-bool Segment<T, SBUCKET_SIZE, MAX_KEY>::insert(KVPTR<T> kvptr) {
+template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
+bool Segment<T, V, SBUCKET_SIZE, MAX_KEY>::insert(KeyValue<T, V> kvptr) {
     return true;
 }
 
