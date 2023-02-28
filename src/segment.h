@@ -1,6 +1,5 @@
 
-#ifndef __NODE_LAYOUT_H_
-#define __NODE_LAYOUT_H_
+#pragma once
 
 #include<cmath>
 #include<cstdlib>
@@ -8,92 +7,86 @@
 
 #include "bucket.h"
 
-
+namespace buckindex {
+template<class T>
 class Model {
 public:
-    double a = 0.0;
-    double b = 0.0;
+    double a_ = 0.0;
+    double b_ = 0.0;
     
     Model() = default;
-    Model(double a, double b) : a(a), b(b) {}
-    Model(const Model& other) : a(other.a), b(other.b) {}
+    Model(double a, double b) : a_(a), b_(b) {}
+    Model(const Model& other) : a_(other.a), b_(other.b) {}
 
     void expand(double expansion_factor) {
-        a *= expansion_factor;
-        b *= expansion_factor;
+        a_ *= expansion_factor;
+        b_ *= expansion_factor;
     }
     
-    inline int predict(key_type key) const {
-        return static_cast<int>(a * static_cast<double>(key) + b);
+    inline unsigned int predict(T key) const {
+        return static_cast<int>(a_ * static_cast<double>(key) + b_);
     }
 
-    inline double predict_double(key_type key) const {
-        return a * static_cast<double>(key) + b;
+    inline double predict_double(T key) const {
+        return a_ * static_cast<double>(key) + b_;
     }
 };
 
 
-template<size_t SEG_SIZE>
+template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
 class Segment {
 public:
-    size_t num_bucket; // total num of buckets
-    key_type pivot; // smallest element
-    // key_type base; // key compression
+    bool is_leaf_; // true -> segment; false -> segment group
+    size_t num_bucket_; // total num of buckets
 
-    Bucket<SEG_SIZE>* bucket_list;
-    key_type* child_pivots;
-    Segment* parent = nullptr;
+    Segment* parent_ = nullptr; // the parent Segment node, which enables bottom-up tranversal
+    T pivot_; // smallest element
+    // T base; // key compression
 
-    unsigned int predict(key_type key) {
-        unsigned int buckID = (unsigned int)(model_.predict(key) / BUCKET_SIZE + 0.5);
-        buckID = std::min(buckID, (unsigned int)(BUCKET_SIZE-1));
+    Bucket<T, V, SBUCKET_SIZE, MAX_KEY>* sbucket_list_; // a list of S-Buckets
+
+
+    V lookup(T key); //return the child pointer
+    bool insert(KeyValue<T, V> kvptr); // insert an entry to the target S-Bucket; If the target S-Bucket is full, reblance the bucket with its right neighbor; If bucket_rebalance does not work, insert() return false
+
+    
+private:
+    Model<T> model_;
+
+    void train_model();
+
+    inline unsigned int predict_buck(T key) { // get the predicted S-Bucket ID based on the model computing
+        unsigned int buckID = (unsigned int)(model_.predict(key) / SBUCKET_SIZE + 0.5); //TODO: if SBUCKET_SIZE is the power of 2, change division to right shift
+        buckID = std::min(buckID, (unsigned int)(num_bucket_-1));
         return buckID;
     }
 
+    inline unsigned int locate_buck(T key) { // precition may be incorrect, this function is to find the exact bucket whose range covers the key based on prediction
+        // Step1: call predict_buck to get an intial position
+        // Step2: search neighbors to find the exact match
+    }
 
-    value_type lookup();
-    bool insert();
-    bool add_bucket();
     bool bucket_rebalance(unsigned int buckID0);
-
-private:
-    Model model_;
 
 };
 
-template<size_t SEG_SIZE>
-bool Segment<SEG_SIZE>::add_bucket() {
-    return true;
-}
 
-template<size_t SEG_SIZE>
-bool Segment<SEG_SIZE>::bucket_rebalance(unsigned int buckID0) {
+template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
+bool Segment<T, V, SBUCKET_SIZE, MAX_KEY>::bucket_rebalance(unsigned int buckID0) {
     unsigned int buckID1 = buckID0 +1;
+    //TODO
     return true;
 }
 
-template<size_t SEG_SIZE>
-value_type Segment<SEG_SIZE>::lookup() {
-    value_type ret;
+template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
+V Segment<T, V, SBUCKET_SIZE, MAX_KEY>::lookup(T key) {
+    V ret;
     return ret;
 }
 
-template<size_t SEG_SIZE>
-bool Segment<SEG_SIZE>::insert() {
+template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
+bool Segment<T, V, SBUCKET_SIZE, MAX_KEY>::insert(KeyValue<T, V> kvptr) {
     return true;
 }
 
-// template<size_t SEG_GROUP_SIZE>
-// struct SegmentGroup
-// {
-//     Model m;
-//     size_t num_bucket; // total num of buckets
-//     size_t bucket_size; // size of each bucket
-//     key_type pivot; // smallest element
-//     // key_type base; // key compression
-
-//     key_type* child_pivots;
-//     Bucket<SEG_GROUP_SIZE>* bucket_list;
-// };
-
-#endif
+} // end namespace buckindex
