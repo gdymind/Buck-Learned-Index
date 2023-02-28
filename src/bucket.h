@@ -1,12 +1,4 @@
-#ifndef _NODE_TYPE_H_
-#define _NODE_TYPE_H_
-// Minimum requirement:
-
-
-
-// segment: model, metadata, list of {bucket}
-
-// bucket: metadata, list of {key_,ptr}
+#pragma once
 
 #include<cstdint>
 #include<cstddef>
@@ -14,17 +6,16 @@
 #include<climits>
 #include <immintrin.h> //SIMD
 
+
+namespace buckindex {
+
 // Key type always use template class T; value type
-typedef unsigned long long key_type;
-typedef unsigned long long value_type;
+
 
 const unsigned int BUCKET_SIZE = 128;
 const unsigned int SBUCKET_SIZE = 8;
 
-const unsigned int MAX_BITS = 10000;
 const unsigned int INT_BITS = sizeof(unsigned int) * 8;
-
-const key_type UNDEFINED_KEY = ULLONG_MAX;
 
 
 template<class T, class V>
@@ -32,8 +23,8 @@ struct KeyValue
 {
     T key_;
     V value_; // 8 bytes; 
-                    // In S-bucket, it points to bucket/segment/segment group as a normal pointer
-                    // In D-bucket, it is used for the actual value(i.e., casting uint64_t* to value type)
+                    // In S-bucket, it is a pointer to bucket/segment/segment group(e.g., we can recast it to uint64_t*)
+                    // In D-bucket, it is the actual value
 
     KeyValue(T k, V v): key_(k), value_(v) {}
 };
@@ -50,19 +41,18 @@ public:
     // D-Bucket lookup returns a value
     // S-Bucket lookup returns a pointer
     // If no matches -> return nullptr;
-    uint64_t* lookup(T key);
+    V lookup(T key);
 
     // The return value indicate whether insert is successful.
     bool insert(KeyValue<T, V> kvptr);
 
 
 private:
-    // MAX_BITS is a templete argument
     uint32_t bitmap_[SIZE * 8 / INT_BITS + (SIZE * 8 % INT_BITS != 0)] __attribute__((aligned(32))) = {0}; // indicate whether the entries in keys_ and value_ptrs_ are valid
     
     // KeyValue kv_pairs[SIZE]; //TODO: change to key array + pointer array
     T keys_[SIZE];
-    uint64_t* value_ptrs_[SIZE]; // the pointers are actual
+    V value_ptrs_[SIZE]; // the pointers are actual
 
     inline KeyValue<T, V> read_KV(int pos) { return KeyValue<T, V>(keys_[pos], value_ptrs_[pos]); }
 
@@ -99,8 +89,8 @@ private:
 };
 
 template<class T, class V, size_t SIZE, T MAX_KEY>
-uint64_t* Bucket<T, V, SIZE, MAX_KEY>::lookup(T key_) {
-    uint64_t* vptr = nullptr;
+V Bucket<T, V, SIZE, MAX_KEY>::lookup(T key_) {
+    V vptr = nullptr;
     //TODO
     return vptr;
 }
@@ -118,5 +108,4 @@ bool Bucket<T, V, SIZE, MAX_KEY>::insert(KeyValue<T, V> kvptr) {
     return true;
 }
 
-
-#endif
+} // end namespace buckindex
