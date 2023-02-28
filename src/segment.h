@@ -1,6 +1,5 @@
 
-#ifndef __NODE_LAYOUT_H_
-#define __NODE_LAYOUT_H_
+#pragma once
 
 #include<cmath>
 #include<cstdlib>
@@ -8,6 +7,7 @@
 
 #include "bucket.h"
 
+namespace buckindex {
 template<class T>
 class Model {
 public:
@@ -19,8 +19,8 @@ public:
     Model(const Model& other) : a_(other.a), b_(other.b) {}
 
     void expand(double expansion_factor) {
-        a *= expansion_factor;
-        b *= expansion_factor;
+        a_ *= expansion_factor;
+        b_ *= expansion_factor;
     }
     
     inline unsigned int predict(T key) const {
@@ -46,7 +46,7 @@ public:
     Bucket<T, V, SBUCKET_SIZE, MAX_KEY>* sbucket_list_; // a list of S-Buckets
 
 
-    uint64_t* lookup(T key); //return the child pointer
+    V lookup(T key); //return the child pointer
     bool insert(KeyValue<T, V> kvptr); // insert an entry to the target S-Bucket; If the target S-Bucket is full, reblance the bucket with its right neighbor; If bucket_rebalance does not work, insert() return false
 
     
@@ -79,8 +79,8 @@ bool Segment<T, V, SBUCKET_SIZE, MAX_KEY>::bucket_rebalance(unsigned int buckID0
 }
 
 template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
-uint64_t* Segment<T, V, SBUCKET_SIZE, MAX_KEY>::lookup(T key) {
-    value_type ret;
+V Segment<T, V, SBUCKET_SIZE, MAX_KEY>::lookup(T key) {
+    V ret;
     return ret;
 }
 
@@ -89,4 +89,4 @@ bool Segment<T, V, SBUCKET_SIZE, MAX_KEY>::insert(KeyValue<T, V> kvptr) {
     return true;
 }
 
-#endif
+} // end namespace buckindex

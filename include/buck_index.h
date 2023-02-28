@@ -1,16 +1,17 @@
-#ifndef __BUCK_INDEX_H_
-#define __BUCK_INDEX_H_
+#pragma once
 
 #include "../src/segment.h"
 #include "../src/global.h"
+
+namespace buckindex {
 
 template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
 class BuckIndex {
 public:
     BuckIndex() {}
 
-    value_type lookup(T key) {
-        value_type v;
+    V lookup(T key) {
+        V v;
         return v;
     }
 
@@ -28,4 +29,4 @@ private:
     }
 };
 
-#endif
+} // end namespace buckindex
