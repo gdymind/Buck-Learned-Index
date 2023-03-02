@@ -14,9 +14,7 @@ namespace buckindex {
 
 const unsigned int BUCKET_SIZE = 128;
 const unsigned int SBUCKET_SIZE = 8;
-
-const unsigned int INT_BITS = sizeof(unsigned int) * 8;
-
+const unsigned int BITS_UINT64_T = 64;
 
 template<class T, class V>
 struct KeyValue
@@ -29,14 +27,31 @@ struct KeyValue
     KeyValue(T k, V v): key_(k), value_(v) {}
 };
 
+template<class T, class V, size_t SIZE> 
+class KeyListValueList {
+public:
+    T keys_[SIZE];
+    V values_[SIZE];
 
-template<class T, class V, size_t SIZE, T MAX_KEY>
+    KeyValue<T,V> at(int pos) { return KeyValue<T,V>(keys_[pos], values_[pos]); }
+    void put(int pos, T key, V value) { keys_[pos] = key; values_[pos] = value; }
+};
+
+template<class T, class V, size_t SIZE>
+class KeyValueList {
+public:
+    KeyValue<T, V> kvs_[SIZE];
+
+    KeyValue<T, V> at(int pos) { return kvs_[pos]; }
+    void put(int pos, T key, V value) { kvs_[pos].key_ = key; kvs_[pos].value_ = value; }
+};
+
+
+template<class LISTTYPE, class T, class V, size_t SIZE>
 class Bucket { // can be an S-Bucket or a D-Bucket. S-Bucket and D-Bucket and different size
 public:
-    T pivot = MAX_KEY; // smallest element
-    // key_type base; // key compression
 
-    Bucket() { }
+    Bucket() { assert(SIZE % BITS_UINT64_T == 0); }
 
     // D-Bucket lookup returns a value
     // S-Bucket lookup returns a pointer
@@ -46,21 +61,18 @@ public:
     // The return value indicate whether insert is successful.
     bool insert(KeyValue<T, V> kvptr);
 
-
 private:
-    uint32_t bitmap_[SIZE * 8 / INT_BITS + (SIZE * 8 % INT_BITS != 0)] __attribute__((aligned(32))) = {0}; // indicate whether the entries in keys_ and value_ptrs_ are valid
+    uint64_t bitmap_[SIZE/BITS_UINT64_T];  //indicate whether the entries in the list_ are valid.
     
-    // KeyValue kv_pairs[SIZE]; //TODO: change to key array + pointer array
-    T keys_[SIZE];
-    V value_ptrs_[SIZE]; // the pointers are actual
+    LISTTYPE list_;
 
-    inline KeyValue<T, V> read_KV(int pos) { return KeyValue<T, V>(keys_[pos], value_ptrs_[pos]); }
+    inline KeyValue<T, V> at(int pos) { return list_.at(pos); }
 
     //bitmap operations
     inline int find_first_zero_bit() { // return the offset of the first bit=0
-        for (int i = 0; i < SIZE; i++) {
+        for (int i = 0; i < SIZE/BITS_UINT64_T; i++) {
             int pos = __builtin_ffs(bitmap_[i]);
-            if (pos != 0) return i*INT_BITS + pos - 1;
+            if (pos != 0) return i*BITS_UINT64_T + pos - 1;
 
         }
         return -1; // No zero bit found
@@ -88,23 +100,21 @@ private:
     }
 };
 
-template<class T, class V, size_t SIZE, T MAX_KEY>
-V Bucket<T, V, SIZE, MAX_KEY>::lookup(T key_) {
+template<class LISTTYPE, class T, class V, size_t SIZE>
+V Bucket<LISTTYPE, T, V, SIZE>::lookup(T key_) {
     V vptr = nullptr;
     //TODO
     return vptr;
 }
 
-template<class T, class V, size_t SIZE, T MAX_KEY>
-bool Bucket<T, V, SIZE, MAX_KEY>::insert(KeyValue<T, V> kvptr) {
+template<class LISTTYPE, class T, class V, size_t SIZE>
+bool Bucket<LISTTYPE, T, V, SIZE>::insert(KeyValue<T, V> kvptr) {
     int pos = find_first_zero_bit();
     if (pos == -1) return false; // return false if the Bucket is already full
-    // int pos = find_first_zero_SIMD();
-    keys_[pos] = kvptr.key_;
-    value_ptrs_[pos] = kvptr.value_;
-    // kv_pairs[pos] = kv;
+    list_.put(pos, kvptr.key_, kvptr.value_);
     set_bit(pos);
-    if (kvptr.key_ < pivot) { pivot = kvptr.key_; }
+
+    //if (kvptr.key_ < pivot) { pivot = kvptr.key_; }
     return true;
 }
 
