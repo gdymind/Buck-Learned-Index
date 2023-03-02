@@ -33,7 +33,7 @@ public:
 };
 
 
-template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
+template<class T, class V, size_t SBUCKET_SIZE>
 class Segment {
 public:
     bool is_leaf_; // true -> segment; false -> segment group
@@ -43,7 +43,7 @@ public:
     T pivot_; // smallest element
     // T base; // key compression
 
-    Bucket<T, V, SBUCKET_SIZE, MAX_KEY>* sbucket_list_; // a list of S-Buckets
+    Bucket<class KeyValueList<T,V,SBUCKET_SIZE>, T, V, SBUCKET_SIZE>* sbucket_list_; // a list of S-Buckets
 
 
     V lookup(T key); //return the child pointer
@@ -71,21 +71,21 @@ private:
 };
 
 
-template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
-bool Segment<T, V, SBUCKET_SIZE, MAX_KEY>::bucket_rebalance(unsigned int buckID0) {
+template<class T, class V, size_t SBUCKET_SIZE>
+bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID0) {
     unsigned int buckID1 = buckID0 +1;
     //TODO
     return true;
 }
 
-template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
-V Segment<T, V, SBUCKET_SIZE, MAX_KEY>::lookup(T key) {
+template<class T, class V, size_t SBUCKET_SIZE>
+V Segment<T, V, SBUCKET_SIZE>::lookup(T key) {
     V ret;
     return ret;
 }
 
-template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
-bool Segment<T, V, SBUCKET_SIZE, MAX_KEY>::insert(KeyValue<T, V> kvptr) {
+template<class T, class V, size_t SBUCKET_SIZE>
+bool Segment<T, V, SBUCKET_SIZE>::insert(KeyValue<T, V> kvptr) {
     return true;
 }
 
