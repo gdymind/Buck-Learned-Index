@@ -43,6 +43,7 @@
 #include <limits.h>
 
 #include "gtest/gtest.h"
+#include "../src/segment.h"
 namespace {
 
 // Returns n! (the factorial of n).  For negative n, n! is defined to be 1.
@@ -131,6 +132,15 @@ TEST(FactorialTest, Negative) {
 
 // Tests factorial of 0.
 TEST(FactorialTest, Zero) { EXPECT_EQ(1, Factorial(0)); }
+TEST(ModelTest, predict) {
+  buckindex::Model<int> m(1,1); // y=x+1
+  EXPECT_EQ(2, m.predict(1));
+  EXPECT_EQ(4, m.predict(3));
+
+  m.a_ = 1.5; // y = 1.5x+1
+  EXPECT_EQ(2, m.predict(1));
+  EXPECT_EQ(2.5, m.predict_double(1));
+}
 
 // Tests factorial of positive numbers.
 TEST(FactorialTest, Positive) {
