@@ -63,7 +63,8 @@ public:
 
 private:
     uint64_t bitmap_[SIZE/BITS_UINT64_T];  //indicate whether the entries in the list_ are valid.
-    
+   
+    T pivot_;
     LISTTYPE list_;
 
     inline KeyValue<T, V> at(int pos) { return list_.at(pos); }
