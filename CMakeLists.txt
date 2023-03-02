@@ -8,12 +8,10 @@ FetchContent_Declare(googletest
   GIT_TAG release-1.12.1)
 FetchContent_MakeAvailable(googletest)
 
-include_directories(./include)
-aux_source_directory(./src DIR_SRCS)
+include_directories(${CMAKE_SOURCE_DIR}/src)
+include_directories(${CMAKE_SOURCE_DIR}/include)
 
 add_subdirectory(unittests)
 
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -pthread")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -pthread")
-add_executable(BuckIndex main.cc src/global.cc src/bucket.h src/global.h src/segment.h include/buck_index.h)
+set(CMAKE_CXX_STANDARD 17)
+add_executable(BuckIndex main.cc src/global.cc)
