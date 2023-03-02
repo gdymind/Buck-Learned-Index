@@ -5,7 +5,7 @@
 
 namespace buckindex {
 
-template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
+template<class T, class V, size_t SBUCKET_SIZE>
 class BuckIndex {
 public:
     BuckIndex() {}
@@ -23,7 +23,7 @@ public:
         return true;
     }
 private:
-    bool adjust_segment(Segment<T, V, SBUCKET_SIZE, MAX_KEY> *old_seg) { //scale, run segmentation, and retrain the old_seg, and possibly split into multiple new Segment
+    bool adjust_segment(Segment<T, V, SBUCKET_SIZE> *old_seg) { //scale, run segmentation, and retrain the old_seg, and possibly split into multiple new Segment
     
         return true;
     }
