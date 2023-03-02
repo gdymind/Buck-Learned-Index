@@ -116,6 +116,7 @@ bool Bucket<LISTTYPE, T, V, SIZE>::insert(KeyValue<T, V> kvptr) {
     set_bit(pos);
 
     if (kvptr.key_ < pivot) { pivot = kvptr.key_; }
+
     return true;
 }
 
