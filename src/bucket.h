@@ -57,6 +57,7 @@ public:
     // S-Bucket lookup returns a pointer
     // If no matches -> return nullptr;
     V lookup(T key);
+    V lookup_SIMD(T key);
 
     // The return value indicate whether insert is successful.
     bool insert(KeyValue<T, V> kvptr);
@@ -81,32 +82,64 @@ private:
 
     inline void set_bit(int pos) {
         assert(pos >= 0 && pos < SIZE);
-        int bitmap_pos = pos >> 5;
-        int bit_pos = pos - (bitmap_pos << 5);
+        int bitmap_pos = pos / BITS_UINT64_T;
+        int bit_pos = pos - (bitmap_pos * BITS_UINT64_T);
         bitmap_[bitmap_pos] |= (1U << bit_pos);
     }
 
     inline void reset_bit(int pos) {
         assert(pos >= 0 && pos < SIZE);
-        int bitmap_pos = pos >> 5;
-        int bit_pos = pos - (bitmap_pos << 5);
+        int bitmap_pos = pos / BITS_UINT64_T;
+        int bit_pos = pos - (bitmap_pos * BITS_UINT64_T);
         bitmap_[bitmap_pos] &= ~(1U << bit_pos);
     } 
 
     inline bool read_bit(int pos) {
         assert(pos >= 0 && pos < SIZE);
-        int bitmap_pos = pos >> 5;
-        int bit_pos = pos - (bitmap_pos << 5);
+        int bitmap_pos = pos / BITS_UINT64_T;
+        int bit_pos = pos - (bitmap_pos * BITS_UINT64_T);
         return (bitmap_[bitmap_pos]  & (1U << bit_pos)) != 0;
     }
 };
 
 template<class LISTTYPE, class T, class V, size_t SIZE>
 V Bucket<LISTTYPE, T, V, SIZE>::lookup(T key_) {
-    V vptr = nullptr;
-    //TODO
-    return vptr;
+    //TODO: how to indicate the key_ does not exist?
+    // For S-Bucket, it's easy as the return value is a pointer, so just return nullptr when key_ does not exist
+    // But for D-Bucket, any value are possible
+    // We may change to interface from `V lookup(T key_)` to `bool lookup(T key_, V &value)`, and use the return value to indicate if the key_ exists
+    
+    for (int i = 0; i < SIZE; i++) {
+        if (read_bit(i) && list_.at(i).key_ == key_) {
+            return list_.at(i).value_;
+        }
+    }
+    
+    return nullptr;
 }
+
+
+template<class LISTTYPE, class T, class V, size_t SIZE>
+V Bucket<LISTTYPE, T, V, SIZE>::lookup_SIMD(T key_) {
+    // TODO
+    return nullptr;
+}
+
+template<class T, class V, size_t SIZE>
+class Bucket<KeyListValueList<T, V, SIZE>, T, V, SIZE> {
+public:
+    V lookup_SIMD(T key) {
+        //TODO
+    }
+};
+
+template<class T, class V, size_t SIZE>
+class Bucket<KeyValueList<T, V, SIZE>, T, V, SIZE> {
+public:
+    V lookup_SIMD(T key) {
+        //TODO
+    }
+};
 
 template<class LISTTYPE, class T, class V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::insert(KeyValue<T, V> kvptr) {
@@ -115,7 +148,8 @@ bool Bucket<LISTTYPE, T, V, SIZE>::insert(KeyValue<T, V> kvptr) {
     list_.put(pos, kvptr.key_, kvptr.value_);
     set_bit(pos);
 
-    if (kvptr.key_ < pivot_) { pivot_ = kvptr.key_; }
+    if (kvptr.key_ < pivot_) { pivot_ = kvptr.key_; } // [Be careful!] in the future devlopment/designs,
+                                                      // alway make sure it's safe to update pivot_ after set_bit()
 
     return true;
 }
