@@ -53,14 +53,19 @@ public:
 
     Bucket() { assert(SIZE % BITS_UINT64_T == 0); }
 
-    // D-Bucket lookup returns a value
-    // S-Bucket lookup returns a pointer
-    // If no matches -> return nullptr;
-    V lookup(T key);
+    V lookup(T key); // D-Bucket lookup returns a value; S-Bucket lookup returns a pointer
     V lookup_SIMD(T key);
+    bool insert(KeyValue<T, V> kvptr); // Return false if insert() fails
 
-    // The return value indicate whether insert is successful.
-    bool insert(KeyValue<T, V> kvptr);
+    size_t num_keys() {
+        size_t cnt = 0;
+        for (int i = 0; i < SIZE/BITS_UINT64_T; i++) {
+            cnt += __builtin_popcountll(bitmap_[i]);
+        }
+        return cnt;
+    }
+
+    T find_kth_smallest(int k);
 
 private:
     uint64_t bitmap_[SIZE/BITS_UINT64_T];  //indicate whether the entries in the list_ are valid.
@@ -99,6 +104,35 @@ private:
         int bitmap_pos = pos / BITS_UINT64_T;
         int bit_pos = pos - (bitmap_pos * BITS_UINT64_T);
         return (bitmap_[bitmap_pos]  & (1U << bit_pos)) != 0;
+    }
+
+    // helper function for find_kth_smallest()
+    int quickselect_partiton(vector<T>& a, int left, int right, int pivot) {
+        int pivotValue = a[pivot];
+        swap(a[pivot], a[right]);  // Move pivot to end
+        int storeIndex = left;
+        for (int i = left; i < right; i++) {
+            if (a[i] < pivotValue) {
+                swap(a[i], a[storeIndex]);
+                storeIndex++;
+            }
+        }
+        swap(a[storeIndex], a[right]);  // Move pivot to its final place
+        return storeIndex;
+    }
+
+    // helper function for find_kth_smallest()
+    int quickselect(vector<T>& a, int left, int right, int k) {
+        if (left == right) return a[left];
+        int pivot = left +  (right - left) / 2;  // We can choose a random pivot
+        pivot = quickselect_partiton(a, left, right, pivot);
+        if (k == pivot) {
+            return a[k];
+        } else if (k < pivot) {
+            return quickselect(a, left, pivot - 1, k);
+        } else {
+            return quickselect(a, pivot + 1, right, k);
+        }
     }
 };
 
@@ -152,6 +186,22 @@ bool Bucket<LISTTYPE, T, V, SIZE>::insert(KeyValue<T, V> kvptr) {
                                                       // alway make sure it's safe to update pivot_ after set_bit()
 
     return true;
+}
+
+
+template<class LISTTYPE, class T, class V, size_t SIZE>
+T Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) {
+    int n = num_keys();
+    assert(k >= 0 && k < n);
+
+    vector<T> valid_keys(n);
+    int id = 0;
+    for (int i = 0; i < SIZE; i++) {
+        if (read_bit(i)) valid_keys[id++] = list_.at(i);
+    }
+    assert(id == n);
+    
+    return quickselect(valid_keys, 0, n-1, k);
 }
 
 } // end namespace buckindex
