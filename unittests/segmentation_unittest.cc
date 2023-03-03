@@ -13,7 +13,7 @@ namespace BLI {
         for (uint64_t i = 0; i < length; i++) {
             in_kv_array.push_back(KeyValue<uint64_t, uint64_t>(keys[i], keys[i]));
         }
-        Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::DynamicSegmentation(
+        Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::compute_dynamic_segmentation(
             in_kv_array, cuts, error_bound);
         EXPECT_EQ(1u, cuts.size());
         EXPECT_EQ(0u, cuts[0].start_);
@@ -33,7 +33,7 @@ namespace BLI {
         for (uint64_t i = 0; i < length; i++) {
             in_kv_array.push_back(KeyValue<uint64_t, uint64_t>(keys[i], keys[i]));
         }
-        Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::DynamicSegmentation(
+        Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::compute_dynamic_segmentation(
             in_kv_array, cuts, error_bound);
 
         EXPECT_EQ(4u, cuts.size());
@@ -64,7 +64,7 @@ namespace BLI {
         for (uint64_t i = 0; i < length; i++) {
             in_kv_array.push_back(KeyValue<uint64_t, uint64_t>(keys[i], keys[i]));
         }
-        Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::FixedSegmentation(
+        Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::compute_fixed_segmentation(
             in_kv_array, cuts, error_bound);
         EXPECT_EQ(4u, cuts.size());
         /*Expected cuts: 0,1,2,|2,2,2|6,7,8,|9,10*/

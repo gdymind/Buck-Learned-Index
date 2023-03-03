@@ -1,5 +1,5 @@
 #pragma once
-#include "linear_regression.h"
+#include "linear_model.h"
 #include "greedy_error_corridor.h"
 
 namespace BLI {
@@ -67,9 +67,9 @@ namespace BLI {
     template<typename Container, typename KeyType>
     class Segmentation {
     public:
-        static void DynamicSegmentation(Container &in_kv_array,
-                                        vector<Cut<KeyType>>& out_cuts,
-                                        uint64_t error_bound) {
+        static void compute_dynamic_segmentation(Container &in_kv_array,
+                                                 vector<Cut<KeyType>>& out_cuts,
+                                                 uint64_t error_bound) {
             GreedyErrorCorridor<KeyType> alg;
             int idx = 0;
             Cut<KeyType> c;
@@ -95,9 +95,9 @@ namespace BLI {
             out_cuts.push_back(c);
         }
 
-        static void FixedSegmentation(Container &in_kv_array,
-                                      vector<Cut<KeyType>>& out_cuts,
-                                      uint64_t size) {
+        static void compute_fixed_segmentation(Container &in_kv_array,
+                                               vector<Cut<KeyType>>& out_cuts,
+                                               uint64_t size) {
             Cut<KeyType> c(0);
             uint64_t idx = 0;
             uint64_t end_idx = 0;
