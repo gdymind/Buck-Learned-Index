@@ -66,16 +66,74 @@ private:
         return buckID;
     }
 
-    bool bucket_rebalance(unsigned int buckID0);
+    bool bucket_rebalance(unsigned int buckID);
 
 };
 
 
-template<class T, class V, size_t SBUCKET_SIZE>
-bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID0) {
-    unsigned int buckID1 = buckID0 +1;
-    
-    //TODO
+template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
+bool Segment<T, V, SBUCKET_SIZE, MAX_KEY>::bucket_rebalance(unsigned int buckID) { // re-balance between adjcent bucket
+    // Case 1: migrate forwards
+
+    // Case 2: migrate backwards
+
+    // if two directions are possible, migrate to the bucket with fewer element
+
+    bool migrate_forwards = true;
+    if(buckID == num_bucket_-1 || (buckID != 0 && sbucket_list_[buckID+1].get_num() > sbucket_list_[buckID-1].get_num())){ // TODO: add function in bucket // get the valid num of entries
+        migrate_forwards = false;
+    }
+
+    if(migrate_forwards){
+        assert(bucketID + 1 < num_bucket_);
+        if(sbucket_list_[bucketID+1].is_full()){return false;}
+        size_t median = (sbucket_list_[buckID].get_num() + sbucket_list_[bucketID+1].get_num())/2; // Be careful, current bucket can have one less element than the next one
+        T new_pivot = sbucket_list_[buckID].find_kth_key(median); // TODO: add function in bucket // find the key pos index if it is sorted inside the bucket // input ranges from 0 ~ n-1
+
+        // for concurrency, first insert new entries, then update pivot, then remove old entries
+        for(size_t i = 0;i<sbucket_list_[buckID].getnum();i++){
+            if(sbucket_list_[buckID].keys_[i]>=new_pivot){
+                sbucket_list_[buckID+1].insert(sbucket_list_[buckID].read_KV(i));
+            }
+        }
+        sbucket_list_[buckID+1].pivot = new_pivot; 
+
+        for(size_t i = 0; i<SBUCKET_SIZE;i++){
+            if(!sbucket_list_[buckID].is_valid(i)){ // TODO: add function // check if it is invalid
+                continue;
+            }
+            if(sbucket_list_[buckID].keys_[i]>=new_pivot){
+                sbucket_list_[buckID].set_invalid(i);// TODO: add function in bucket // need to mark it as invalid
+            }
+        }
+    }
+    else{
+        assert(bucketID - 1 >= 0);
+        if(sbucket_list_[bucketID-1].is_full()){return false;}
+        
+        size_t median = (sbucket_list_[buckID].get_num() + sbucket_list_[bucketID-1].get_num())/2; // Be careful, current bucket can have one less element than the next one
+        size_t num_migration = sbucket_list_[bucketID].get_num() - median;
+
+        T new_pivot = sbucket_list_[buckID].find_kth_key(num_migration); // TODO: add function in bucket
+
+        // for concurrency, first insert new entries, then update pivot, then remove old entries
+        for(size_t i = 0;i<sbucket_list_[buckID].getnum();i++){
+            if(sbucket_list_[buckID].keys_[i]<new_pivot){
+                sbucket_list_[buckID-1].insert(sbucket_list_[buckID].read_KV(i));
+            }
+        }
+        sbucket_list_[buckID].pivot = new_pivot;
+        for(size_t i = 0; i<SBUCKET_SIZE;i++){
+            if(!sbucket_list_[buckID].is_valid(i)){ // TODO: add function // check if it is invalid
+                continue;
+            }
+            if(sbucket_list_[buckID].keys_[i]<new_pivot){
+                sbucket_list_[buckID].set_invalid(i);// TODO: add function in bucket // need to mark it as invalid
+            }
+        }
+
+    }
+    assert(!sbucket_list_[buckID].is_full());
     return true;
 }
 
