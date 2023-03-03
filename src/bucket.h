@@ -82,22 +82,22 @@ private:
 
     inline void set_bit(int pos) {
         assert(pos >= 0 && pos < SIZE);
-        int bitmap_pos = pos >> 6;
-        int bit_pos = pos - (bitmap_pos << 6);
+        int bitmap_pos = pos / BITS_UINT64_T;
+        int bit_pos = pos - (bitmap_pos * BITS_UINT64_T);
         bitmap_[bitmap_pos] |= (1U << bit_pos);
     }
 
     inline void reset_bit(int pos) {
         assert(pos >= 0 && pos < SIZE);
-        int bitmap_pos = pos >> 6;
-        int bit_pos = pos - (bitmap_pos << 6);
+        int bitmap_pos = pos / BITS_UINT64_T;
+        int bit_pos = pos - (bitmap_pos * BITS_UINT64_T);
         bitmap_[bitmap_pos] &= ~(1U << bit_pos);
     } 
 
     inline bool read_bit(int pos) {
         assert(pos >= 0 && pos < SIZE);
-        int bitmap_pos = pos >> 6;
-        int bit_pos = pos - (bitmap_pos << 6);
+        int bitmap_pos = pos / BITS_UINT64_T;
+        int bit_pos = pos - (bitmap_pos * BITS_UINT64_T);
         return (bitmap_[bitmap_pos]  & (1U << bit_pos)) != 0;
     }
 };
