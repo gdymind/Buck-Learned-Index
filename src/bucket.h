@@ -67,14 +67,6 @@ public:
 
     T find_kth_smallest(int k);
 
-private:
-    uint64_t bitmap_[SIZE/BITS_UINT64_T];  //indicate whether the entries in the list_ are valid.
-   
-    T pivot_;
-    LISTTYPE list_;
-
-    inline KeyValue<T, V> at(int pos) { return list_.at(pos); }
-
     //bitmap operations
     inline int find_first_zero_bit() { // return the offset of the first bit=0
         for (int i = 0; i < SIZE/BITS_UINT64_T; i++) {
@@ -105,6 +97,14 @@ private:
         int bit_pos = pos - (bitmap_pos * BITS_UINT64_T);
         return (bitmap_[bitmap_pos]  & (1U << bit_pos)) != 0;
     }
+
+private:
+    uint64_t bitmap_[SIZE/BITS_UINT64_T];  //indicate whether the entries in the list_ are valid.
+   
+    T pivot_;
+    LISTTYPE list_;
+
+    inline KeyValue<T, V> at(int pos) { return list_.at(pos); }
 
     // helper function for find_kth_smallest()
     int quickselect_partiton(vector<T>& a, int left, int right, int pivot) {
