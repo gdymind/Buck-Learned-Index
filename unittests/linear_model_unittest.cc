@@ -2,7 +2,7 @@
 
 #include "linear_model.h"
 
-namespace BLI {
+namespace buckindex {
     TEST(LinearModel, predict) {
         LinearModel<uint64_t> m(0,0);
         uint64_t key = 100;
