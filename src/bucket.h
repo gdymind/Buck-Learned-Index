@@ -4,6 +4,7 @@
 #include<cstddef>
 #include<cassert>
 #include<climits>
+#include<vector>
 #include <immintrin.h> //SIMD
 
 #include "keyvalue.h"
@@ -22,8 +23,8 @@ public:
 
     Bucket() { assert(SIZE % BITS_UINT64_T == 0); }
 
-    V lookup(T key) const;
-    V lookup_SIMD(T key) const;
+    bool lookup(T key, V& value) const;
+    bool lookup_SIMD(T key, V& value) const;
     bool insert(KeyValue<T, V> kvptr); // Return false if insert() fails
 
     size_t num_keys() {
@@ -37,7 +38,7 @@ public:
     T find_kth_smallest(int k);
 
     //bitmap operations
-    inline int find_first_zero_bit() { // return the offset of the first bit=0
+    inline int find_empty_slot() { // return the offset of the first bit=0
         for (int i = 0; i < SIZE/BITS_UINT64_T; i++) {
             int pos = __builtin_ffs(bitmap_[i]);
             if (pos != 0) return i*BITS_UINT64_T + pos - 1;
@@ -76,7 +77,7 @@ private:
     inline KeyValue<T, V> at(int pos) { return list_.at(pos); }
 
     // helper function for find_kth_smallest()
-    int quickselect_partiton(vector<T>& a, int left, int right, int pivot) {
+    int quickselect_partiton(std::vector<T>& a, int left, int right, int pivot) {
         int pivotValue = a[pivot];
         swap(a[pivot], a[right]);  // Move pivot to end
         int storeIndex = left;
@@ -91,7 +92,7 @@ private:
     }
 
     // helper function for find_kth_smallest()
-    int quickselect(vector<T>& a, int left, int right, int k) {
+    int quickselect(std::vector<T>& a, int left, int right, int k) {
         if (left == right) return a[left];
         int pivot = left +  (right - left) / 2;  // We can choose a random pivot
         pivot = quickselect_partiton(a, left, right, pivot);
@@ -106,32 +107,33 @@ private:
 };
 
 template<class LISTTYPE, class T, class V, size_t SIZE>
-V Bucket<LISTTYPE, T, V, SIZE>::lookup(T key_) const {
+bool Bucket<LISTTYPE, T, V, SIZE>::lookup(T key, V &value) const {
     //TODO: how to indicate the key_ does not exist?
     // For S-Bucket, it's easy as the return value is a pointer, so just return nullptr when key_ does not exist
     // But for D-Bucket, any value are possible
     // We may change to interface from `V lookup(T key_)` to `bool lookup(T key_, V &value)`, and use the return value to indicate if the key_ exists
     
     for (int i = 0; i < SIZE; i++) {
-        if (valid(i) && list_.at(i).key_ == key_) {
-            return list_.at(i).value_;
+        if (valid(i) && list_.at(i).key_ == key) {
+            value = list_.at(i).value_;
+            return true;
         }
     }
     
-    return nullptr;
+    return false;
 }
 
 
 template<class LISTTYPE, class T, class V, size_t SIZE>
-V Bucket<LISTTYPE, T, V, SIZE>::lookup_SIMD(T key_) const {
+bool Bucket<LISTTYPE, T, V, SIZE>::lookup_SIMD(T key, V &value) const {
     // TODO
-    return nullptr;
+    return false;
 }
 
 template<class T, class V, size_t SIZE>
 class Bucket<KeyListValueList<T, V, SIZE>, T, V, SIZE> {
 public:
-    V lookup_SIMD(T key) const {
+    bool lookup_SIMD(T key, V &value) const {
         //TODO
     }
 };
@@ -139,14 +141,14 @@ public:
 template<class T, class V, size_t SIZE>
 class Bucket<KeyValueList<T, V, SIZE>, T, V, SIZE> {
 public:
-    V lookup_SIMD(T key) const {
+    bool lookup_SIMD(T key, V &value) const {
         //TODO
     }
 };
 
 template<class LISTTYPE, class T, class V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::insert(KeyValue<T, V> kvptr) {
-    int pos = find_first_zero_bit();
+    int pos = find_empty_slot();
     if (pos == -1) return false; // return false if the Bucket is already full
     list_.put(pos, kvptr.key_, kvptr.value_);
     validate(pos);
@@ -163,10 +165,10 @@ T Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) {
     int n = num_keys();
     assert(k >= 0 && k < n);
 
-    vector<T> valid_keys(n);
+    std::vector<T> valid_keys(n);
     int id = 0;
     for (int i = 0; i < SIZE; i++) {
-        if (read_bit(i)) valid_keys[id++] = list_.at(i);
+        if (valid(i)) valid_keys[id++] = list_.at(i);
     }
     assert(id == n);
     
