@@ -21,7 +21,7 @@ template<class LISTTYPE, class T, class V, size_t SIZE>
 class Bucket { // can be an S-Bucket or a D-Bucket. S-Bucket and D-Bucket and different size
 public:
 
-    Bucket() { assert(SIZE % BITS_UINT64_T == 0); }
+    Bucket() { }
 
     bool lookup(T key, V& value) const;
     bool lb_lookup(T key, V& value) const; // lower-bound lookup
@@ -29,7 +29,7 @@ public:
     bool lb_lookup_SIMD(T key, V& value) const; // lower-bound lookup
     bool insert(KeyValue<T, V> kvptr); // Return false if insert() fails
 
-    size_t num_keys() {
+    inline size_t num_keys() const {
         size_t cnt = 0;
         for (int i = 0; i < SIZE/BITS_UINT64_T; i++) {
             cnt += __builtin_popcountll(bitmap_[i]);
@@ -71,7 +71,7 @@ public:
     }
 
 private:
-    uint64_t bitmap_[SIZE/BITS_UINT64_T];  //indicate whether the entries in the list_ are valid.
+    uint64_t bitmap_[SIZE/BITS_UINT64_T + (SIZE % BITS_UINT64_T ? 1 : 0)];  //indicate whether the entries in the list_ are valid.
    
     T pivot_;
     LISTTYPE list_;
