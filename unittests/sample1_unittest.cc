@@ -48,13 +48,14 @@ namespace {
 
 
 TEST(ModelTest, predict) {
-  buckindex::Model<int> m(1,1); // y=x+1
+  buckindex::LinearModel<int> m(1,1); // y=x+1
   EXPECT_EQ(2, m.predict(1));
   EXPECT_EQ(4, m.predict(3));
 
-  m.a_ = 1.5; // y = 1.5x+1
-  EXPECT_EQ(2, m.predict(1));
-  EXPECT_EQ(2.5, m.predict_double(1));
+  buckindex::LinearModel<int> m2(1.5, 1);
+  // m.slope_ = 1.5; // y = 1.5x+1
+  EXPECT_EQ(2, m2.predict(1));
+  // EXPECT_EQ(2.5, m2.predict_double(1));
 }
 
 

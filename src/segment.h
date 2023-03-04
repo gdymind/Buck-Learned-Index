@@ -22,10 +22,9 @@ public:
     // T pivot_; // smallest element // TODO: No need for now
     // T base; // key compression
 
-    Bucket<T, V, SBUCKET_SIZE>* sbucket_list_; // a list of S-Buckets 
+    Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>* sbucket_list_; // a list of S-Buckets 
     
-    // constructor
-
+    // constructors
     Segment(){
         is_leaf_ = false;
         num_bucket_ = 0; // indicating it is empty now
@@ -37,15 +36,15 @@ public:
         is_leaf_ = seg.is_leaf_;
         num_bucket_ = seg.num_bucket_;
         parent_ = seg.parent_;
-        sbucket_list_ = new Bucket<T, V, SBUCKET_SIZE>[num_bucket_];
+        sbucket_list_ = new Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>[num_bucket_];
         for(size_t i = 0; i<num_bucket_;i++){
             sbucket_list_[i].copy(seg.sbucket_list_[i]); // TODO: add function in bucket.h, do deep copy
         }
     }
 
-    Segment(size_t num, Bucket<T, V, SBUCKET_SIZE>* list, bool leaf = false, Segment* parent = nullptr){
+    Segment(size_t num, Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>* list, bool leaf = false, Segment* parent = nullptr){
         num_bucket_ = num;
-        sbucket_list_ = new Bucket<T, V, SBUCKET_SIZE>[num];
+        sbucket_list_ = new Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>[num];
         is_leaf_ = leaf;
         parent = nullptr;
     }
@@ -53,7 +52,7 @@ public:
     ~Segment(){
         if (sbucket_list_ != nullptr) {
             for(size_t i = 0; i<num_bucket_;i++){
-                sbucket_list_[i].~Bucket<T, V, SBUCKET_SIZE>();
+                sbucket_list_[i].~Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>();
             }
             delete[] sbucket_list_; // delete the array of pointers
         }
@@ -68,7 +67,7 @@ public:
     // insert an entry to the target S-Bucket; 
     // If the target S-Bucket is full, reblance the bucket with its right neighbor; 
     // If bucket_rebalance does not work, insert() return false
-    bool insert(KeyValue<T, V> kvptr); 
+    bool insert(KeyValue<T, V> &kvptr); 
 
 
     
@@ -134,9 +133,9 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
     }
 
     if(migrate_forwards){
-        assert(bucketID + 1 < num_bucket_);
+        assert(buckID + 1 < num_bucket_);
         des_buck_num = sbucket_list_[buckID+1].get_num();
-        if(sbucket_list_[bucketID+1].is_full()){return false;}
+        if(sbucket_list_[buckID+1].is_full()){return false;}
         size_t median = (src_buck_num + des_buck_num)/2; // Be careful, current bucket can have one less element than the next one
         T new_pivot = sbucket_list_[buckID].find_kth_key(median); // TODO: add function in bucket // find the key pos index if it is sorted inside the bucket // input ranges from 0 ~ n-1
 
@@ -158,9 +157,9 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
         }
     }
     else{
-        assert(bucketID - 1 >= 0);
+        assert(buckID - 1 >= 0);
         des_buck_num = sbucket_list_[buckID-1].get_num();
-        if(sbucket_list_[bucketID-1].is_full()){return false;}
+        if(sbucket_list_[buckID-1].is_full()){return false;}
         
         size_t median = (src_buck_num + des_buck_num)/2; // Be careful, current bucket can have one less element than the next one
         size_t num_migration = src_buck_num - median;
@@ -191,7 +190,6 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
 template<class T, class V, size_t SBUCKET_SIZE>
 V Segment<T, V, SBUCKET_SIZE>::lookup(T key) { // pass return value by argument; return a boolean to decide success or not
     unsigned int buckID = locate_buck(key); 
-    unsigned int buckID = locate_buck(key);
     V ret = sbucket_list_[buckID].lower_bound_lookup(key); // TODO: lower bound look up
 
     // TODO: predict -> search within bucket -> locate -> search (put a flag) (deferred)
