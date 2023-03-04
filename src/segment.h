@@ -22,7 +22,7 @@ public:
     // T pivot_; // smallest element // TODO: No need for now
     // T base; // key compression
 
-    Bucket<T, V, SBUCKET_SIZE, MAX_KEY>* sbucket_list_; // a list of S-Buckets 
+    Bucket<T, V, SBUCKET_SIZE>* sbucket_list_; // a list of S-Buckets 
     
     // constructor
 
@@ -37,15 +37,15 @@ public:
         is_leaf_ = seg.is_leaf_;
         num_bucket_ = seg.num_bucket_;
         parent_ = seg.parent_;
-        sbucket_list_ = new Bucket<T, V, SBUCKET_SIZE, MAX_KEY>[num_bucket_];
+        sbucket_list_ = new Bucket<T, V, SBUCKET_SIZE>[num_bucket_];
         for(size_t i = 0; i<num_bucket_;i++){
             sbucket_list_[i].copy(seg.sbucket_list_[i]); // TODO: add function in bucket.h, do deep copy
         }
     }
 
-    Segment(size_t num, Bucket<T, V, SBUCKET_SIZE, MAX_KEY>* list, bool leaf = false, Segment* parent = nullptr){
+    Segment(size_t num, Bucket<T, V, SBUCKET_SIZE>* list, bool leaf = false, Segment* parent = nullptr){
         num_bucket_ = num;
-        sbucket_list_ = new Bucket<T, V, SBUCKET_SIZE, MAX_KEY>[num];
+        sbucket_list_ = new Bucket<T, V, SBUCKET_SIZE>[num];
         is_leaf_ = leaf;
         parent = nullptr;
     }
@@ -53,7 +53,7 @@ public:
     ~Segment(){
         if (sbucket_list_ != nullptr) {
             for(size_t i = 0; i<num_bucket_;i++){
-                sbucket_list_[i].~Bucket<T, V, SBUCKET_SIZE, MAX_KEY>();
+                sbucket_list_[i].~Bucket<T, V, SBUCKET_SIZE>();
             }
             delete[] sbucket_list_; // delete the array of pointers
         }
@@ -117,8 +117,8 @@ private:
 };
 
 
-template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
-bool Segment<T, V, SBUCKET_SIZE, MAX_KEY>::bucket_rebalance(unsigned int buckID) { // re-balance between adjcent bucket
+template<class T, class V, size_t SBUCKET_SIZE>
+bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-balance between adjcent bucket
     // Case 1: migrate forwards
 
     // Case 2: migrate backwards
@@ -188,8 +188,8 @@ bool Segment<T, V, SBUCKET_SIZE, MAX_KEY>::bucket_rebalance(unsigned int buckID)
     return true;
 }
 
-template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
-V Segment<T, V, SBUCKET_SIZE, MAX_KEY>::lookup(T key) { // pass return value by argument; return a boolean to decide success or not
+template<class T, class V, size_t SBUCKET_SIZE>
+V Segment<T, V, SBUCKET_SIZE>::lookup(T key) { // pass return value by argument; return a boolean to decide success or not
     unsigned int buckID = locate_buck(key); 
     unsigned int buckID = locate_buck(key);
     V ret = sbucket_list_[buckID].lower_bound_lookup(key); // TODO: lower bound look up
@@ -198,8 +198,8 @@ V Segment<T, V, SBUCKET_SIZE, MAX_KEY>::lookup(T key) { // pass return value by 
     return ret;
 }
 
-template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
-bool Segment<T, V, SBUCKET_SIZE, MAX_KEY>::insert(KeyValue<T, V> &kv) {
+template<class T, class V, size_t SBUCKET_SIZE>
+bool Segment<T, V, SBUCKET_SIZE>::insert(KeyValue<T, V> &kv) {
     unsigned int buckID = locate_buck(kv.key_);
 
     if(sbucket_list_[buckID].is_full()){ // TODO: add function in bucket
@@ -215,8 +215,8 @@ bool Segment<T, V, SBUCKET_SIZE, MAX_KEY>::insert(KeyValue<T, V> &kv) {
     return ret;
 }
 
-template<class T, class V, size_t SBUCKET_SIZE, T MAX_KEY>
-void Segment<T, V, SBUCKET_SIZE, MAX_KEY>::train_model() {
+template<class T, class V, size_t SBUCKET_SIZE>
+void Segment<T, V, SBUCKET_SIZE>::train_model() {
     // input: pivot key of each bucket
     // output: model's slope and intercept    
 
