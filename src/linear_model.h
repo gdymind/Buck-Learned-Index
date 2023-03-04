@@ -23,7 +23,7 @@ namespace buckindex {
          * @param key: user provided key
          * @return approximate location of the key within the trained set.
          */
-        uint64_t predict(KeyType key) {
+        uint64_t predict(KeyType key) const {
             double pos = slope_*key+offset_;
             if (pos < 0) {
                 return 0;

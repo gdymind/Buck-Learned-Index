@@ -62,7 +62,7 @@ public:
 
     // TODO: a non-pivoting version (deferred)
 
-    V lookup(T key); //return the child 
+    V lookup(T key) const; //return the child 
     
     // insert an entry to the target S-Bucket; 
     // If the target S-Bucket is full, reblance the bucket with its right neighbor; 
@@ -78,13 +78,14 @@ private:
 
     // TBD: do we explicitly store x_sum, y_sum, xx_sum and xy_sum
 
-    inline unsigned int predict_buck(T key) { // get the predicted S-Bucket ID based on the model computing 
+    inline unsigned int predict_buck(T key) const { // get the predicted S-Bucket ID based on the model computing 
         unsigned int buckID = (unsigned int)(model_.predict(key) / SBUCKET_SIZE + 0.5); //TODO: if SBUCKET_SIZE is the power of 2, change division to right shift
         buckID = std::min(buckID, (unsigned int)std::max(0,(int)(num_bucket_-1))); // ensure num_bucket>0
         return buckID;
     }
 
-    inline unsigned int locate_buck(T key) { // prediction may be incorrect, this function is to find the exact bucket whose range covers the key based on prediction
+    inline unsigned int locate_buck(T key) const { 
+        // prediction may be incorrect, this function is to find the exact bucket whose range covers the key based on prediction
         // Step1: call predict_buck to get an intial position
         // Step2: search neighbors to find the exact match (linear search)
         unsigned int buckID = predict_buck(key); // ensure buckID is valid s
@@ -148,11 +149,11 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
         sbucket_list_[buckID+1].pivot_ = new_pivot; // TODO: delete line 107 in bucket.h // pivot_ is not changed in insert()
 
         for(size_t i = 0; i<SBUCKET_SIZE;i++){
-            if(!sbucket_list_[buckID].read_bit(i)){ // TODO: add function // check if it is invalid
+            if(!sbucket_list_[buckID].valid(i)){ // TODO: add function // check if it is invalid
                 continue;
             }
             if(sbucket_list_[buckID].at(i).get_key()>=new_pivot){
-                sbucket_list_[buckID].reset_bit(i);// TODO: add function in bucket // need to mark it as invalid // delete()
+                sbucket_list_[buckID].invalidate(i);// TODO: add function in bucket // need to mark it as invalid // delete()
             }
         }
     }
@@ -174,11 +175,11 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
         }
         sbucket_list_[buckID].pivot_ = new_pivot;
         for(size_t i = 0; i<SBUCKET_SIZE;i++){
-            if(!sbucket_list_[buckID].read_bit(i)){ // TODO: add function // check if it is invalid
+            if(!sbucket_list_[buckID].valid(i)){ // TODO: add function // check if it is invalid
                 continue;
             }
             if(sbucket_list_[buckID].at(i).get_key()<new_pivot){
-                sbucket_list_[buckID].reset_bit(i);// TODO: add function in bucket // need to mark it as invalid
+                sbucket_list_[buckID].invalidate(i);// TODO: add function in bucket // need to mark it as invalid
             }
         }
 
@@ -188,9 +189,9 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
 }
 
 template<class T, class V, size_t SBUCKET_SIZE>
-V Segment<T, V, SBUCKET_SIZE>::lookup(T key) { // pass return value by argument; return a boolean to decide success or not
+V Segment<T, V, SBUCKET_SIZE>::lookup(T key) const { // pass return value by argument; return a boolean to decide success or not
     unsigned int buckID = locate_buck(key); 
-    V ret = sbucket_list_[buckID].lower_bound_lookup(key); // TODO: lower bound look up
+    V ret = sbucket_list_[buckID].lb_lookup(key); // TODO: lower bound look up
 
     // TODO: predict -> search within bucket -> locate -> search (put a flag) (deferred)
     return ret;
