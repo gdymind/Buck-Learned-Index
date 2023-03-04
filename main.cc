@@ -17,5 +17,7 @@ int main(int argc, char** argv) {
 
     buckindex::BuckIndex<key_type, value_type, 8> *index;
 
+    buckindex::Segment<unsigned long long, unsigned long long, 8> segment;
+
     return 0;
 }
