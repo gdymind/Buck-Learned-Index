@@ -24,7 +24,9 @@ public:
     Bucket() { assert(SIZE % BITS_UINT64_T == 0); }
 
     bool lookup(T key, V& value) const;
+    bool lb_lookup(T key, V& value) const; // lower-bound lookup
     bool lookup_SIMD(T key, V& value) const;
+    bool lb_lookup_SIMD(T key, V& value) const; // lower-bound lookup
     bool insert(KeyValue<T, V> kvptr); // Return false if insert() fails
 
     size_t num_keys() {
@@ -108,11 +110,6 @@ private:
 
 template<class LISTTYPE, class T, class V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::lookup(T key, V &value) const {
-    //TODO: how to indicate the key_ does not exist?
-    // For S-Bucket, it's easy as the return value is a pointer, so just return nullptr when key_ does not exist
-    // But for D-Bucket, any value are possible
-    // We may change to interface from `V lookup(T key_)` to `bool lookup(T key_, V &value)`, and use the return value to indicate if the key_ exists
-    
     for (int i = 0; i < SIZE; i++) {
         if (valid(i) && list_.at(i).key_ == key) {
             value = list_.at(i).value_;
@@ -123,6 +120,12 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(T key, V &value) const {
     return false;
 }
 
+template<class LISTTYPE, class T, class V, size_t SIZE>
+bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(T key, V &value) const {
+    //TODO
+    return false;
+}
+
 
 template<class LISTTYPE, class T, class V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::lookup_SIMD(T key, V &value) const {
@@ -130,10 +133,20 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup_SIMD(T key, V &value) const {
     return false;
 }
 
+template<class LISTTYPE, class T, class V, size_t SIZE>
+bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup_SIMD(T key, V &value) const {
+    // TODO
+    return false;
+}
+
+
 template<class T, class V, size_t SIZE>
 class Bucket<KeyListValueList<T, V, SIZE>, T, V, SIZE> {
 public:
     bool lookup_SIMD(T key, V &value) const {
+        //TODO
+    }
+    bool lb_lookup_SIMD(T key, V &value) const {
         //TODO
     }
 };
@@ -142,6 +155,9 @@ template<class T, class V, size_t SIZE>
 class Bucket<KeyValueList<T, V, SIZE>, T, V, SIZE> {
 public:
     bool lookup_SIMD(T key, V &value) const {
+        //TODO
+    }
+    bool lb_lookup_SIMD(T key, V &value) const {
         //TODO
     }
 };
