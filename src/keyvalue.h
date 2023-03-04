@@ -13,7 +13,10 @@ struct KeyValue
                     // In S-bucket, it is a pointer to bucket/segment/segment group(e.g., we can recast it to uint64_t*)
                     // In D-bucket, it is the actual value
 
+    KeyValue() {}
     KeyValue(T k, V v): key_(k), value_(v) {}
+    KeyValue(const KeyValue &kv): key_(kv.key_), value_(kv.value_) {}
+    T get_key() const { return key_; }
 };
 
 template<class T, class V, size_t SIZE> 

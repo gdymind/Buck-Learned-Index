@@ -4,21 +4,6 @@
 
 namespace buckindex {
     using namespace std;
-      template<typename KeyType, typename ValueType>
-      struct KeyValue {
-          KeyValue() {}
-          KeyValue(KeyType k, ValueType v)
-              : key_(k),
-                value_(v) {}
-          KeyValue(const KeyValue& kv)
-              : key_(kv.key_),
-                value_(kv.value_) {}
-          KeyType get_key() const {
-              return key_;
-          }
-          KeyType key_;
-          ValueType value_;
-      };
     template<typename T>
     struct Cut {
         Cut() {

@@ -6,7 +6,7 @@
 #include<algorithm>
 
 #include "bucket.h"
-#include "model.h"
+#include "linear_model.h"
 
 namespace buckindex {
 
@@ -28,7 +28,7 @@ public:
 
     
 private:
-    Model<T> model_;
+    LinearModel<T> model_;
 
     void train_model();
 
@@ -41,6 +41,7 @@ private:
     inline unsigned int locate_buck(T key) { // precition may be incorrect, this function is to find the exact bucket whose range covers the key based on prediction
         // Step1: call predict_buck to get an intial position
         // Step2: search neighbors to find the exact match
+        return false;
     }
 
     bool bucket_rebalance(unsigned int buckID0);
