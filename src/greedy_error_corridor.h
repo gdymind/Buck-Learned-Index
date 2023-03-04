@@ -1,6 +1,6 @@
 #pragma once
 
-namespace BLI {
+namespace buckindex {
 
     /**
      * The greedy error corridor implementation is based of the RadixSpline

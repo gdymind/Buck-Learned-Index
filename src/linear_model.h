@@ -1,6 +1,6 @@
 #pragma once
 
-namespace BLI {
+namespace buckindex {
     /**
      * Linear model class
      * The linear model contains the slope and offset parameters

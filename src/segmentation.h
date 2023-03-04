@@ -2,7 +2,7 @@
 #include "linear_model.h"
 #include "greedy_error_corridor.h"
 
-namespace BLI {
+namespace buckindex {
     using namespace std;
       template<typename KeyType, typename ValueType>
       struct KeyValue {
