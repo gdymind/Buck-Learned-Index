@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-
+#include "keyvalue.h"
 #include "segmentation.h"
 
 namespace buckindex {
