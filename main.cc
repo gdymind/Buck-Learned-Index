@@ -19,11 +19,7 @@ int main(int argc, char** argv) {
 
     buckindex::Segment<unsigned long long, unsigned long long, 8> segment;
 
-    segment.parent_;
-
     buckindex::Bucket<buckindex::KeyValueList<key_type, value_type, 64>, key_type, value_type, 64> bucket;
-
-    bucket.num_keys();
 
     return 0;
 }
