@@ -5,10 +5,11 @@
 #include<cassert>
 #include<climits>
 #include<vector>
+#include<cstring>
+#include<iostream>
 #include <immintrin.h> //SIMD
 
 #include "keyvalue.h"
-
 
 namespace buckindex {
 
@@ -16,12 +17,18 @@ const unsigned int BUCKET_SIZE = 128;
 const unsigned int SBUCKET_SIZE = 8;
 const unsigned int BITS_UINT64_T = 64;
 
-
+    /**
+     * Bucket is a list of unsorted KeyValue
+     * It can be either S-Bucket or D-Bucket, depending on the LISTTYPE
+     * Note that the template parameter SIZE must matches the SIZE of the LISTTYPE
+     */
 template<class LISTTYPE, class T, class V, size_t SIZE>
 class Bucket { // can be an S-Bucket or a D-Bucket. S-Bucket and D-Bucket and different size
 public:
 
-    Bucket() { }
+    Bucket() {
+        memset(bitmap_, 0, sizeof(bitmap_));
+    }
 
     bool lookup(T key, V& value) const;
     bool lb_lookup(T key, V& value) const; // lower-bound lookup
@@ -31,7 +38,7 @@ public:
 
     inline size_t num_keys() const {
         size_t cnt = 0;
-        for (int i = 0; i < SIZE/BITS_UINT64_T; i++) {
+        for (int i = 0; i < BITMAP_SIZE; i++) {
             cnt += __builtin_popcountll(bitmap_[i]);
         }
         return cnt;
@@ -41,9 +48,9 @@ public:
 
     //bitmap operations
     inline int find_empty_slot() { // return the offset of the first bit=0
-        for (int i = 0; i < SIZE/BITS_UINT64_T; i++) {
-            int pos = __builtin_ffs(bitmap_[i]);
-            if (pos != 0) return i*BITS_UINT64_T + pos - 1;
+        for (int i = 0; i < BITMAP_SIZE; i++) {
+            int pos = __builtin_clzll(~bitmap_[i]);
+            if (pos != BITS_UINT64_T) return i * BITS_UINT64_T + pos;
 
         }
         return -1; // No zero bit found
@@ -72,6 +79,7 @@ public:
 
 private:
     uint64_t bitmap_[SIZE/BITS_UINT64_T + (SIZE % BITS_UINT64_T ? 1 : 0)];  //indicate whether the entries in the list_ are valid.
+    size_t BITMAP_SIZE = SIZE/BITS_UINT64_T + (SIZE % BITS_UINT64_T ? 1 : 0);
    
     T pivot_;
     LISTTYPE list_;
@@ -139,7 +147,7 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup_SIMD(T key, V &value) const {
     return false;
 }
 
-
+/*
 template<class T, class V, size_t SIZE>
 class Bucket<KeyListValueList<T, V, SIZE>, T, V, SIZE> {
 public:
@@ -161,6 +169,8 @@ public:
         //TODO
     }
 };
+
+*/
 
 template<class LISTTYPE, class T, class V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::insert(KeyValue<T, V> kvptr) {
