@@ -25,7 +25,7 @@ public:
     T keys_[SIZE];
     V values_[SIZE];
 
-    KeyValue<T,V> at(int pos) { return KeyValue<T,V>(keys_[pos], values_[pos]); }
+    KeyValue<T,V> at(int pos) const { return KeyValue<T,V>(keys_[pos], values_[pos]); }
     void put(int pos, T key, V value) { keys_[pos] = key; values_[pos] = value; }
 };
 
@@ -34,7 +34,7 @@ class KeyValueList {
 public:
     KeyValue<T, V> kvs_[SIZE];
 
-    KeyValue<T, V> at(int pos) { return kvs_[pos]; }
+    KeyValue<T, V> at(int pos) const { return kvs_[pos]; }
     void put(int pos, T key, V value) { kvs_[pos].key_ = key; kvs_[pos].value_ = value; }
 };
 

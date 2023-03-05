@@ -1,8 +1,8 @@
 #include<iostream>
 #include<climits>
 
-#include "src/global.h"
-#include "include/buck_index.h"
+#include "global.h"
+#include "buck_index.h"
 
 typedef unsigned long long key_type;
 typedef unsigned long long value_type;
@@ -18,6 +18,8 @@ int main(int argc, char** argv) {
     buckindex::BuckIndex<key_type, value_type, 8> index;
 
     buckindex::Segment<unsigned long long, unsigned long long, 8> segment;
+
+    buckindex::Bucket<buckindex::KeyValueList<key_type, value_type, 64>, key_type, value_type, 64> bucket;
 
     return 0;
 }
