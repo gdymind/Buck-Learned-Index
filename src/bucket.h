@@ -7,6 +7,7 @@
 #include<vector>
 #include<cstring>
 #include<iostream>
+#include <utility>
 #include <immintrin.h> //SIMD
 
 #include "keyvalue.h"
@@ -44,7 +45,7 @@ public:
         return cnt;
     }
 
-    T find_kth_smallest(int k);
+    T find_kth_smallest(int k); // find the kth smallest element in 1-based index
 
     //bitmap operations
     inline int find_empty_slot() { // return the offset of the first bit=0
@@ -59,22 +60,22 @@ public:
     inline void validate(int pos) {
         assert(pos >= 0 && pos < SIZE);
         int bitmap_pos = pos / BITS_UINT64_T;
-        int bit_pos = pos - (bitmap_pos * BITS_UINT64_T);
-        bitmap_[bitmap_pos] |= (1U << bit_pos);
+        int bit_pos = BITS_UINT64_T - 1 - pos % BITS_UINT64_T; // pos from the most significant bit
+        bitmap_[bitmap_pos] |= (1ULL << bit_pos);
     }
 
     inline void invalidate(int pos) {
         assert(pos >= 0 && pos < SIZE);
         int bitmap_pos = pos / BITS_UINT64_T;
-        int bit_pos = pos - (bitmap_pos * BITS_UINT64_T);
-        bitmap_[bitmap_pos] &= ~(1U << bit_pos);
+        int bit_pos = BITS_UINT64_T - 1 - pos % BITS_UINT64_T;
+        bitmap_[bitmap_pos] &= ~(1ULL << bit_pos);
     } 
 
     inline bool valid(int pos) const {
         assert(pos >= 0 && pos < SIZE);
         int bitmap_pos = pos / BITS_UINT64_T;
-        int bit_pos = pos - (bitmap_pos * BITS_UINT64_T);
-        return (bitmap_[bitmap_pos]  & (1U << bit_pos)) != 0;
+        int bit_pos = BITS_UINT64_T - 1 - pos % BITS_UINT64_T;
+        return (bitmap_[bitmap_pos]  & (1ULL << bit_pos)) != 0;
     }
 
 private:
@@ -89,15 +90,15 @@ private:
     // helper function for find_kth_smallest()
     int quickselect_partiton(std::vector<T>& a, int left, int right, int pivot) {
         int pivotValue = a[pivot];
-        swap(a[pivot], a[right]);  // Move pivot to end
+        std::swap(a[pivot], a[right]);  // Move pivot to end
         int storeIndex = left;
         for (int i = left; i < right; i++) {
             if (a[i] < pivotValue) {
-                swap(a[i], a[storeIndex]);
+                std::swap(a[i], a[storeIndex]);
                 storeIndex++;
             }
         }
-        swap(a[storeIndex], a[right]);  // Move pivot to its final place
+        std::swap(a[storeIndex], a[right]);  // Move pivot to its final place
         return storeIndex;
     }
 
@@ -189,12 +190,13 @@ bool Bucket<LISTTYPE, T, V, SIZE>::insert(KeyValue<T, V> kvptr) {
 template<class LISTTYPE, class T, class V, size_t SIZE>
 T Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) {
     int n = num_keys();
+    k--;
     assert(k >= 0 && k < n);
 
     std::vector<T> valid_keys(n);
     int id = 0;
     for (int i = 0; i < SIZE; i++) {
-        if (valid(i)) valid_keys[id++] = list_.at(i);
+        if (valid(i)) valid_keys[id++] = list_.at(i).get_key();
     }
     assert(id == n);
     
