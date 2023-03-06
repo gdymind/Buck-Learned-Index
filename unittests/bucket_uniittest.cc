@@ -14,6 +14,49 @@ namespace buckindex {
     typedef unsigned long long key_t;
     typedef unsigned long long value_t;
 
+    TEST(Bucket, copy) {
+        Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
+
+        KeyListValueList<key_t, value_t, 8> list;
+        key_t key;
+        value_t value;
+
+        for (int i = 0; i < 8; i++) list.put(i, i * 12, i * 2);
+
+        for (int i = 0; i < 8; i++) {
+            bucket.insert(list.at(i), true);
+        }
+
+        Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket2;
+        bucket2.copy(bucket);
+
+        for (int i = 0; i < 8; i++) {
+            EXPECT_EQ(bucket.at(i).key_, bucket2.at(i).key_);
+        }
+    }
+
+    TEST(Bucket, lb_lookup) {
+        Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
+
+        KeyListValueList<key_t, value_t, 8> list;
+        key_t key;
+        value_t value;
+
+        for (int i = 0; i < 8; i++) list.put(i, (i+1) * 10, (i+1) * 10);
+        for (int i = 0; i < 8; i++) {
+            bucket.insert(list.at(i), true);
+        }
+
+        for (int i = 0; i < 10; i++) {
+            EXPECT_EQ(false, bucket.lb_lookup(i, value));
+        }
+
+        for (int i = 10; i <= 80; i++) {
+            EXPECT_EQ(true, bucket.lb_lookup(i, value));
+            EXPECT_EQ(i/10*10, value);
+        }
+    }
+
     TEST(Bucket, insert_and_lookup) {
         Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
 

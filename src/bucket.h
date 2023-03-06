@@ -31,11 +31,20 @@ public:
         memset(bitmap_, 0, sizeof(bitmap_));
     }
 
+    void copy(Bucket<LISTTYPE, T, V, SIZE> &other) {
+        memcpy(other.bitmap_, this->bitmap_, SIZE * 8);
+        this->pivot_ = other.pivot_;
+        for (int i = 0; i < SIZE; i++) {
+            this->list_.put(i, other.at(i).key_, other.at(i).value_);
+        }
+    }
+
     bool lookup(T key, V& value) const;
+    // Find the largest key that is <= the lookup key
     bool lb_lookup(T key, V& value) const; // lower-bound lookup
     bool lookup_SIMD(T key, V& value) const;
     bool lb_lookup_SIMD(T key, V& value) const; // lower-bound lookup
-    bool insert(KeyValue<T, V> kvptr); // Return false if insert() fails
+    bool insert(KeyValue<T, V> kv, bool update_pivot = true); // Return false if insert() fails
 
     inline size_t num_keys() const {
         size_t cnt = 0;
@@ -44,6 +53,8 @@ public:
         }
         return cnt;
     }
+
+    inline KeyValue<T, V> at(int pos) { return list_.at(pos); }
 
     T find_kth_smallest(int k); // find the kth smallest element in 1-based index
 
@@ -84,8 +95,6 @@ private:
    
     T pivot_;
     LISTTYPE list_;
-
-    inline KeyValue<T, V> at(int pos) { return list_.at(pos); }
 
     // helper function for find_kth_smallest()
     int quickselect_partiton(std::vector<T>& a, int left, int right, int pivot) {
@@ -131,8 +140,20 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(T key, V &value) const {
 
 template<class LISTTYPE, class T, class V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(T key, V &value) const {
-    //TODO
-    return false;
+    
+    T target_key = 0; // TODO: define zero as a template parameter?
+    int pos = -1;
+    for (int i = 0; i < SIZE; i++) {
+        if (valid(i) && list_.at(i).key_ <= key && list_.at(i).key_ > target_key) {
+            target_key = list_.at(i).key_;
+            pos = i;
+        }
+    }
+
+    if (pos == -1) return false;
+
+    value = list_.at(pos).value_;
+    return true;
 }
 
 
@@ -174,14 +195,15 @@ public:
 */
 
 template<class LISTTYPE, class T, class V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::insert(KeyValue<T, V> kvptr) {
+bool Bucket<LISTTYPE, T, V, SIZE>::insert(KeyValue<T, V> kv, bool update_pivot) {
     int pos = find_empty_slot();
     if (pos == -1) return false; // return false if the Bucket is already full
-    list_.put(pos, kvptr.key_, kvptr.value_);
+    list_.put(pos, kv.key_, kv.value_);
     validate(pos);
 
-    if (kvptr.key_ < pivot_) { pivot_ = kvptr.key_; } // [Be careful!] in the future devlopment/designs,
-                                                      // alway make sure it's safe to update pivot_ after validate()
+    if (update_pivot && kv.key_ < pivot_) {
+        pivot_ = kv.key_;
+    }
 
     return true;
 }
