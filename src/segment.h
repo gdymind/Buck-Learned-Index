@@ -149,7 +149,7 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
             if(!sbucket_list_[buckID].valid(i)){
                 continue;
             }
-            if(sbucket_list_[buckID].at(i).get_key()>=new_pivot, false){
+            if(sbucket_list_[buckID].at(i).get_key()>=new_pivot){
                 sbucket_list_[buckID].invalidate(i);
             }
         }
