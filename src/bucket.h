@@ -32,6 +32,8 @@ public:
     }
 
     void copy(Bucket<LISTTYPE, T, V, SIZE> &other) {
+        memcpy(other.bitmap_, this->bitmap_, SIZE * 8);
+        this->pivot_ = other.pivot_;
         for (int i = 0; i < SIZE; i++) {
             this->list_.put(i, other.at(i).key_, other.at(i).value_);
         }
