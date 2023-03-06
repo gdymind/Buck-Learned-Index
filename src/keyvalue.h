@@ -27,6 +27,7 @@ public:
 
     KeyValue<T,V> at(int pos) const { return KeyValue<T,V>(keys_[pos], values_[pos]); }
     void put(int pos, T key, V value) { keys_[pos] = key; values_[pos] = value; }
+    void put(int pos, KeyValue<T,V> kv) { keys_[pos] = kv.key_; values_[pos] = kv.value_; }
 };
 
 template<class T, class V, size_t SIZE>
@@ -36,6 +37,7 @@ public:
 
     KeyValue<T, V> at(int pos) const { return kvs_[pos]; }
     void put(int pos, T key, V value) { kvs_[pos].key_ = key; kvs_[pos].value_ = value; }
+    void put(int pos, KeyValue<T,V> kv) { kvs_[pos] = kv; }
 };
 
 }
