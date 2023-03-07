@@ -31,15 +31,6 @@ public:
         sbucket_list_ = nullptr;
     }
 
-    Segment(Segment &seg){ // do deep copy
-        is_leaf_ = seg.is_leaf_;
-        num_bucket_ = seg.num_bucket_;
-        parent_ = seg.parent_;
-        sbucket_list_ = new Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>[num_bucket_];
-        for(size_t i = 0; i<num_bucket_;i++){
-            sbucket_list_[i].copy(seg.sbucket_list_[i]);
-        }
-    }
 
     Segment(size_t num, Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>* list, bool leaf = false, Segment* parent = nullptr){
         num_bucket_ = num;

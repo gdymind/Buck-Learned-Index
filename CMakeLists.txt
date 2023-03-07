@@ -14,4 +14,4 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 add_subdirectory(unittests)
 
 set(CMAKE_CXX_STANDARD 17)
-add_executable(BuckIndex main.cc src/global.cc)
+add_executable(BuckIndex main.cc src/util.cc)
