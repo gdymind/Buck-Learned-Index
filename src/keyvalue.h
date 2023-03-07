@@ -5,7 +5,8 @@
 
 namespace buckindex {
 
-template<class T, class V>
+//TODO: change class to typename
+template<typename , typename V>
 struct KeyValue
 {
     T key_;
@@ -19,7 +20,7 @@ struct KeyValue
     T get_key() const { return key_; }
 };
 
-template<class T, class V, size_t SIZE> 
+template<typename , typename V, size_t SIZE> 
 class KeyListValueList {
 public:
     T keys_[SIZE];
@@ -30,7 +31,7 @@ public:
     void put(int pos, KeyValue<T,V> kv) { keys_[pos] = kv.key_; values_[pos] = kv.value_; }
 };
 
-template<class T, class V, size_t SIZE>
+template<typename , typename V, size_t SIZE>
 class KeyValueList {
 public:
     KeyValue<T, V> kvs_[SIZE];

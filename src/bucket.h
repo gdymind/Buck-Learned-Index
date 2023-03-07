@@ -23,7 +23,7 @@ const unsigned int BITS_UINT64_T = 64;
  * It can be either S-Bucket or D-Bucket, depending on the LISTTYPE
  * Note that the template parameter SIZE must matches the SIZE of the LISTTYPE
  */
-template<class LISTTYPE, class T, class V, size_t SIZE>
+template<class LISTTYPE, typename T, typename V, size_t SIZE>
 class Bucket { // can be an S-Bucket or a D-Bucket. S-Bucket and D-Bucket and different size
 public:
 
@@ -120,7 +120,7 @@ private:
     }
 };
 
-template<class LISTTYPE, class T, class V, size_t SIZE>
+template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::lookup(T key, V &value) const {
     for (int i = 0; i < SIZE; i++) {
         if (valid(i) && list_.at(i).key_ == key) {
@@ -132,7 +132,7 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(T key, V &value) const {
     return false;
 }
 
-template<class LISTTYPE, class T, class V, size_t SIZE>
+template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(T key, V &value) const {
     
     T target_key = 0; // TODO: define zero as a template parameter?
@@ -151,20 +151,20 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(T key, V &value) const {
 }
 
 
-template<class LISTTYPE, class T, class V, size_t SIZE>
+template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::lookup_SIMD(T key, V &value) const {
     // TODO
     return false;
 }
 
-template<class LISTTYPE, class T, class V, size_t SIZE>
+template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup_SIMD(T key, V &value) const {
     // TODO
     return false;
 }
 
 /*
-template<class T, class V, size_t SIZE>
+template<typename T, typename V, size_t SIZE>
 class Bucket<KeyListValueList<T, V, SIZE>, T, V, SIZE> {
 public:
     bool lookup_SIMD(T key, V &value) const {
@@ -175,7 +175,7 @@ public:
     }
 };
 
-template<class T, class V, size_t SIZE>
+template<typename T, typename V, size_t SIZE>
 class Bucket<KeyValueList<T, V, SIZE>, T, V, SIZE> {
 public:
     bool lookup_SIMD(T key, V &value) const {
@@ -188,7 +188,7 @@ public:
 
 */
 
-template<class LISTTYPE, class T, class V, size_t SIZE>
+template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::insert(KeyValue<T, V> kv, bool update_pivot) {
     int pos = find_empty_slot();
     if (pos == -1) return false; // return false if the Bucket is already full
@@ -203,7 +203,7 @@ bool Bucket<LISTTYPE, T, V, SIZE>::insert(KeyValue<T, V> kv, bool update_pivot) 
 }
 
 
-template<class LISTTYPE, class T, class V, size_t SIZE>
+template<class LISTTYPE, typename T, typename V, size_t SIZE>
 T Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) {
     int n = num_keys();
     k--;
