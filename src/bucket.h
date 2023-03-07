@@ -18,11 +18,11 @@ const unsigned int BUCKET_SIZE = 128;
 const unsigned int SBUCKET_SIZE = 8;
 const unsigned int BITS_UINT64_T = 64;
 
-    /**
-     * Bucket is a list of unsorted KeyValue
-     * It can be either S-Bucket or D-Bucket, depending on the LISTTYPE
-     * Note that the template parameter SIZE must matches the SIZE of the LISTTYPE
-     */
+/**
+ * Bucket is a list of unsorted KeyValue
+ * It can be either S-Bucket or D-Bucket, depending on the LISTTYPE
+ * Note that the template parameter SIZE must matches the SIZE of the LISTTYPE
+ */
 template<class LISTTYPE, class T, class V, size_t SIZE>
 class Bucket { // can be an S-Bucket or a D-Bucket. S-Bucket and D-Bucket and different size
 public:
@@ -31,20 +31,14 @@ public:
         memset(bitmap_, 0, sizeof(bitmap_));
     }
 
-    void copy(Bucket<LISTTYPE, T, V, SIZE> &other) {
-        memcpy(other.bitmap_, this->bitmap_, SIZE * 8);
-        this->pivot_ = other.pivot_;
-        for (int i = 0; i < SIZE; i++) {
-            this->list_.put(i, other.at(i).key_, other.at(i).value_);
-        }
-    }
-
     bool lookup(T key, V& value) const;
     // Find the largest key that is <= the lookup key
     bool lb_lookup(T key, V& value) const; // lower-bound lookup
     bool lookup_SIMD(T key, V& value) const;
     bool lb_lookup_SIMD(T key, V& value) const; // lower-bound lookup
     bool insert(KeyValue<T, V> kv, bool update_pivot = true); // Return false if insert() fails
+
+    //TODO: iterator
 
     inline size_t num_keys() const {
         size_t cnt = 0;
