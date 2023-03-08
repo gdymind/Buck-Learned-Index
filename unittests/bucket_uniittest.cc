@@ -15,7 +15,7 @@ namespace buckindex {
     typedef unsigned long long value_t;
 
     TEST(Bucket, lb_lookup) {
-        Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket(ULLONG_MAX);
+        Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
 
         KeyListValueList<key_t, value_t, 8> list;
         key_t key;
@@ -37,7 +37,7 @@ namespace buckindex {
     }
 
     TEST(Bucket, insert_and_lookup) { //TODO: test insert with/without pivot updates
-        Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket(ULLONG_MAX);
+        Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
 
         KeyListValueList<key_t, value_t, 8> list;
         key_t key;
@@ -66,7 +66,7 @@ namespace buckindex {
     }
 
     TEST(Bucket, find_kth_smallest) {
-        Bucket<KeyValueList<key_t, value_t, 64>, key_t, value_t, 64> bucket(ULLONG_MAX);
+        Bucket<KeyValueList<key_t, value_t, 64>, key_t, value_t, 64> bucket;
 
         std::srand(std::time(nullptr));
         std::vector<key_t> keys;

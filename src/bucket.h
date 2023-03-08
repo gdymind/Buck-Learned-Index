@@ -7,7 +7,8 @@
 #include<vector>
 #include<cstring>
 #include<iostream>
-#include <utility>
+#include<utility>
+#include<limits>
 #include <immintrin.h> //SIMD
 
 #include "keyvalue.h"
@@ -27,8 +28,8 @@ template<class LISTTYPE, typename T, typename V, size_t SIZE>
 class Bucket { // can be an S-Bucket or a D-Bucket. S-Bucket and D-Bucket and different size
 public:
 
-    Bucket(T invalid_pivot) { // invalid_pivot should be the maximum value of type T
-        pivot_ = invalid_pivot;
+    Bucket() {
+        pivot_ = std::numeric_limits<T>::max();
         memset(bitmap_, 0, sizeof(bitmap_));
     }
 

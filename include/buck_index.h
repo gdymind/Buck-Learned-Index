@@ -8,8 +8,7 @@ namespace buckindex {
 template<typename T, typename V, size_t SBUCKET_SIZE>
 class BuckIndex {
 public:
-    BuckIndex(T invalid_pivot) {
-        invalid_pivot_ = invalid_pivot;
+    BuckIndex() {
         // root_ = new Segment<T, V, SBUCKET_SIZE>();
     }
 
@@ -39,7 +38,6 @@ private:
 
     Segment<T, V, SBUCKET_SIZE> *root_;
     size_t num_levels_;
-    T invalid_pivot_;
 };
 
 } // end namespace buckindex
