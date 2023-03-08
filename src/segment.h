@@ -10,7 +10,7 @@
 
 namespace buckindex {
 
-template<class T, class V, size_t SBUCKET_SIZE>
+template<typename T, typename V, size_t SBUCKET_SIZE>
 class Segment {
 public:
     bool is_leaf_; // true -> segment; false -> segment group
@@ -31,15 +31,6 @@ public:
         sbucket_list_ = nullptr;
     }
 
-    Segment(Segment &seg){ // do deep copy
-        is_leaf_ = seg.is_leaf_;
-        num_bucket_ = seg.num_bucket_;
-        parent_ = seg.parent_;
-        sbucket_list_ = new Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>[num_bucket_];
-        for(size_t i = 0; i<num_bucket_;i++){
-            sbucket_list_[i].copy(seg.sbucket_list_[i]);
-        }
-    }
 
     Segment(size_t num, Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>* list, bool leaf = false, Segment* parent = nullptr){
         num_bucket_ = num;
@@ -114,7 +105,7 @@ private:
 };
 
 
-template<class T, class V, size_t SBUCKET_SIZE>
+template<typename T, typename V, size_t SBUCKET_SIZE>
 bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-balance between adjcent bucket
     // Case 1: migrate forwards
 
@@ -185,7 +176,7 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
     return true;
 }
 
-template<class T, class V, size_t SBUCKET_SIZE>
+template<typename T, typename V, size_t SBUCKET_SIZE>
 V Segment<T, V, SBUCKET_SIZE>::lookup(T key) const { // pass return value by argument; return a boolean to decide success or not
     unsigned int buckID = locate_buck(key); 
     V ret = sbucket_list_[buckID].lb_lookup(key);
@@ -194,7 +185,7 @@ V Segment<T, V, SBUCKET_SIZE>::lookup(T key) const { // pass return value by arg
     return ret;
 }
 
-template<class T, class V, size_t SBUCKET_SIZE>
+template<typename T, typename V, size_t SBUCKET_SIZE>
 bool Segment<T, V, SBUCKET_SIZE>::insert(KeyValue<T, V> &kv) {
     unsigned int buckID = locate_buck(kv.key_);
 
@@ -211,7 +202,7 @@ bool Segment<T, V, SBUCKET_SIZE>::insert(KeyValue<T, V> &kv) {
     return ret;
 }
 
-template<class T, class V, size_t SBUCKET_SIZE>
+template<typename T, typename V, size_t SBUCKET_SIZE>
 void Segment<T, V, SBUCKET_SIZE>::train_model() {
     // input: pivot key of each bucket
     // output: model's slope and intercept    
