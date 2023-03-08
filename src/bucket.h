@@ -27,7 +27,8 @@ template<class LISTTYPE, typename T, typename V, size_t SIZE>
 class Bucket { // can be an S-Bucket or a D-Bucket. S-Bucket and D-Bucket and different size
 public:
 
-    Bucket() {
+    Bucket(T max_pivot) { // max_pivot should be the maximum value of type T
+        pivot_ = max_pivot;
         memset(bitmap_, 0, sizeof(bitmap_));
     }
 
@@ -40,6 +41,8 @@ public:
 
     //TODO: iterator
 
+    inline T get_pivot() const { return pivot_; }
+
     inline size_t num_keys() const {
         size_t cnt = 0;
         for (int i = 0; i < BITMAP_SIZE; i++) {
@@ -48,12 +51,12 @@ public:
         return cnt;
     }
 
-    inline KeyValue<T, V> at(int pos) { return list_.at(pos); }
+    inline KeyValue<T, V> at(int pos) const { return list_.at(pos); }
 
     T find_kth_smallest(int k); // find the kth smallest element in 1-based index
 
     //bitmap operations
-    inline int find_empty_slot() { // return the offset of the first bit=0
+    inline int find_empty_slot() const { // return the offset of the first bit=0
         for (int i = 0; i < BITMAP_SIZE; i++) {
             int pos = __builtin_clzll(~bitmap_[i]);
             if (pos != BITS_UINT64_T) return i * BITS_UINT64_T + pos;

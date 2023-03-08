@@ -32,9 +32,9 @@ public:
     }
 
 
-    Segment(size_t num, Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>* list, bool leaf = false, Segment* parent = nullptr){
+    Segment(size_t num, Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>* list, T max_pivot, bool leaf = false, Segment* parent = nullptr){
         num_bucket_ = num;
-        sbucket_list_ = new Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>[num];
+        sbucket_list_ = new Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>[num]{max_pivot};
         is_leaf_ = leaf;
         parent = nullptr;
     }

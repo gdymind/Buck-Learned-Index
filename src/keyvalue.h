@@ -5,14 +5,13 @@
 
 namespace buckindex {
 
-//TODO: change class to typename
 template<typename T, typename V>
 struct KeyValue
 {
     T key_;
     V value_; // 8 bytes; 
-                    // In S-bucket, it is a pointer to bucket/segment/segment group(e.g., we can recast it to uint64_t*)
-                    // In D-bucket, it is the actual value
+              // In S-bucket, it is a pointer to bucket/segment/segment group(e.g., we can recast it to uint64_t*)
+              // In D-bucket, it is the actual value
 
     KeyValue() {}
     KeyValue(T k, V v): key_(k), value_(v) {}
@@ -21,7 +20,7 @@ struct KeyValue
 };
 
 template<typename T, typename V, size_t SIZE> 
-class KeyListValueList {
+class KeyListValueList { // KV list for S-Bucket
 public:
     T keys_[SIZE];
     V values_[SIZE];
@@ -32,8 +31,9 @@ public:
 };
 
 template<typename T, typename V, size_t SIZE>
-class KeyValueList {
+class KeyValueList { // KV list for S-Bucket
 public:
+
     KeyValue<T, V> kvs_[SIZE];
 
     KeyValue<T, V> at(int pos) const { return kvs_[pos]; }
