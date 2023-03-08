@@ -1,11 +1,11 @@
 #pragma once
 
 #include "segment.h"
-#include "global.h"
+#include "util.h"
 
 namespace buckindex {
 
-template<class T, class V, size_t SBUCKET_SIZE>
+template<typename T, typename V, size_t SBUCKET_SIZE>
 class BuckIndex {
 public:
     BuckIndex() {
@@ -37,6 +37,7 @@ private:
     }
 
     Segment<T, V, SBUCKET_SIZE> *root_;
+    size_t num_levels_;
 };
 
 } // end namespace buckindex

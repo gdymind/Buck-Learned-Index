@@ -10,7 +10,7 @@
 
 namespace buckindex {
 
-template<class T, class V, size_t SBUCKET_SIZE> // V is always a pointer to a Segment/D-Bucket
+template<typename T, typename V, size_t SBUCKET_SIZE>
 class Segment {
 public:
     //bool is_leaf_; // true -> segment; false -> segment group 
@@ -62,7 +62,7 @@ public:
             while(buckID<num_bucket_ && sbucket_list_[buckID].num_keys()==SBUCKET_SIZE){
                 buckID++; // search forwards until find a bucket with empty slot
             }
-
+            
             // the new remaining_slots if the key is inserted here
             remaining_slots = SBUCKET_SIZE * (num_bucket_ - buckID) - sbucket_list_[buckID].num_keys();
             if(remaining_keys > remaining_slots){ // refuse to insert in this place // and find the nearest bucket backwards so that it can be put in
@@ -144,7 +144,7 @@ private:
 };
 
 
-template<class T, class V, size_t SBUCKET_SIZE>
+template<typename T, typename V, size_t SBUCKET_SIZE>
 bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-balance between adjcent bucket
     // Case 1: migrate forwards
 
@@ -215,8 +215,10 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
     return true;
 }
 
-template<class T, class V, size_t SBUCKET_SIZE>
+
+template<typename T, typename V, size_t SBUCKET_SIZE>
 bool Segment<T, V, SBUCKET_SIZE>::lookup(T key, V &value) const { // pass return value by argument; return a boolean to decide success or not
+
     unsigned int buckID = locate_buck(key); 
 
     bool sucess = sbucket_list_[buckID].lb_lookup(key, value);
@@ -225,7 +227,7 @@ bool Segment<T, V, SBUCKET_SIZE>::lookup(T key, V &value) const { // pass return
     return sucess;
 }
 
-template<class T, class V, size_t SBUCKET_SIZE>
+template<typename T, typename V, size_t SBUCKET_SIZE>
 bool Segment<T, V, SBUCKET_SIZE>::insert(KeyValue<T, V> &kv) {
     unsigned int buckID = locate_buck(kv.key_);
 
@@ -241,6 +243,7 @@ bool Segment<T, V, SBUCKET_SIZE>::insert(KeyValue<T, V> &kv) {
 
     return ret;
 }
+
 
 // template<class T, class V, size_t SBUCKET_SIZE>
 // void Segment<T, V, SBUCKET_SIZE>::train_model() {
@@ -258,6 +261,7 @@ bool Segment<T, V, SBUCKET_SIZE>::insert(KeyValue<T, V> &kv) {
 //         xx_sum_ += static_cast<long double>(key) * key;
 //         xy_sum_ += static_cast<long double>(key) * i;
 //     }
+
     
 //     if (num_bucket_ <= 1) {
 //         model_->a_ = 0;

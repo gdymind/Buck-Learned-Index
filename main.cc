@@ -1,7 +1,7 @@
 #include<iostream>
 #include<climits>
 
-#include "global.h"
+#include "util.h"
 #include "buck_index.h"
 
 typedef unsigned long long key_type;
