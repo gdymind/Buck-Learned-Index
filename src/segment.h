@@ -32,12 +32,12 @@ public:
     // Parameterized Constructor
     // a constructor that recevices the number of entries, fill ratio, and the model(before expansion)
     // also pass a start iterator and an end iterator; iterate over the list and insert into the sbucket_list_
-    Segment(size_t num, double fill_ratio, LinearModel<T> &model, 
+    Segment(size_t num_kv, double fill_ratio, LinearModel<T> &model, 
     typename std::vector<KeyValue<T, V>>::iterator it, 
     typename std::vector<KeyValue<T, V>>::iterator end)
     :model_(model){
         assert(fill_ratio>=0 && fill_ratio<=1);
-        size_t num_slot = ceil(num / fill_ratio);
+        size_t num_slot = ceil(num_kv / fill_ratio);
         num_bucket_ = ceil((double)num_slot / SBUCKET_SIZE);
         sbucket_list_ = new Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>[num_bucket_];
         model_.expand(1/fill_ratio);
@@ -52,7 +52,7 @@ public:
 
 
         size_t remaining_slots = num_bucket_ * SBUCKET_SIZE;
-        size_t remaining_keys = num;
+        size_t remaining_keys = num_kv;
         size_t buckID = 0;
         for(;it!=end;it++){
             assert(remaining_keys <= remaining_slots);
