@@ -9,7 +9,7 @@ template<typename T, typename V, size_t SBUCKET_SIZE>
 class BuckIndex {
 public:
     BuckIndex() {
-        root_ = new Segment<T, V, SBUCKET_SIZE>();
+        // root_ = new Segment<T, V, SBUCKET_SIZE>();
     }
 
     ~BuckIndex() {

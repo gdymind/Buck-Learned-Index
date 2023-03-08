@@ -14,7 +14,6 @@ namespace buckindex {
     typedef unsigned long long key_t;
     typedef unsigned long long value_t;
 
-
     TEST(Bucket, lb_lookup) {
         Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
 
@@ -24,7 +23,7 @@ namespace buckindex {
 
         for (int i = 0; i < 8; i++) list.put(i, (i+1) * 10, (i+1) * 10);
         for (int i = 0; i < 8; i++) {
-            bucket.insert(list.at(i), true); //TODO: directly initilize the array
+            bucket.insert(list.at(i));
         }
 
         for (int i = 0; i < 10; i++) {
