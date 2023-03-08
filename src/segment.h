@@ -31,7 +31,7 @@ public:
 
     // Parameterized Constructor
     // Pre-requisite: list of entries must be sorted before insertion
-    
+
     // a constructor that recevices the number of entries, fill ratio, and the model(before expansion)
     // also pass a start iterator and an end iterator; iterate over the list and insert into the sbucket_list_
     Segment(size_t num_kv, double fill_ratio, LinearModel<T> &model, 
@@ -223,10 +223,10 @@ bool Segment<T, V, SBUCKET_SIZE>::lookup(T key, V &value) const { // pass return
 
     unsigned int buckID = locate_buck(key); 
 
-    bool sucess = sbucket_list_[buckID].lb_lookup(key, value);
+    bool success = sbucket_list_[buckID].lb_lookup(key, value);
 
     // TODO: predict -> search within bucket -> locate -> search (put a flag) (deferred)
-    return sucess;
+    return success;
 }
 
 template<typename T, typename V, size_t SBUCKET_SIZE>
