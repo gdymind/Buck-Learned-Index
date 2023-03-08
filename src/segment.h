@@ -13,30 +13,71 @@ namespace buckindex {
 template<typename T, typename V, size_t SBUCKET_SIZE>
 class Segment {
 public:
-    bool is_leaf_; // true -> segment; false -> segment group
-    size_t num_bucket_; // total num of buckets
-
+    //bool is_leaf_; // true -> segment; false -> segment group 
+    //Segment* parent_; // the parent Segment node, which enables bottom-up tranversal
+    // T base; // key compression
     // TBD: flag to determine whether it has rebalanced 
 
-    Segment* parent_; // the parent Segment node, which enables bottom-up tranversal
-    // T base; // key compression
 
+    size_t num_bucket_; // total num of buckets
     Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>* sbucket_list_; // a list of S-Buckets 
     
-    // constructors
+    // default constructors
     Segment(){
-        is_leaf_ = false;
         num_bucket_ = 0; // indicating it is empty now
-        parent_ = nullptr;
         sbucket_list_ = nullptr;
     }
 
 
-    Segment(size_t num, Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>* list, bool leaf = false, Segment* parent = nullptr){
-        num_bucket_ = num;
-        sbucket_list_ = new Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>[num];
-        is_leaf_ = leaf;
-        parent = nullptr;
+    // Parameterized Constructor
+    // Pre-requisite: list of entries must be sorted before insertion
+
+    // a constructor that recevices the number of entries, fill ratio, and the model(before expansion)
+    // also pass a start iterator and an end iterator; iterate over the list and insert into the sbucket_list_
+    Segment(size_t num_kv, double fill_ratio, LinearModel<T> &model, 
+    typename std::vector<KeyValue<T, V>>::iterator it, 
+    typename std::vector<KeyValue<T, V>>::iterator end)
+    :model_(model){
+        assert(fill_ratio>=0 && fill_ratio<=1);
+        size_t num_slot = ceil(num_kv / fill_ratio);
+        num_bucket_ = ceil((double)num_slot / SBUCKET_SIZE);
+        sbucket_list_ = new Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>[num_bucket_];
+        model_.expand(1/fill_ratio);
+        //model_.dump();
+
+        // model_based insertion
+        // normal case: insert in the bucket of prdiction
+        // two corner cases:
+        //      1. if predicted bucket is full, find the next avilable bucket to insert
+        //      2. if the remaining slots are not enough for the future insertion, 
+        //          insert at the nearest bucket, so that future insertion has enough slots
+
+
+        size_t remaining_slots = num_bucket_ * SBUCKET_SIZE;
+        size_t remaining_keys = num_kv;
+        size_t buckID = 0;
+        for(;it!=end;it++){
+            assert(remaining_keys <= remaining_slots);
+            buckID = model_.predict(it->get_key()) / SBUCKET_SIZE; // TBD: suppose iterator iterate through KeyValue element
+            // model predicts the offset, we translate it to buckID
+            
+            while(buckID<num_bucket_ && sbucket_list_[buckID].num_keys()==SBUCKET_SIZE){
+                buckID++; // search forwards until find a bucket with empty slot
+            }
+            
+            // the new remaining_slots if the key is inserted here
+            remaining_slots = SBUCKET_SIZE * (num_bucket_ - buckID) - sbucket_list_[buckID].num_keys();
+            if(remaining_keys > remaining_slots){ // refuse to insert in this place // and find the nearest bucket backwards so that it can be put in
+                buckID = num_bucket_ - 1 - (remaining_keys-1)/SBUCKET_SIZE;
+                remaining_slots = SBUCKET_SIZE * (num_bucket_ - buckID) - sbucket_list_[buckID].num_keys();
+                // update the remaining_slot if insert in the new buckID
+            }
+            // else: accept to insert in this bucket
+            sbucket_list_[buckID].insert(*it, true); // TBD: suppose iterator iterate through KeyValue element  
+            remaining_keys--;
+            remaining_slots--;
+            
+        }
     }
 
     ~Segment(){
@@ -52,7 +93,7 @@ public:
 
     // TODO: a non-pivoting version (deferred)
 
-    V lookup(T key) const; //return the child; return nullptr if not exist
+    bool lookup(T key, V &value) const; //return the child pointer; return nullptr if not exist
     
     // insert an entry to the target S-Bucket; 
     // If the target S-Bucket is full, reblance the bucket with its right neighbor; 
@@ -62,7 +103,7 @@ public:
 private:
     LinearModel<T> model_;
 
-    void train_model(); // based on the pivot of each bucket
+    // void train_model(); // based on the pivot of each bucket
 
     // TBD: do we explicitly store x_sum, y_sum, xx_sum and xy_sum
 
@@ -176,13 +217,16 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
     return true;
 }
 
+
 template<typename T, typename V, size_t SBUCKET_SIZE>
-V Segment<T, V, SBUCKET_SIZE>::lookup(T key) const { // pass return value by argument; return a boolean to decide success or not
+bool Segment<T, V, SBUCKET_SIZE>::lookup(T key, V &value) const { // pass return value by argument; return a boolean to decide success or not
+
     unsigned int buckID = locate_buck(key); 
-    V ret = sbucket_list_[buckID].lb_lookup(key);
+
+    bool success = sbucket_list_[buckID].lb_lookup(key, value);
 
     // TODO: predict -> search within bucket -> locate -> search (put a flag) (deferred)
-    return ret;
+    return success;
 }
 
 template<typename T, typename V, size_t SBUCKET_SIZE>
@@ -202,50 +246,52 @@ bool Segment<T, V, SBUCKET_SIZE>::insert(KeyValue<T, V> &kv) {
     return ret;
 }
 
-template<typename T, typename V, size_t SBUCKET_SIZE>
-void Segment<T, V, SBUCKET_SIZE>::train_model() {
-    // input: pivot key of each bucket
-    // output: model's slope and intercept    
 
-    long double x_sum_ = 0;
-    long double y_sum_ = 0;
-    long double xx_sum_ = 0;
-    long double xy_sum_ = 0;
-    for(size_t i = 0;i<num_bucket_;i++){
-        T key = sbucket_list_[i].pivot_;
-        x_sum_ += static_cast<long double>(key);
-        y_sum_ += static_cast<long double>(i);
-        xx_sum_ += static_cast<long double>(key) * key;
-        xy_sum_ += static_cast<long double>(key) * i;
-    }
+// template<class T, class V, size_t SBUCKET_SIZE>
+// void Segment<T, V, SBUCKET_SIZE>::train_model() {
+//     // input: pivot key of each bucket
+//     // output: model's slope and intercept    
+
+//     long double x_sum_ = 0;
+//     long double y_sum_ = 0;
+//     long double xx_sum_ = 0;
+//     long double xy_sum_ = 0;
+//     for(size_t i = 0;i<num_bucket_;i++){
+//         T key = sbucket_list_[i].pivot_;
+//         x_sum_ += static_cast<long double>(key);
+//         y_sum_ += static_cast<long double>(i);
+//         xx_sum_ += static_cast<long double>(key) * key;
+//         xy_sum_ += static_cast<long double>(key) * i;
+//     }
+
     
-    if (num_bucket_ <= 1) {
-        model_->a_ = 0;
-        model_->b_ = static_cast<double>(y_sum_);
-        return;
-    }
+//     if (num_bucket_ <= 1) {
+//         model_->a_ = 0;
+//         model_->b_ = static_cast<double>(y_sum_);
+//         return;
+//     }
 
-    if (static_cast<long double>(num_bucket_) * xx_sum_ - x_sum_ * x_sum_ == 0) {
-        // all values in a bucket have the same key.
-        model_->a_ = 0;
-        model_->b_ = static_cast<double>(y_sum_) / num_bucket_;
-        return;
-    }
+//     if (static_cast<long double>(num_bucket_) * xx_sum_ - x_sum_ * x_sum_ == 0) {
+//         // all values in a bucket have the same key.
+//         model_->a_ = 0;
+//         model_->b_ = static_cast<double>(y_sum_) / num_bucket_;
+//         return;
+//     }
 
-    auto slope = static_cast<double>(
-        (static_cast<long double>(num_bucket_) * xy_sum_ - x_sum_ * y_sum_) /
-        (static_cast<long double>(num_bucket_) * xx_sum_ - x_sum_ * x_sum_));
-    auto intercept = static_cast<double>(
-        (y_sum_ - static_cast<long double>(slope) * x_sum_) / num_bucket_);
-    model_->a_ = slope;
-    model_->b_ = intercept;
+//     auto slope = static_cast<double>(
+//         (static_cast<long double>(num_bucket_) * xy_sum_ - x_sum_ * y_sum_) /
+//         (static_cast<long double>(num_bucket_) * xx_sum_ - x_sum_ * x_sum_));
+//     auto intercept = static_cast<double>(
+//         (y_sum_ - static_cast<long double>(slope) * x_sum_) / num_bucket_);
+//     model_->a_ = slope;
+//     model_->b_ = intercept;
 
-    // If floating point precision errors, fit spline
-    if (model_->a_ <= 0) {
-        model_->a_ = (num_bucket_ - 1) / (sbucket_list_[num_bucket_-1].pivot_ - sbucket_list_[0].pivot_);
-        model_->b_ = -static_cast<double>(sbucket_list_[0].pivot_) * model_->a_;
-    }
+//     // If floating point precision errors, fit spline
+//     if (model_->a_ <= 0) {
+//         model_->a_ = (num_bucket_ - 1) / (sbucket_list_[num_bucket_-1].pivot_ - sbucket_list_[0].pivot_);
+//         model_->b_ = -static_cast<double>(sbucket_list_[0].pivot_) * model_->a_;
+//     }
 
-}
+// }
 
 } // end namespace buckindex
