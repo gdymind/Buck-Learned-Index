@@ -30,6 +30,8 @@ public:
 
 
     // Parameterized Constructor
+    // Pre-requisite: list of entries must be sorted before insertion
+    
     // a constructor that recevices the number of entries, fill ratio, and the model(before expansion)
     // also pass a start iterator and an end iterator; iterate over the list and insert into the sbucket_list_
     Segment(size_t num_kv, double fill_ratio, LinearModel<T> &model, 
