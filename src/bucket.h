@@ -27,8 +27,8 @@ template<class LISTTYPE, typename T, typename V, size_t SIZE>
 class Bucket { // can be an S-Bucket or a D-Bucket. S-Bucket and D-Bucket and different size
 public:
 
-    Bucket(T max_pivot) { // max_pivot should be the maximum value of type T
-        pivot_ = max_pivot;
+    Bucket(T invalid_pivot) { // invalid_pivot should be the maximum value of type T
+        pivot_ = invalid_pivot;
         memset(bitmap_, 0, sizeof(bitmap_));
     }
 
