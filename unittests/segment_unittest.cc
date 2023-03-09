@@ -101,30 +101,29 @@ namespace buckindex {
         EXPECT_EQ(4, seg.sbucket_list_[4].num_keys());
     }
 
-    // TEST(Segment, lookup) {
-    //     key_t keys[] = {1,2,4,6,8,10,12,14,16,18,20};
-    //     std::vector<KeyValue<key_t, value_t>> in_array;
-    //     size_t length = sizeof(keys)/sizeof(key_t);
-    //     for (size_t i = 0; i < length; i++) {
-    //         in_array.push_back(KeyValue<key_t, value_t>(keys[i], keys[i]));
-    //     }
-    //     // model is y=x
-    //     LinearModel<key_t> model(1,0);
-    //     double fill_ratio = 0.5;
-    //     Segment<key_t, value_t, 8> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+    TEST(Segment, lookup) {
+        key_t keys[] = {1,2,4,6,8,10,12,14,16,18,20};
+        std::vector<KeyValue<key_t, value_t>> in_array;
+        size_t length = sizeof(keys)/sizeof(key_t);
+        for (size_t i = 0; i < length; i++) {
+            in_array.push_back(KeyValue<key_t, value_t>(keys[i], keys[i]));
+        }
+        // model is y=0.5x
+        LinearModel<key_t> model(0.5,0);
+        double fill_ratio = 0.5;
+        Segment<key_t, value_t, 8> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
     
-    //     value_t value = 0;
-    //     bool success = false;
-    //     success = seg.lookup(1,value);
-    //     EXPECT_EQ(true, success);
-    //     EXPECT_EQ(1, value);
+        value_t value = 0;
+        bool success = false;
+        success = seg.lookup(1,value);
+        EXPECT_EQ(true, success);
+        EXPECT_EQ(1, value);
 
-        
-    //     success = seg.lookup(0,value);
-    //     EXPECT_EQ(false, success);
+        success = seg.lookup(0,value);
+        EXPECT_EQ(false, success);
 
-    //     success = seg.lookup(5,value);
-    //     EXPECT_EQ(true, success);
-    //     EXPECT_EQ(4, value);
-    // }
+        success = seg.lookup(5,value); // find the lower bound
+        EXPECT_EQ(true, success);
+        EXPECT_EQ(4, value);
+    }
 }

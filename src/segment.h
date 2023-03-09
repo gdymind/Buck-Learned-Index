@@ -42,8 +42,10 @@ public:
         size_t num_slot = ceil(num_kv / fill_ratio);
         num_bucket_ = ceil((double)num_slot / SBUCKET_SIZE);
         sbucket_list_ = new Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>[num_bucket_];
+        //model_.dump();
         model_.expand(1/fill_ratio);
         //model_.dump();
+        //std::cout<<num_bucket_<<" "<<num_slot<<std::endl;
 
         // model_based insertion
         // normal case: insert in the bucket of prdiction
@@ -60,7 +62,7 @@ public:
             assert(remaining_keys <= remaining_slots);
             buckID = model_.predict(it->get_key()) / SBUCKET_SIZE; // TBD: suppose iterator iterate through KeyValue element
             // model predicts the offset, we translate it to buckID
-            
+            //std::cout<<"key: "<<it->get_key()<<" buckID: "<<buckID;
             while(buckID<num_bucket_ && sbucket_list_[buckID].num_keys()==SBUCKET_SIZE){
                 buckID++; // search forwards until find a bucket with empty slot
             }
@@ -73,6 +75,7 @@ public:
                 // update the remaining_slot if insert in the new buckID
             }
             // else: accept to insert in this bucket
+            //std::cout<<" inserted buckID: "<<buckID<<std::endl;
             sbucket_list_[buckID].insert(*it, true); // TBD: suppose iterator iterate through KeyValue element  
             remaining_keys--;
             remaining_slots--;
@@ -120,9 +123,9 @@ private:
         unsigned int buckID = predict_buck(key); // ensure buckID is valid s
 
 
-        if(sbucket_list_[buckID].pivot_ <= key){ // search forwards
+        if(sbucket_list_[buckID].get_pivot() <= key){ // search forwards
             while(buckID+1<num_bucket_){
-                if(sbucket_list_[buckID+1].pivot_ > key){
+                if(sbucket_list_[buckID+1].get_pivot() > key){
                     break;
                 }
                 buckID++;
@@ -130,7 +133,7 @@ private:
         }
         else{ // search backwards
             while(buckID>0){ 
-                if(sbucket_list_[buckID-1].pivot_ <= key){
+                if(sbucket_list_[buckID-1].get_pivot() <= key){
                     buckID--;
                     break;
                 }
@@ -175,7 +178,7 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
                 sbucket_list_[buckID+1].insert(sbucket_list_[buckID].at(i), false);
             }
         }
-        sbucket_list_[buckID+1].pivot_ = new_pivot;
+        sbucket_list_[buckID+1].set_pivot(new_pivot);
 
         for(size_t i = 0; i<SBUCKET_SIZE;i++){
             if(!sbucket_list_[buckID].valid(i)){
@@ -202,7 +205,7 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
                 sbucket_list_[buckID-1].insert(sbucket_list_[buckID].at(i));
             }
         }
-        sbucket_list_[buckID].pivot_ = new_pivot;
+        sbucket_list_[buckID].set_pivot(new_pivot);
         for(size_t i = 0; i<SBUCKET_SIZE;i++){
             if(!sbucket_list_[buckID].valid(i)){
                 continue;
