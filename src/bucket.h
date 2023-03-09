@@ -43,6 +43,7 @@ public:
     //TODO: iterator
 
     inline T get_pivot() const { return pivot_; }
+    inline void set_pivot(T pivot) { pivot_ = pivot; }
 
     inline size_t num_keys() const {
         size_t cnt = 0;
