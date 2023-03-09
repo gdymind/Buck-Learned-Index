@@ -3,6 +3,18 @@
 #include "segmentation.h"
 
 namespace buckindex {
+    TEST(Segmentation, no_segment) {
+        uint64_t keys[] = {};
+        uint64_t error_bound = 1;
+        uint64_t length = sizeof(keys)/sizeof(uint64_t);
+        vector<KeyValue<uint64_t, uint64_t>> in_kv_array;
+        vector<Cut<uint64_t>> cuts;
+
+        Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::compute_dynamic_segmentation(
+                in_kv_array, cuts, error_bound);
+        EXPECT_EQ(0u, cuts.size());
+    }
+
     TEST(Segmentation, one_segment) {
         uint64_t keys[] = {0,1,2,3,4,5,6,7,8,9,10};
         uint64_t error_bound = 1;

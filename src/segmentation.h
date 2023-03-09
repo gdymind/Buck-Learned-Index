@@ -58,6 +58,7 @@ namespace buckindex {
             GreedyErrorCorridor<KeyType> alg;
             int idx = 0;
             Cut<KeyType> c;
+            if (in_kv_array.size() == 0) return;
             typename Container::const_iterator start = in_kv_array.cbegin();
             typename Container::const_iterator end = in_kv_array.cend();
 
