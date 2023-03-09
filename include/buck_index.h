@@ -58,12 +58,13 @@ public:
         uint64_t layer_idx = num_levels_ - 1;
         uintptr_t seg_ptr = (uintptr_t)root_;
         bool result = false;
+        value = 0;
+        if (!root_) return false;
         if (layer_idx > 0) {
             do {
                 SegmentType* segment = (SegmentType*)seg_ptr;
                 result = segment->lookup(key, seg_ptr);
                 if (!seg_ptr) {
-                    value = 0;
                     std::cerr << " failed to perform segment lookup for key: " << key << std::endl;
                     return false;
                 }
