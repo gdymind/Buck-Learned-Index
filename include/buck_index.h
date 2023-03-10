@@ -11,9 +11,9 @@ namespace buckindex {
  */
 #ifdef UNITTEST
 // Parameters used by the unit test
-#define MAX_DATA_BUCKET_SIZE 1
-#define MAX_SEGMENT_BUCKET_SIZE 1
-#define FILLED_RATIO 1.0
+#define MAX_DATA_BUCKET_SIZE 2
+#define MAX_SEGMENT_BUCKET_SIZE 2
+#define FILLED_RATIO 0.5
 #else
 #define MAX_DATA_BUCKET_SIZE 128
 #define MAX_SEGMENT_BUCKET_SIZE 8
@@ -25,8 +25,10 @@ template<typename KeyType, typename ValueType>
 class BuckIndex {
 public:
     //List of template aliasing
-    using DataBucketType = Bucket<KeyValueList<KeyType, ValueType, MAX_DATA_BUCKET_SIZE>,
+    using DataBucketType = Bucket<KeyListValueList<KeyType, ValueType, MAX_DATA_BUCKET_SIZE>,
                                   KeyType, ValueType, MAX_DATA_BUCKET_SIZE>;
+    using SegBucketType = Bucket<KeyValueList<KeyType, ValueType, MAX_SEGMENT_BUCKET_SIZE>,
+                                  KeyType, ValueType, MAX_SEGMENT_BUCKET_SIZE>;
     using SegmentType = Segment<KeyType, ValueType,
                                 MAX_SEGMENT_BUCKET_SIZE>;
     using KeyValueType = KeyValue<KeyType, ValueType>;
@@ -34,9 +36,10 @@ public:
 
     BuckIndex() {
         root_ = NULL;
+        num_levels_ = 0;
     }
 
-    /*
+    /**
      * Constructor which can specify the bucket sizes
      */
     BuckIndex(uint64_t dbucket_size, uint64_t sbucket_size) {
@@ -55,28 +58,83 @@ public:
      * @return true if the key is found, else false
      */
     bool lookup(KeyType key, ValueType &value) {
+        if (!root_) return false;
+
         uint64_t layer_idx = num_levels_ - 1;
         uintptr_t seg_ptr = (uintptr_t)root_;
         bool result = false;
         value = 0;
-        if (!root_) return false;
-        if (layer_idx > 0) {
-            do {
-                SegmentType* segment = (SegmentType*)seg_ptr;
-                result = segment->lookup(key, seg_ptr);
-                if (!seg_ptr) {
-                    std::cerr << " failed to perform segment lookup for key: " << key << std::endl;
-                    return false;
-                }
-                layer_idx--;
-            } while (layer_idx >= 1);
+        while (layer_idx > 0) {
+            SegmentType* segment = (SegmentType*)seg_ptr;
+            result = segment->lookup(key, seg_ptr);
+            if (!seg_ptr) {
+                std::cerr << " failed to perform segment lookup for key: " << key << std::endl;
+                return false;
+            }
+            layer_idx--;
         }
         DataBucketType* d_bucket = (DataBucketType *)seg_ptr;
         result = d_bucket->lookup(key, value);
         return result;
     }
 
+    /**
+    * Insert function
+    * @param kv: the Key-Value pair to be inserted
+    * @return true if kv in inserted, false else
+    */
     bool insert(KeyValueType& kv) {
+        if (!root_) {
+            root_ = new DataBucketType();
+            num_levels_ = 1;
+        }
+
+        uint64_t layer_idx = num_levels_ - 1;
+        uintptr_t seg_ptr = (uintptr_t)root_;
+        bool result = true;
+        while (layer_idx > 0) {
+            std::cout << "didi" << std::endl;
+            SegmentType* segment = (SegmentType*)seg_ptr;
+            result = segment->lookup(kv.key_, seg_ptr);
+            if (!seg_ptr) {
+                std::cerr << " failed to perform segment insert for KV: (" << kv.key_ 
+                          << ", " << kv.value_ << ")" << std::endl;
+                return false;
+            }
+
+            if (!result) { // insert key is smaller than existing pivots
+                           // need to update the smallest pivot of the current segment
+                           // also need to update the entry whose key == pivot:
+                           //      update the key to be the new pivot, but keep the value(a pointer) unchanged
+
+                SegBucketType *first_bucket; // the first bucket has the smallest pivot
+                first_bucket = segment->get_bucket(0);
+                ValueType pivot = first_bucket->get_pivot();
+
+                int pos = first_bucket->get_pos(pivot); // get the position of the pivot entry
+                assert(pos != -1);
+
+                ValueType value; // get the child pointer of the pivot entry
+                assert(first_bucket->lookup(pivot, value) == true);
+
+                // note the order of the following three opreations to support concurency
+                first_bucket->insert(KeyValueType(kv.key_, value)); 
+                first_bucket->set_pivot(kv.key_);
+                first_bucket->invalidate(pos);
+
+                seg_ptr = value;
+            }
+
+            layer_idx--; 
+        }
+
+        
+        DataBucketType* d_bucket = (DataBucketType *)seg_ptr;
+        if (!d_bucket->insert(kv)) {
+            //TODO: current bucket is full, call bucket_rebalance
+            //TODO: if still fails after bucket_rebalance, call adjust_segment
+            return false;
+        }
         return true;
     }
     /**
@@ -176,10 +234,10 @@ private:
     }
 
     bool adjust_segment(SegmentType *old_seg) { //scale, run segmentation, and retrain the old_seg, and possibly split into multiple new Segment
-        // step 1. sort the existing keys
 
         return true;
     }
+    
     //The root of the learned index. Root can be a segment or a bucket
     void* root_;
     //Learned index constants
@@ -187,7 +245,7 @@ private:
     //const double filled_ratio_ = 0.50;
     //Statistics
     uint8_t num_levels_;
-    uint64_t num_data_buckets;
+    uint64_t num_data_buckets_; //TODO: update num_data_buckets_ during bulk_load and insert
     uint64_t level_stats_[max_levels_];
 
 };
