@@ -239,11 +239,7 @@ bool Segment<T, V, SBUCKET_SIZE>::lookup(T key, V &value) const { // pass return
 
 template<typename T, typename V, size_t SBUCKET_SIZE>
 bool Segment<T, V, SBUCKET_SIZE>::insert(KeyValue<T, V> &kv) {
-    if (num_bucket_ == 0) {
-        sbucket_list_ = new Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>[1];
-        num_bucket_ = 1;
-        // no need to update model_, as it's already (0.0, 0.0)
-    }
+    assert(num_bucket_ > 0);
 
     unsigned int buckID = locate_buck(kv.key_);
 
