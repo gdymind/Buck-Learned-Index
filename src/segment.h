@@ -269,9 +269,16 @@ bool Segment<T, V, SBUCKET_SIZE>::insert(KeyValue<T, V> &kv) {
             return false;
         }
     }
-    assert(kv.key_>=sbucket_list_[buckID].get_pivot());
-    bool ret = sbucket_list_[buckID].insert(kv, false);
-    // target key should be within the pivots
+
+    // TODO: only the first bucket of the layer should do the assert
+    // assert(kv.key_>=sbucket_list_[buckID].get_pivot());
+    // bool ret = sbucket_list_[buckID].insert(kv, false);
+    // // target key should be within the pivots
+
+    // if buckID == 0, key may be smaller than pivot
+    // then we need to update the pivot
+     
+    bool ret = sbucket_list_[buckID].insert(kv, true);
 
     return ret;
 }
