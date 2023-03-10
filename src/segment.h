@@ -166,7 +166,7 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
 
     // if two directions are possible, migrate to the bucket with fewer element
     //std::cout<<buckID<<std::endl;
-    if(num_bucket_ == 0){return false;}
+    if(num_bucket_ == 0 || num_bucket_ == 1){return false;}
 
     size_t src_buck_num = sbucket_list_[buckID].num_keys();
     size_t des_buck_num = 0;
