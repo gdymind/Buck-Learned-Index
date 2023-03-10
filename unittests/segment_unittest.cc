@@ -126,4 +126,145 @@ namespace buckindex {
         EXPECT_EQ(true, success);
         EXPECT_EQ(4, value);
     }
+
+    TEST(Segment, insert_normal_case) {
+        key_t keys[] = {0,2,4,6,8,10,12,14,16,18,20};
+        std::vector<KeyValue<key_t, value_t>> in_array;
+        size_t length = sizeof(keys)/sizeof(key_t);
+        for (size_t i = 0; i < length; i++) {
+            in_array.push_back(KeyValue<key_t, value_t>(keys[i], keys[i]));
+        }
+        // model is y=0.5x
+        LinearModel<key_t> model(0.5,0);
+        double fill_ratio = 0.5;
+        Segment<key_t, value_t, 8> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+    
+        value_t value = 0;
+        bool success = false;
+        KeyValue<key_t, value_t> key1(3,4);
+        success = seg.insert(key1);
+        EXPECT_EQ(true, success);
+        success = seg.lookup(3,value);
+        EXPECT_EQ(true, success);
+        EXPECT_EQ(4, value);
+
+        KeyValue<key_t, value_t> key2(11,8);
+        success = seg.insert(key2);
+        EXPECT_EQ(true, success);
+
+        size_t count = 0;
+        for(size_t i=0;i<seg.num_bucket_;i++){
+            count += seg.sbucket_list_[i].num_keys();
+        }
+        EXPECT_EQ(length+2, count);
+        EXPECT_EQ(5, seg.sbucket_list_[0].num_keys());
+        EXPECT_EQ(5, seg.sbucket_list_[1].num_keys());
+        EXPECT_EQ(3, seg.sbucket_list_[2].num_keys());
+    }
+
+    TEST(Segment, insert_rebalance){
+        key_t keys[] = {0,20,40,60,80,100,120,140};
+        std::vector<KeyValue<key_t, value_t>> in_array;
+        size_t length = sizeof(keys)/sizeof(key_t);
+        for (size_t i = 0; i < length; i++) {
+            in_array.push_back(KeyValue<key_t, value_t>(keys[i], keys[i]));
+        }
+        // model is y=0.05x
+        LinearModel<key_t> model(0.05,0);
+        double fill_ratio = 0.5;
+        Segment<key_t, value_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        
+        EXPECT_EQ(4, seg.num_bucket_);
+        EXPECT_EQ(2, seg.sbucket_list_[0].num_keys());
+        EXPECT_EQ(2, seg.sbucket_list_[1].num_keys());
+        EXPECT_EQ(2, seg.sbucket_list_[2].num_keys());
+        EXPECT_EQ(2, seg.sbucket_list_[3].num_keys());
+
+        bool success = false;
+        KeyValue<key_t, value_t> key1(50,4);
+        success = seg.insert(key1);
+        KeyValue<key_t, value_t> key2(55,6);
+        success = seg.insert(key2);
+
+        // Now there are 4 elements in the second segment (40,50,55,60)
+        EXPECT_EQ(4, seg.sbucket_list_[1].num_keys());
+        EXPECT_EQ(40,seg.sbucket_list_[1].get_pivot());
+        
+        // bucket rebalance triggered by one more insertion
+        // Before migration: (40,50,55,60) and (80,100)
+        // After migration: (40,50,55) and (60,80,100)
+        KeyValue<key_t, value_t> key3(56,8);
+        success = seg.insert(key3);
+        EXPECT_EQ(true, success);
+        // After insertion: (40,50,55,56) and (60,80,100)
+
+        // migrate forward, and update pivot
+        EXPECT_EQ(4, seg.sbucket_list_[1].num_keys());
+        EXPECT_EQ(3, seg.sbucket_list_[2].num_keys());
+        EXPECT_EQ(60,seg.sbucket_list_[2].get_pivot());
+
+        KeyValue<key_t, value_t> key4(45,8);
+        success = seg.insert(key4);
+        EXPECT_EQ(true, success);
+        // Before migration: (0,20) and (40,50,55,56) and (60,80,100)
+        // After migration: (0,20,40) and (50,55,56)
+        // After insertion: (0,20,40,45) and (50,55,56)
+
+        EXPECT_EQ(4, seg.sbucket_list_[0].num_keys());
+        EXPECT_EQ(3, seg.sbucket_list_[1].num_keys());
+        EXPECT_EQ(50,seg.sbucket_list_[1].get_pivot());
+    }
+
+    TEST(Segment, insert_fail){
+        key_t keys[] = {0,20,40,60,80,100,120,140};
+        std::vector<KeyValue<key_t, value_t>> in_array;
+        size_t length = sizeof(keys)/sizeof(key_t);
+        for (size_t i = 0; i < length; i++) {
+            in_array.push_back(KeyValue<key_t, value_t>(keys[i], keys[i]));
+        }
+        // model is y=0.05x
+        LinearModel<key_t> model(0.05,0);
+        double fill_ratio = 0.5;
+        Segment<key_t, value_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        
+        EXPECT_EQ(4, seg.num_bucket_);
+
+        bool success = false;
+        KeyValue<key_t, value_t> key1(50,4);
+        success = seg.insert(key1);
+        KeyValue<key_t, value_t> key2(55,6);
+        success = seg.insert(key2);
+
+        KeyValue<key_t, value_t> key3(85,4);
+        success = seg.insert(key3);
+
+        KeyValue<key_t, value_t> key4(5,4);
+        success = seg.insert(key4);
+        KeyValue<key_t, value_t> key5(15,6);
+        success = seg.insert(key5);
+
+        // Now the first three segments are (0,5,15,20)(40,50,55,60)(80,85,100)
+        EXPECT_EQ(4, seg.sbucket_list_[0].num_keys());
+        EXPECT_EQ(4, seg.sbucket_list_[1].num_keys());
+        EXPECT_EQ(3, seg.sbucket_list_[2].num_keys());
+
+        KeyValue<key_t, value_t> key6(65,6);
+        success = seg.insert(key6);
+        // Before migration: (40,50,55,60) and (80,85,100)
+        // After migration: (40,50,55) and (60,80,85,100)
+        // Now the new key should insert in the third segment
+        EXPECT_FALSE(success);
+
+        KeyValue<key_t, value_t> key7(52,6);
+        success = seg.insert(key7);
+        
+        // Now the first three segments are (0,5,15,20)(40,50,52,55)(60,80,85,100)
+        EXPECT_EQ(4, seg.sbucket_list_[0].num_keys());
+        EXPECT_EQ(4, seg.sbucket_list_[1].num_keys());
+        EXPECT_EQ(4, seg.sbucket_list_[2].num_keys());
+        // No key can be inserted in the second segment
+        KeyValue<key_t, value_t> key8(46,6);
+        success = seg.insert(key8);
+        EXPECT_FALSE(success);
+    }
 }

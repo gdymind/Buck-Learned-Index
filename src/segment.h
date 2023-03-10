@@ -37,7 +37,9 @@ public:
     template<typename IterType>
     Segment(size_t num_kv, double fill_ratio, LinearModel<T> &model, IterType it, IterType end)
     :model_(model){
-        assert(fill_ratio>=0 && fill_ratio<=1);
+        assert(it+num_kv == end);
+        assert(num_kv>0);
+        assert(fill_ratio>0 && fill_ratio<=1);
         size_t num_slot = ceil(num_kv / fill_ratio);
         num_bucket_ = ceil((double)num_slot / SBUCKET_SIZE);
         sbucket_list_ = new Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>[num_bucket_];
@@ -66,7 +68,9 @@ public:
             while(buckID<num_bucket_ && sbucket_list_[buckID].num_keys()==SBUCKET_SIZE){
                 buckID++; // search forwards until find a bucket with empty slot
             }
-
+            if(buckID>=num_bucket_){
+                buckID = num_bucket_-1;
+            }
             // the new remaining_slots if the key is inserted here
             remaining_slots = SBUCKET_SIZE * (num_bucket_ - buckID) - sbucket_list_[buckID].num_keys();
             if(remaining_keys > remaining_slots){ // refuse to insert in this place // and find the nearest bucket backwards so that it can be put in
@@ -115,7 +119,7 @@ private:
     // TBD: do we explicitly store x_sum, y_sum, xx_sum and xy_sum
 
     inline unsigned int predict_buck(T key) const { // get the predicted S-Bucket ID based on the model computing
-        unsigned int buckID = (unsigned int)(model_.predict(key) / SBUCKET_SIZE + 0.5);
+        unsigned int buckID = (unsigned int)(model_.predict(key) / SBUCKET_SIZE);
         buckID = std::min(buckID, (unsigned int)std::max(0,(int)(num_bucket_-1))); // ensure num_bucket>0
         return buckID;
     }
@@ -161,6 +165,8 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
     // Case 2: migrate backwards
 
     // if two directions are possible, migrate to the bucket with fewer element
+    //std::cout<<buckID<<std::endl;
+    if(num_bucket_ == 0 || num_bucket_ == 1){return false;}
 
     size_t src_buck_num = sbucket_list_[buckID].num_keys();
     size_t des_buck_num = 0;
@@ -173,9 +179,9 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
     if(migrate_forwards){
         assert(buckID + 1 < num_bucket_);
         des_buck_num = sbucket_list_[buckID+1].num_keys();
-        if(sbucket_list_[buckID+1].num_keys() == SBUCKET_SIZE){return false;}
+        if(des_buck_num == SBUCKET_SIZE){return false;}
         size_t median = (src_buck_num + des_buck_num)/2; // Be careful, current bucket can have one less element than the next one
-        T new_pivot = sbucket_list_[buckID].find_kth_smallest(median);
+        T new_pivot = sbucket_list_[buckID].find_kth_smallest(median+1);
 
         // for concurrency, first insert new entries, then update pivot_, then remove old entries
         for(size_t i = 0;i<src_buck_num;i++){
@@ -185,6 +191,7 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
         }
         sbucket_list_[buckID+1].set_pivot(new_pivot);
 
+
         for(size_t i = 0; i<SBUCKET_SIZE;i++){
             if(!sbucket_list_[buckID].valid(i)){
                 continue;
@@ -193,21 +200,23 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
                 sbucket_list_[buckID].invalidate(i);
             }
         }
+
     }
     else{
         assert(buckID - 1 >= 0);
         des_buck_num = sbucket_list_[buckID-1].num_keys();
-        if(sbucket_list_[buckID-1].num_keys() == SBUCKET_SIZE){return false;}
+        if(des_buck_num == SBUCKET_SIZE){return false;}
 
         size_t median = (src_buck_num + des_buck_num)/2; // Be careful, current bucket can have one less element than the next one
         size_t num_migration = src_buck_num - median;
 
-        T new_pivot = sbucket_list_[buckID].find_kth_smallest(num_migration);
+        
+        T new_pivot = sbucket_list_[buckID].find_kth_smallest(num_migration+1);
 
         // for concurrency, first insert new entries, then update pivot_, then remove old entries
         for(size_t i = 0;i<sbucket_list_[buckID].num_keys();i++){
             if(sbucket_list_[buckID].at(i).get_key()<new_pivot){
-                sbucket_list_[buckID-1].insert(sbucket_list_[buckID].at(i));
+                sbucket_list_[buckID-1].insert(sbucket_list_[buckID].at(i),false);
             }
         }
         sbucket_list_[buckID].set_pivot(new_pivot);
@@ -221,14 +230,14 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
         }
 
     }
-    assert(!sbucket_list_[buckID].num_keys() == SBUCKET_SIZE);
+    assert(sbucket_list_[buckID].num_keys() < SBUCKET_SIZE);
     return true;
 }
 
 
 template<typename T, typename V, size_t SBUCKET_SIZE>
 bool Segment<T, V, SBUCKET_SIZE>::lookup(T key, V &value) const { // pass return value by argument; return a boolean to decide success or not
-
+    assert(num_bucket_>0);
     unsigned int buckID = locate_buck(key);
 
     bool success = sbucket_list_[buckID].lb_lookup(key, value);
@@ -239,18 +248,36 @@ bool Segment<T, V, SBUCKET_SIZE>::lookup(T key, V &value) const { // pass return
 
 template<typename T, typename V, size_t SBUCKET_SIZE>
 bool Segment<T, V, SBUCKET_SIZE>::insert(KeyValue<T, V> &kv) {
-    assert(num_bucket_ > 0);
+
+    assert(num_bucket_>0);
 
     unsigned int buckID = locate_buck(kv.key_);
 
     if(sbucket_list_[buckID].num_keys() == SBUCKET_SIZE){
         if(!bucket_rebalance(buckID)){
+            //std::cout<<"case 2"<<std::endl;
             return false;
         }
         buckID = locate_buck(kv.key_);
+
+        // special case when the des bucket is full due to migration
+        // and new_pivot is updated to be smaller than target key
+        // Three adjcent buckets have totally one empty slot, 
+        // so we think it's time to adjust segment
+        if(sbucket_list_[buckID].num_keys() == SBUCKET_SIZE){
+            //std::cout<<"case 1"<<std::endl;
+            return false;
+        }
     }
 
+    // TODO: only the first bucket of the layer should do the assert
+    // assert(kv.key_>=sbucket_list_[buckID].get_pivot());
+    // bool ret = sbucket_list_[buckID].insert(kv, false);
+    // // target key should be within the pivots
 
+    // if buckID == 0, key may be smaller than pivot
+    // then we need to update the pivot
+     
     bool ret = sbucket_list_[buckID].insert(kv, true);
 
     return ret;
