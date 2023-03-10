@@ -20,18 +20,6 @@ namespace buckindex {
         EXPECT_EQ(nullptr, seg.sbucket_list_);
     }
 
-    // TEST(Segment, insert_from_empty) {
-    //     Segment<key_t, value_t, 8> seg;
-    //     KeyValue<key_t, value_t> kv(10, 20);
-
-    //     EXPECT_TRUE(seg.insert(kv));
-    //     EXPECT_EQ(1, seg.num_bucket_);
-
-    //     value_t value;
-    //     EXPECT_TRUE(seg.lookup(10, value));
-    //     EXPECT_EQ(20, value);
-    // }
-
     TEST(Segment, constructor_model_based_insert) {
         key_t keys[] = {0,1,2,3,4,5,6,7,8,9,10};
         std::vector<KeyValue<key_t, value_t>> in_array;

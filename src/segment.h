@@ -248,6 +248,7 @@ bool Segment<T, V, SBUCKET_SIZE>::lookup(T key, V &value) const { // pass return
 
 template<typename T, typename V, size_t SBUCKET_SIZE>
 bool Segment<T, V, SBUCKET_SIZE>::insert(KeyValue<T, V> &kv) {
+
     assert(num_bucket_>0);
 
     unsigned int buckID = locate_buck(kv.key_);
