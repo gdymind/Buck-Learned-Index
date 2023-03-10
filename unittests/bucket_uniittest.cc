@@ -29,42 +29,42 @@ namespace buckindex {
         EXPECT_EQ(false, bucket.lb_lookup(2898509, value));
 
         // insert {12, 24, 28, 67, 98} unsorted
-        bucket.insert(KeyValue<key_t, value_t>(98, 98));
-        bucket.insert(KeyValue<key_t, value_t>(24, 24));
-        bucket.insert(KeyValue<key_t, value_t>(12, 12));
-        bucket.insert(KeyValue<key_t, value_t>(28, 28));
-        bucket.insert(KeyValue<key_t, value_t>(67, 67));
+        EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(98, 12)));
+        EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(24, 35)));
+        EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(12, 62)));
+        EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(28, 18)));
+        EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(67, 12345678)));
 
         for (int i = 0; i < 11; i++) EXPECT_EQ(false, bucket.lb_lookup(i, value));
 
-        for (int i = 12; i <= 23; i++) {
-            EXPECT_EQ(true, bucket.lb_lookup(i, value));
-            EXPECT_EQ(12, value);
-        }
-
+        // test (12, 62)
         for (int i = 12; i < 24; i++) {
             EXPECT_EQ(true, bucket.lb_lookup(i, value));
-            EXPECT_EQ(12, value);
+            EXPECT_EQ(62, value);
         }
 
+        // test (24, 35)
         for (int i = 24; i < 28; i++) {
             EXPECT_EQ(true, bucket.lb_lookup(i, value));
-            EXPECT_EQ(24, value);
+            EXPECT_EQ(35, value);
         }
 
+        // test (28, 18)
         for (int i = 28; i < 67; i++) {
             EXPECT_EQ(true, bucket.lb_lookup(i, value));
-            EXPECT_EQ(28, value);
+            EXPECT_EQ(18, value);
         }       
 
+        // test (67, 12345678)
         for (int i = 67; i < 98; i++) {
             EXPECT_EQ(true, bucket.lb_lookup(i, value));
-            EXPECT_EQ(67, value);
+            EXPECT_EQ(12345678, value);
         }
 
+        // test (98, 12)
         for (int i = 98; i < 200; i++) {
             EXPECT_EQ(true, bucket.lb_lookup(i, value));
-            EXPECT_EQ(98, value);
+            EXPECT_EQ(12, value);
         }
     }
 
@@ -86,7 +86,7 @@ namespace buckindex {
         EXPECT_FALSE(bucket.lookup(0, value));
         
         // lookup existing/non-existing keys after single insertion
-        bucket.insert(list.at(0));
+        EXPECT_TRUE(bucket.insert(list.at(0)));
         EXPECT_TRUE(bucket.lookup(0, value));
         EXPECT_FALSE(bucket.lookup(1, value));
 
@@ -99,7 +99,7 @@ namespace buckindex {
         }
 
         // insert overflows
-        EXPECT_EQ(false, bucket.insert(list.at(0)));
+        EXPECT_FALSE(bucket.insert(list.at(0)));
     }
 
     TEST(Bucket, insert_pivot_update) {
@@ -111,32 +111,48 @@ namespace buckindex {
 
         // test initial pivot
         EXPECT_EQ(ULLONG_MAX, bucket.get_pivot());
+        EXPECT_EQ(0, bucket.num_keys());
 
         // test pivot update
-        bucket.insert(KV(82, 0));
+        EXPECT_TRUE(bucket.insert(KV(82, 0)));
+        EXPECT_EQ(1, bucket.num_keys());
         EXPECT_EQ(82, bucket.get_pivot());
 
         // insert keys > pivot
-        bucket.insert(KV(98, 0));
+        EXPECT_TRUE(bucket.insert(KV(98, 0)));
         EXPECT_EQ(82, bucket.get_pivot());
-        bucket.insert(KV(1000, 0));
+        EXPECT_EQ(2, bucket.num_keys());
+
+        EXPECT_TRUE(bucket.insert(KV(1000, 0)));
         EXPECT_EQ(82, bucket.get_pivot());
+        EXPECT_EQ(3, bucket.num_keys());
 
         // insert keys < pivot
-        bucket.insert(KV(53, 0));
+        EXPECT_TRUE(bucket.insert(KV(53, 0)));
+        EXPECT_EQ(4, bucket.num_keys());
         EXPECT_EQ(53, bucket.get_pivot());
-        bucket.insert(KV(46, 0));
+
+        EXPECT_TRUE(bucket.insert(KV(46, 0)));
+        EXPECT_EQ(5, bucket.num_keys());
         EXPECT_EQ(46, bucket.get_pivot());
 
         // test the 'true' arugment
-        bucket.insert(KV(40, 0), true);
+        EXPECT_TRUE(bucket.insert(KV(40, 0), true));
+        EXPECT_EQ(6, bucket.num_keys());
         EXPECT_EQ(40, bucket.get_pivot());    
 
         // test the 'false' argument
-        bucket.insert(KV(30, 0), false);
-        EXPECT_EQ(40, bucket.get_pivot());     
-        bucket.insert(KV(25, 0), true);
-        EXPECT_EQ(25, bucket.get_pivot());   
+        EXPECT_TRUE(bucket.insert(KV(30, 0), false));
+        EXPECT_EQ(7, bucket.num_keys());
+        EXPECT_EQ(40, bucket.get_pivot());    
+
+        EXPECT_TRUE(bucket.insert(KV(25, 0), true));
+        EXPECT_EQ(8, bucket.num_keys());
+        EXPECT_EQ(25, bucket.get_pivot());
+
+        //test overflow  
+        EXPECT_FALSE(bucket.insert(KV(31, 0), true));
+        EXPECT_FALSE(bucket.insert(KV(32, 0), false));
     }
 
 
@@ -148,7 +164,7 @@ namespace buckindex {
         std::vector<key_t> keys;
         for (int i = 0; i < 50; i++) keys.push_back(i * 4 + 12);
         std::shuffle(keys.begin(), keys.end(), std::mt19937(std::random_device()()));
-        for (int i = 0; i < 50; i++) bucket.insert(KeyValue<key_t, value_t>(keys[i], keys[i] + 123456));
+        for (int i = 0; i < 50; i++) EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(keys[i], keys[i] + 123456)));
             
 
         for (int i = 0; i < 50; i++) {

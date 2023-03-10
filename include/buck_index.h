@@ -175,7 +175,8 @@ private:
         }
     }
 
-    bool adjust_segment(Segment<KeyType, ValueType, SBUCKET_SIZE> *old_seg) { //scale, run segmentation, and retrain the old_seg, and possibly split into multiple new Segment
+    bool adjust_segment(SegmentType *old_seg) { //scale, run segmentation, and retrain the old_seg, and possibly split into multiple new Segment
+        // step 1. sort the existing keys
 
         return true;
     }
