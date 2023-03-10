@@ -97,6 +97,10 @@ public:
     // TODO: a non-pivoting version (deferred)
 
     bool lookup(T key, V &value) const; //return the child pointer; return nullptr if not exist
+    Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE> *get_bucket(int pos) {
+        assert(pos >= 0 && pos < num_bucket_);
+        return &sbucket_list_[pos];
+    }
 
     // insert an entry to the target S-Bucket;
     // If the target S-Bucket is full, reblance the bucket with its right neighbor;
@@ -201,7 +205,7 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
         T new_pivot = sbucket_list_[buckID].find_kth_smallest(num_migration);
 
         // for concurrency, first insert new entries, then update pivot_, then remove old entries
-        for(size_t i = 0;i<sbucket_list_[buckID].getnum();i++){
+        for(size_t i = 0;i<sbucket_list_[buckID].num_keys();i++){
             if(sbucket_list_[buckID].at(i).get_key()<new_pivot){
                 sbucket_list_[buckID-1].insert(sbucket_list_[buckID].at(i));
             }
@@ -235,6 +239,12 @@ bool Segment<T, V, SBUCKET_SIZE>::lookup(T key, V &value) const { // pass return
 
 template<typename T, typename V, size_t SBUCKET_SIZE>
 bool Segment<T, V, SBUCKET_SIZE>::insert(KeyValue<T, V> &kv) {
+    if (num_bucket_ == 0) {
+        sbucket_list_ = new Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>[1];
+        num_bucket_ = 1;
+        // no need to update model_, as it's already (0.0, 0.0)
+    }
+
     unsigned int buckID = locate_buck(kv.key_);
 
     if(sbucket_list_[buckID].num_keys() == SBUCKET_SIZE){
