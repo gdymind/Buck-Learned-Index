@@ -61,8 +61,12 @@ public:
     inline int find_empty_slot() const { // return the offset of the first bit=0
         for (int i = 0; i < BITMAP_SIZE; i++) {
             int pos = __builtin_clzll(~bitmap_[i]);
-            if (pos != BITS_UINT64_T) return i * BITS_UINT64_T + pos;
-
+            if (pos != BITS_UINT64_T) { // found one empty slot
+                pos = i * BITS_UINT64_T + pos;
+                if (pos < SIZE) return pos;
+                else return -1; // there are some redundant bits
+                                // when SIZE % BITS_UINT64_T != 0
+            }
         }
         return -1; // No zero bit found
     }
