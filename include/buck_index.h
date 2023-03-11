@@ -84,56 +84,57 @@ public:
     * @return true if kv in inserted, false else
     */
     bool insert(KeyValueType& kv) {
-        // if (!root_) {
-        //     root_ = new DataBucketType();
-        //     num_levels_ = 1;
-        // }
+        if (!root_) {
+            root_ = new DataBucketType();
+            num_levels_ = 1;
+        }
 
-        // uint64_t layer_idx = num_levels_ - 1;
-        // uintptr_t seg_ptr = (uintptr_t)root_;
-        // bool result = true;
-        // while (layer_idx > 0) {
-        //     SegmentType* segment = (SegmentType*)seg_ptr;
-        //     result = segment->lookup(kv.key_, seg_ptr);
-        //     if (!seg_ptr) {
-        //         std::cerr << " failed to perform segment insert for KV: (" << kv.key_ 
-        //                   << ", " << kv.value_ << ")" << std::endl;
-        //         return false;
-        //     }
+        uint64_t layer_idx = num_levels_ - 1;
+        uintptr_t seg_ptr = (uintptr_t)root_;
+        bool result = true;
+        while (layer_idx > 0) {
+            SegmentType* segment = (SegmentType*)seg_ptr;
+            result = segment->lookup(kv.key_, seg_ptr);
+            if (!seg_ptr) {
+                std::cerr << " failed to perform segment insert for KV: (" << kv.key_ 
+                          << ", " << kv.value_ << ")" << std::endl;
+                return false;
+            }
 
-        //     if (!result) { // insert key is smaller than existing pivots
-        //                    // need to update the smallest pivot of the current segment
-        //                    // also need to update the entry whose key == pivot:
-        //                    //      update the key to be the new pivot, but keep the value(a pointer) unchanged
+            // TODO: insert key is smaller than existing pivots
+            // if (!result) { // insert key is smaller than existing pivots
+            //                // need to update the smallest pivot of the current segment
+            //                // also need to update the entry whose key == pivot:
+            //                //      update the key to be the new pivot, but keep the value(a pointer) unchanged
 
-        //         SegBucketType *first_bucket; // the first bucket has the smallest pivot
-        //         first_bucket = segment->get_bucket(0);
-        //         ValueType pivot = first_bucket->get_pivot();
+            //     SegBucketType *first_bucket; // the first bucket has the smallest pivot
+            //     first_bucket = segment->get_bucket(0);
+            //     ValueType pivot = first_bucket->get_pivot();
 
-        //         int pos = first_bucket->get_pos(pivot); // get the position of the pivot entry
-        //         assert(pos != -1);
+            //     int pos = first_bucket->get_pos(pivot); // get the position of the pivot entry
+            //     assert(pos != -1);
 
-        //         ValueType value; // get the child pointer of the pivot entry
-        //         assert(first_bucket->lookup(pivot, value) == true);
+            //     ValueType value; // get the child pointer of the pivot entry
+            //     assert(first_bucket->lookup(pivot, value) == true);
 
-        //         // note the order of the following three opreations to support concurency
-        //         first_bucket->insert(KeyValueType(kv.key_, value)); 
-        //         first_bucket->set_pivot(kv.key_);
-        //         first_bucket->invalidate(pos);
+            //     // note the order of the following three opreations to support concurency
+            //     first_bucket->insert(KeyValueType(kv.key_, value)); 
+            //     first_bucket->set_pivot(kv.key_);
+            //     first_bucket->invalidate(pos);
 
-        //         seg_ptr = value;
-        //     }
+            //     seg_ptr = value;
+            // }
 
-        //     layer_idx--; 
-        // }
+            layer_idx--; 
+        }
 
         
-        // DataBucketType* d_bucket = (DataBucketType *)seg_ptr;
-        // if (!d_bucket->insert(kv)) {
-        //     //TODO: current bucket is full, call bucket_rebalance
-        //     //TODO: if still fails after bucket_rebalance, call adjust_segment
-        //     return false;
-        // }
+        DataBucketType* d_bucket = (DataBucketType *)seg_ptr;
+        if (!d_bucket->insert(kv)) {
+            //TODO: current bucket is full, call bucket_rebalance
+            //TODO: if still fails after bucket_rebalance, call adjust_segment
+            return false;
+        }
         return true;
     }
     /**
