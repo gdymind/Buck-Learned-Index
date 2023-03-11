@@ -183,9 +183,13 @@ namespace buckindex {
         list.put(3, 28, 18);
         list.put(4, 67, 12345678);
 
+        // test empty bucket
+        EXPECT_TRUE(bucket.begin() == bucket.end());
+
         for (int i = 0; i < 5; i++) {
             EXPECT_TRUE(bucket.insert(list.at(i), true));
         }
+
 
         // test begin(), end(), opreator* and it++
         int i = 0;
