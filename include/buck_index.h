@@ -118,7 +118,7 @@ public:
             //     assert(first_bucket->lookup(pivot, value) == true);
 
             //     // note the order of the following three opreations to support concurency
-            //     first_bucket->insert(KeyValueType(kv.key_, value)); 
+            //     first_bucket->insert(KeyValueType(kv.key_, value), true); 
             //     first_bucket->set_pivot(kv.key_);
             //     first_bucket->invalidate(pos);
 
@@ -130,7 +130,7 @@ public:
 
         
         DataBucketType* d_bucket = (DataBucketType *)seg_ptr;
-        if (!d_bucket->insert(kv)) {
+        if (!d_bucket->insert(kv, true)) {
             //TODO: current bucket is full, call bucket_rebalance
             //TODO: if still fails after bucket_rebalance, call adjust_segment
             return false;
@@ -201,7 +201,7 @@ private:
                                                    (uintptr_t)d_bucket));
             //load the keys to the data bucket
             for(auto j = start_idx; j < (start_idx+length); j++) {
-                d_bucket->insert(in_kv_array[j]);
+                d_bucket->insert(in_kv_array[j], true);
             }
             //segment->dump();
         }

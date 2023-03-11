@@ -28,11 +28,11 @@ namespace buckindex {
         EXPECT_EQ(false, bucket.lb_lookup(2898509, value));
 
         // insert {12, 24, 28, 67, 98} unsorted
-        EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(98, 12)));
-        EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(24, 35)));
-        EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(12, 62)));
-        EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(28, 18)));
-        EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(67, 12345678)));
+        EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(98, 12), true));
+        EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(24, 35), true));
+        EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(12, 62), true));
+        EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(28, 18), true));
+        EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(67, 12345678), true));
 
         // test keys < pivot
         for (int i = 0; i < 11; i++) EXPECT_EQ(false, bucket.lb_lookup(i, value));
@@ -85,20 +85,20 @@ namespace buckindex {
         EXPECT_FALSE(bucket.lookup(0, value));
         
         // lookup existing/non-existing keys after single insertion
-        EXPECT_TRUE(bucket.insert(list.at(0)));
+        EXPECT_TRUE(bucket.insert(list.at(0), true));
         EXPECT_TRUE(bucket.lookup(0, value));
         EXPECT_FALSE(bucket.lookup(1, value));
 
         // check "lookup return values" and "num_keys after insertion"
         for (int i = 1; i < 8; i++) {
-            EXPECT_TRUE(bucket.insert(list.at(i)));
+            EXPECT_TRUE(bucket.insert(list.at(i), true));
             EXPECT_TRUE(bucket.lookup(i, value));
             EXPECT_EQ(i * 2 + 1, value);
             EXPECT_EQ(i+1, bucket.num_keys());
         }
 
         // insert overflows
-        EXPECT_FALSE(bucket.insert(list.at(0)));
+        EXPECT_FALSE(bucket.insert(list.at(0), true));
     }
 
     TEST(Bucket, insert_pivot_update) {
@@ -113,25 +113,25 @@ namespace buckindex {
         EXPECT_EQ(0, bucket.num_keys());
 
         // test pivot update
-        EXPECT_TRUE(bucket.insert(KV(82, 0)));
+        EXPECT_TRUE(bucket.insert(KV(82, 0), true));
         EXPECT_EQ(1, bucket.num_keys());
         EXPECT_EQ(82, bucket.get_pivot());
 
         // insert keys > pivot
-        EXPECT_TRUE(bucket.insert(KV(98, 0)));
+        EXPECT_TRUE(bucket.insert(KV(98, 0), true));
         EXPECT_EQ(82, bucket.get_pivot());
         EXPECT_EQ(2, bucket.num_keys());
 
-        EXPECT_TRUE(bucket.insert(KV(1000, 0)));
+        EXPECT_TRUE(bucket.insert(KV(1000, 0), true));
         EXPECT_EQ(82, bucket.get_pivot());
         EXPECT_EQ(3, bucket.num_keys());
 
         // insert keys < pivot
-        EXPECT_TRUE(bucket.insert(KV(53, 0)));
+        EXPECT_TRUE(bucket.insert(KV(53, 0), true));
         EXPECT_EQ(4, bucket.num_keys());
         EXPECT_EQ(53, bucket.get_pivot());
 
-        EXPECT_TRUE(bucket.insert(KV(46, 0)));
+        EXPECT_TRUE(bucket.insert(KV(46, 0), true));
         EXPECT_EQ(5, bucket.num_keys());
         EXPECT_EQ(46, bucket.get_pivot());
 
@@ -162,7 +162,7 @@ namespace buckindex {
         std::vector<key_t> keys;
         for (int i = 0; i < 50; i++) keys.push_back(i * 4 + 12);
         std::shuffle(keys.begin(), keys.end(), std::mt19937(std::random_device()()));
-        for (int i = 0; i < 50; i++) EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(keys[i], keys[i] + 123456)));
+        for (int i = 0; i < 50; i++) EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(keys[i], keys[i] + 123456), true));
 
         for (int i = 0; i < 50; i++) {
             EXPECT_EQ(i * 4 + 12, bucket.find_kth_smallest(i+1));
