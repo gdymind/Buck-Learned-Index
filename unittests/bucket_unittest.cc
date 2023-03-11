@@ -79,7 +79,7 @@ namespace buckindex {
         for (int i = 0; i < 8; i++) list.put(i, i, i * 2 + 1);
 
         // initial size == 0
-        EXPECT_FALSE(bucket.lookup(0, value));
+        EXPECT_EQ(0, bucket.num_keys());
         
         // lookup non-existing key
         EXPECT_FALSE(bucket.lookup(0, value));
