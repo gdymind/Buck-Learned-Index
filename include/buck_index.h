@@ -84,6 +84,7 @@ public:
     * @return true if kv in inserted, false else
     */
     bool insert(KeyValueType& kv) {
+        /*
         if (!root_) {
             root_ = new DataBucketType();
             num_levels_ = 1;
@@ -135,6 +136,7 @@ public:
             //TODO: if still fails after bucket_rebalance, call adjust_segment
             return false;
         }
+        */
         return true;
     }
     /**

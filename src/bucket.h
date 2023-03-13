@@ -36,7 +36,7 @@ public:
     bool lb_lookup(const T &key, V& value) const; // lower-bound lookup
     bool lookup_SIMD(const T &key, V& value) const; // TODO: LISTTYPE do the lookup
     bool lb_lookup_SIMD(const T &key, V& value) const; // lower-bound lookup
-    bool insert(const KeyValue<T, V> &kv, bool update_pivot); // Return false if insert() fails //TODO: remove default value
+    bool insert(const KeyValue<T, V> &kv, bool update_pivot); // Return false if insert() fails
 
     int get_pos(const T &key) const{ // get the index of key in list_; return -1 if not found
         for (int i = 0; i < SIZE; i++) {
@@ -63,7 +63,7 @@ public:
         return cnt;
     }
 
-    inline KeyValue<T, V> at(int pos) const { return list_.at(pos); } //TODO: change to reference?
+    inline KeyValue<T, V> at(int pos) const { return list_.at(pos); }
 
     T find_kth_smallest(int k); // find the kth smallest element in 1-based index
 
