@@ -15,8 +15,6 @@
 
 namespace buckindex {
 
-const unsigned int BUCKET_SIZE = 128;
-const unsigned int SBUCKET_SIZE = 8;
 const unsigned int BITS_UINT64_T = 64;
 
 /**
@@ -33,14 +31,26 @@ public:
         memset(bitmap_, 0, sizeof(bitmap_));
     }
 
-    bool lookup(T key, V& value) const;
+    bool lookup(const T &key, V& value) const;
     // Find the largest key that is <= the lookup key
-    bool lb_lookup(T key, V& value) const; // lower-bound lookup
-    bool lookup_SIMD(T key, V& value) const;
-    bool lb_lookup_SIMD(T key, V& value) const; // lower-bound lookup
-    bool insert(KeyValue<T, V> kv, bool update_pivot = true); // Return false if insert() fails
+    bool lb_lookup(const T &key, V& value) const; // lower-bound lookup
+    bool lookup_SIMD(const T &key, V& value) const; // TODO: LISTTYPE do the lookup
+    bool lb_lookup_SIMD(const T &key, V& value) const; // lower-bound lookup
+    bool insert(const KeyValue<T, V> &kv, bool update_pivot); // Return false if insert() fails
 
-    //TODO: iterator
+    int get_pos(const T &key) const{ // get the index of key in list_; return -1 if not found
+        for (int i = 0; i < SIZE; i++) {
+            if (valid(i) && list_.at(i).key_ == key) {
+                return i;
+            }
+        }
+        return -1;
+    }
+    
+    // iterator-related
+    class UnsortedIterator;
+    UnsortedIterator begin() {return UnsortedIterator(this, 0); }
+    UnsortedIterator end() {return UnsortedIterator(this, SIZE); }
 
     inline T get_pivot() const { return pivot_; }
     inline void set_pivot(T pivot) { pivot_ = pivot; }
@@ -130,7 +140,7 @@ private:
 };
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::lookup(T key, V &value) const {
+bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value) const {
     for (int i = 0; i < SIZE; i++) {
         if (valid(i) && list_.at(i).key_ == key) {
             value = list_.at(i).value_;
@@ -142,7 +152,7 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(T key, V &value) const {
 }
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(T key, V &value) const {
+bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(const T &key, V &value) const {
     
     T target_key = 0; // TODO: define zero as a template parameter?
     int pos = -1;
@@ -161,46 +171,21 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(T key, V &value) const {
 
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::lookup_SIMD(T key, V &value) const {
+bool Bucket<LISTTYPE, T, V, SIZE>::lookup_SIMD(const T &key, V &value) const {
     // TODO
     return false;
 }
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup_SIMD(T key, V &value) const {
+bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup_SIMD(const T &key, V &value) const {
     // TODO
     return false;
 }
 
-/*
-template<typename T, typename V, size_t SIZE>
-class Bucket<KeyListValueList<T, V, SIZE>, T, V, SIZE> {
-public:
-    bool lookup_SIMD(T key, V &value) const {
-        //TODO
-    }
-    bool lb_lookup_SIMD(T key, V &value) const {
-        //TODO
-    }
-};
-
-template<typename T, typename V, size_t SIZE>
-class Bucket<KeyValueList<T, V, SIZE>, T, V, SIZE> {
-public:
-    bool lookup_SIMD(T key, V &value) const {
-        //TODO
-    }
-    bool lb_lookup_SIMD(T key, V &value) const {
-        //TODO
-    }
-};
-
-*/
-
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::insert(KeyValue<T, V> kv, bool update_pivot) {
+bool Bucket<LISTTYPE, T, V, SIZE>::insert(const KeyValue<T, V> &kv, bool update_pivot) {
     int pos = find_empty_slot();
-    if (pos == -1) return false; // return false if the Bucket is already full
+    if (pos == -1 || pos >= SIZE) return false; // return false if the Bucket is already full
     list_.put(pos, kv.key_, kv.value_);
     validate(pos);
 
@@ -211,7 +196,7 @@ bool Bucket<LISTTYPE, T, V, SIZE>::insert(KeyValue<T, V> kv, bool update_pivot) 
     return true;
 }
 
-
+// TODO: change to std function
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 T Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) {
     int n = num_keys();
@@ -227,5 +212,60 @@ T Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) {
     
     return quickselect(valid_keys, 0, n-1, k);
 }
+
+
+// TODO: returns sorted KVs
+template<class LISTTYPE, typename T, typename V, size_t SIZE>
+class Bucket<LISTTYPE, T, V, SIZE>::UnsortedIterator {
+public:
+    using BucketType = Bucket<LISTTYPE, T, V, SIZE>;
+    using KeyValueType = KeyValue<T, V>;
+
+    explicit UnsortedIterator(BucketType *bucket) : bucket_(bucket) {
+        assert(bucket_ != nullptr);
+        cur_pos_ = 0;
+        find_next_valid();
+    }
+    
+    // UnsortedIterator(UnsortedIterator &rhs) : bucket_(rhs.bucket_), cur_pos_(rhs.cur_pos_) {}
+    
+    UnsortedIterator(BucketType *bucket, int pos) : bucket_(bucket) {
+      assert(pos >= 0 && pos <= SIZE);
+      cur_pos_ = pos;
+      // cur_pos_ is always at a valid position
+      if (pos < SIZE && !bucket_->valid(cur_pos_)) find_next_valid();
+    }
+
+    void operator++(int) {
+        find_next_valid();
+    }
+
+    UnsortedIterator &operator++() {
+        find_next_valid();
+        return *this;
+    }
+
+    KeyValueType operator*() const {
+      return bucket_->at(cur_pos_);
+    }
+
+    bool operator==(const UnsortedIterator& rhs) const {
+      return bucket_ == rhs.bucket_ && cur_pos_ == rhs.cur_pos_;
+    }
+
+    bool operator!=(const UnsortedIterator& rhs) const { return !(*this == rhs); };
+
+private:
+    BucketType *bucket_;
+    int cur_pos_ = 0;  // current position in the bucket list, cur_pos_ == SIZE if at end
+
+    // skip invalid entries, and find the position of the next valid entry
+    inline void find_next_valid() {
+        if (cur_pos_ == SIZE) return;
+        cur_pos_++;
+        while (cur_pos_ < SIZE && !bucket_->valid(cur_pos_)) cur_pos_++;
+    }
+  };
+
 
 } // end namespace buckindex
