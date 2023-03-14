@@ -199,6 +199,7 @@ namespace buckindex {
             EXPECT_EQ(list.at(i).value_, kv.value_);
             i++;
         }
+        EXPECT_EQ(5, i); 
 
         // test ++it basic usage
         i = 0;
@@ -208,6 +209,8 @@ namespace buckindex {
             EXPECT_EQ(list.at(i).value_, kv.value_);
             i++;
         }
+        EXPECT_EQ(5, i); 
+
 
         // test ++it return value
         i = 1;
@@ -217,6 +220,7 @@ namespace buckindex {
             EXPECT_EQ(list.at(i).value_, kv.value_);
             i++;
         }
+        EXPECT_EQ(4, i); 
 
         // test overflow
         auto it = bucket.end();
