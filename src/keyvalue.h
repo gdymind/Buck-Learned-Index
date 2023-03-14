@@ -18,10 +18,10 @@ struct KeyValue
     KeyValue(const KeyValue &kv): key_(kv.key_), value_(kv.value_) {}
     T get_key() const { return key_; }
 
-    bool operator<(const KeyValue<T, V>& rhs) const {
-        if (key_ != rhs.key_) return key_ < rhs.key_;
-        return value_ < rhs.value_;
-    }
+    // bool operator<(const KeyValue<T, V>& rhs) const {
+    //     if (key_ != rhs.key_) return key_ < rhs.key_;
+    //     return value_ < rhs.value_;
+    // }
 };
 
 template<typename T, typename V, size_t SIZE> 
