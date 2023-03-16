@@ -49,8 +49,12 @@ public:
     
     // iterator-related
     class UnsortedIterator;
-    UnsortedIterator begin() {return UnsortedIterator(this, 0); }
-    UnsortedIterator end() {return UnsortedIterator(this, SIZE); }
+    UnsortedIterator unsorted_begin() {return UnsortedIterator(this, 0); }
+    UnsortedIterator unsorted_end() {return UnsortedIterator(this, SIZE); }
+
+    class SortedIterator;
+    SortedIterator begin() {return UnsortedIterator(this,0); }
+    SortedIterator end() {return UnsortedIterator(this,SIZE); }
 
     inline T get_pivot() const { return pivot_; }
     inline void set_pivot(T pivot) { pivot_ = pivot; }
