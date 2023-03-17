@@ -106,10 +106,21 @@ public:
         return &sbucket_list_[pos];
     }
 
+    // TODO: delete an entry that matches the value
+    bool del_value(V value) {
+        return true;
+    } 
+
     // insert an entry to the target S-Bucket;
     // If the target S-Bucket is full, reblance the bucket with its right neighbor;
     // If bucket_rebalance does not work, insert() return false
     bool insert(KeyValue<T, V> &kvptr);
+
+    //TODO
+    std::vector<std::pair<T,Segment<T, V, SBUCKET_SIZE>*>> scale_and_segmentation() {
+        std::vector<std::pair<T,Segment<T, V, SBUCKET_SIZE>*>> ret;
+        return ret;
+    }
 
 private:
     LinearModel<T> model_;

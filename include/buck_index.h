@@ -84,61 +84,39 @@ public:
     * @return true if kv in inserted, false else
     */
     bool insert(KeyValueType& kv) {
-        /*
         if (!root_) {
             root_ = new DataBucketType();
             num_levels_ = 1;
         }
 
+        bool success = true;
+
         uint64_t layer_idx = num_levels_ - 1;
-        uintptr_t seg_ptr = (uintptr_t)root_;
-        bool result = true;
+        std::vector<uintptr_t> seg_ptrs(num_levels_, (uintptr_t)nullptr);
+        seg_ptrs[layer_idx] = (uintptr_t)root_;
+
         while (layer_idx > 0) {
-            SegmentType* segment = (SegmentType*)seg_ptr;
-            result = segment->lookup(kv.key_, seg_ptr);
-            if (!seg_ptr) {
-                std::cerr << " failed to perform segment insert for KV: (" << kv.key_ 
-                          << ", " << kv.value_ << ")" << std::endl;
-                return false;
-            }
-
-            // TODO: insert key is smaller than existing pivots
-            // if (!result) { // insert key is smaller than existing pivots
-            //                // need to update the smallest pivot of the current segment
-            //                // also need to update the entry whose key == pivot:
-            //                //      update the key to be the new pivot, but keep the value(a pointer) unchanged
-
-            //     SegBucketType *first_bucket; // the first bucket has the smallest pivot
-            //     first_bucket = segment->get_bucket(0);
-            //     ValueType pivot = first_bucket->get_pivot();
-
-            //     int pos = first_bucket->get_pos(pivot); // get the position of the pivot entry
-            //     assert(pos != -1);
-
-            //     ValueType value; // get the child pointer of the pivot entry
-            //     assert(first_bucket->lookup(pivot, value) == true);
-
-            //     // note the order of the following three opreations to support concurency
-            //     first_bucket->insert(KeyValueType(kv.key_, value), true); 
-            //     first_bucket->set_pivot(kv.key_);
-            //     first_bucket->invalidate(pos);
-
-            //     seg_ptr = value;
-            // }
-
+            SegmentType* segment = (SegmentType*)seg_ptrs[layer_idx];
+            success &= segment->lookup(kv.key_, seg_ptrs[layer_idx-1]);
+            assert((void *)seg_ptrs[layer_idx-1] != nullptr);
             layer_idx--; 
         }
-
         
-        DataBucketType* d_bucket = (DataBucketType *)seg_ptr;
-        if (!d_bucket->insert(kv, true)) {
-            //TODO: current bucket is full, call bucket_rebalance
-            //TODO: if still fails after bucket_rebalance, call adjust_segment
-            return false;
+        // propagate the new pivot
+        if (!success) propagate_level_pivot(kv.key_,seg_ptrs);
+        
+        DataBucketType* d_bucket = (DataBucketType *)seg_ptrs[0];
+        if (!d_bucket->insert(kv, true)) { // if fail to insert, call scale_and_segmentation //TODO: if no segment yet, create one //TODO: change if to while
+            SegmentType* old_seg = (SegmentType*)seg_ptrs[1];
+            std::vector<std::pair<KeyType,SegmentType*>> new_segs = old_seg->scale_and_segmentation(); // TODO: return a vector of (pivot, segment) pairs
+            success = update_segments(seg_ptrs, 1, old_seg, new_segs);
+            // TODO: insert again
+            delete old_seg;
         }
-        */
-        return true;
+
+        return success;
     }
+
     /**
      * Bulk load the user key value onto the learned index
      * @param kvs: list of user key value to be loaded onto the learned index
@@ -235,9 +213,55 @@ private:
         }
     }
 
-    bool adjust_segment(SegmentType *old_seg) { //scale, run segmentation, and retrain the old_seg, and possibly split into multiple new Segment
-
+    /**
+     * Helper function for insert() to update from a single segment to multiple new segments
+     * @param seg_ptrs: segment pointers path of every level for this insert()
+     * @param pos: the position of old_seg, whose parent seg is at pos+1
+     * @param old_seg: the old segment to be removed
+     * @param new_seg: new segments to be inserted
+    */
+    bool update_segments(std::vector<uintptr_t> &seg_ptrs, size_t pos, SegmentType *old_seg, std::vector<std::pair<KeyType,SegmentType*>> new_segs) {
+        if (pos > 0) { 
+            SegmentType *par_seg  = (SegmentType*)seg_ptrs[pos+1];
+            for(std::pair<KeyType, SegmentType *> seg: new_segs) {
+                KeyValuePtrType kvptr = KeyValuePtrType(seg.first, (uintptr_t)seg.second);
+                par_seg->insert(kvptr);
+            }
+            par_seg->del_value((uintptr_t)old_seg); //TODO: add seg_delete
+        } else { // alreay at the root level, and we need to add one more level
+                DataBucketType* d_bucket = (DataBucketType *)seg_ptrs[0];
+                LinearModel<KeyType> m(0.0, 0.0);
+                std::vector<KeyValuePtrType> list;
+                list.push_back(KeyValuePtrType(d_bucket->get_pivot(), (uintptr_t)root_));
+                root_ = new SegmentType(1, 1.0/MAX_SEGMENT_BUCKET_SIZE, m, list.begin(), list.end());
+        }
         return true;
+    }
+
+    /**
+     * Helper function to update pivot
+    */
+    bool propagate_level_pivot(KeyType new_pivot, std::vector<uintptr_t> &seg_ptrs) {
+        int n = seg_ptrs.size();
+        for (int i = n - 1; i >= 0; i--) {
+                SegmentType *segment = (SegmentType *)seg_ptrs[i];
+                SegBucketType *first_bucket; // the first bucket has the smallest pivot
+                first_bucket = segment->get_bucket(0);
+                ValueType pivot = first_bucket->get_pivot();
+
+                int pos = first_bucket->get_pos(pivot); // get the position of the pivot entry
+                assert(pos != -1);
+
+                ValueType value; // get the child pointer of the pivot entry
+                assert(first_bucket->lookup(pivot, value) == true);
+
+                // note the order of the following three opreations to support concurency
+                first_bucket->insert(KeyValueType(new_pivot, value), true); 
+                first_bucket->set_pivot(new_pivot);
+                first_bucket->invalidate(pos);
+        }
+            
+            
     }
     
     //The root of the learned index. Root can be a segment or a bucket
