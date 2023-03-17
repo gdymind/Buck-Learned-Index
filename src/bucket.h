@@ -71,7 +71,7 @@ public:
     inline KeyValue<T, V> at(int pos) const { return list_.at(pos); }
     inline std::pair<T*, V*> get_kvptr(int pos) { return list_.get_kvptr(pos); }
 
-    KeyValue<T, V> find_kth_smallest(int k); // find the kth smallest element in 1-based index
+    KeyValue<T, V> find_kth_smallest(int k) const; // find the kth smallest element in 1-based index
 
     //bitmap operations
     inline int find_empty_slot() const { // return the offset of the first bit=0
@@ -116,7 +116,7 @@ private:
     LISTTYPE list_;
 
     // helper function for find_kth_smallest()
-    int quickselect_partiton(std::vector<KeyValue<T, V>>& a, int left, int right, int pivot) {
+    int quickselect_partiton(std::vector<KeyValue<T, V>>& a, int left, int right, int pivot) const {
         int pivotValue = a[pivot].key_;
         std::swap(a[pivot], a[right]);  // Move pivot to end
         int storeIndex = left;
@@ -131,7 +131,7 @@ private:
     }
 
     // helper function for find_kth_smallest()
-    KeyValue<T, V> quickselect(std::vector<KeyValue<T, V>>& a, int left, int right, int k) {
+    KeyValue<T, V> quickselect(std::vector<KeyValue<T, V>>& a, int left, int right, int k) const {
         if (left == right) return a[left];
         int pivot = left +  (right - left) / 2;  // We can choose a random pivot
         pivot = quickselect_partiton(a, left, right, pivot);
@@ -203,7 +203,7 @@ bool Bucket<LISTTYPE, T, V, SIZE>::insert(const KeyValue<T, V> &kv, bool update_
 }
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-KeyValue<T, V> Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) {
+KeyValue<T, V> Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) const {
     int n = num_keys();
     k--;
     assert(k >= 0 && k < n);
