@@ -36,7 +36,7 @@ public:
     // a constructor that recevices the number of entries, fill ratio, and the model(before expansion)
     // also pass a start iterator and an end iterator; iterate over the list and insert into the sbucket_list_
     template<typename IterType>
-    Segment(size_t num_kv, double fill_ratio, LinearModel<T> &model, IterType it, IterType end)
+    Segment(size_t num_kv, double fill_ratio, LinearModel<T> model, IterType it, IterType end)
     :model_(model){
         //assert(it+num_kv == end); // + operator may not be supported 
 
@@ -87,7 +87,7 @@ public:
             sbucket_list_[buckID].insert(*it, true); // TBD: suppose iterator iterate through KeyValue element
             remaining_keys--;
             remaining_slots--;
-
+           
         }
     }
 
@@ -102,16 +102,16 @@ public:
 
     // TODO: iterator?
     // iterator-related
-    class UnsortedIterator;
-    UnsortedIterator unsorted_begin() {return UnsortedIterator(this, 0); }
-    UnsortedIterator unsorted_end() {return UnsortedIterator(this, SBUCKET_SIZE * num_bucket_); }
+    // class UnsortedIterator;
+    // UnsortedIterator unsorted_begin() {return UnsortedIterator(this, 0); }
+    // UnsortedIterator unsorted_end() {return UnsortedIterator(this, SBUCKET_SIZE * num_bucket_); }
 
-    class SortedIterator;
-    SortedIterator begin() {return SortedIterator(this, 0); }
-    SortedIterator end() {return SortedIterator(this, this->size()); }
+    class const_iterator;
+    const_iterator cbegin() const {return const_iterator(this, 0); }
+    const_iterator cend() const {return const_iterator(this, this->size()); }
 
 
-    // TBD: build a function / store a variable
+    // TBD: build a function / store a variable 
     // count the valid keys in segment
     inline size_t size(){
         size_t ret=0;
@@ -139,7 +139,8 @@ public:
     // new_segs = old_seg->scale_and_seg()
     // bucket_index.update_seg(old_seg, new_segs)
     // ~old_seg()
-    std::vector<Segment*> scale_and_segmentation(uint64_t error_bound, double fill_ratio);
+    // assumption: error bound is the sbucket_size
+    std::vector<std::pair<T, Segment<T, V, SBUCKET_SIZE>*>> scale_and_segmentation(double fill_ratio);
 
 private:
     LinearModel<T> model_;
@@ -186,11 +187,14 @@ private:
     bool bucket_rebalance(unsigned int buckID);
 };
 
-//TODO: unit test
+// TODO: unit test
+// TODO: return KV (K is pivot and V is segment pointer)
 template<typename T, typename V, size_t SBUCKET_SIZE>
-std::vector<Segment<T, V, SBUCKET_SIZE>*> Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(uint64_t error_bound, double fill_ratio){
-    std::vector<Segment*> ret;
+std::vector<std::pair<T,Segment<T, V, SBUCKET_SIZE>*>> Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio){
+    std::vector<std::pair<T,Segment<T, V, SBUCKET_SIZE>*>> ret;
+    //std::vector<Segment*> ret;
     ret.clear();
+    uint64_t error_bound = SBUCKET_SIZE;
 
     // collect all the valid keys (sorted)
     // done by segment::SortedIterator 
@@ -198,14 +202,14 @@ std::vector<Segment<T, V, SBUCKET_SIZE>*> Segment<T, V, SBUCKET_SIZE>::scale_and
     // run the segmentation algorithm
     std::vector<Cut<T>> out_cuts;
     out_cuts.clear();
-    compute_dynamic_segmentation(*this, out_cuts, error_bound);
+    Segmentation<Segment<T, V, SBUCKET_SIZE>, T>::compute_dynamic_segmentation(*this, out_cuts, error_bound);
 
     // put result of segmentation into multiple segments
     for(size_t i = 0;i<out_cuts.size();i++){
         // using dynamica allocation incase the segment is destroyed after the loop
         Segment<T,V,SBUCKET_SIZE>* seg = new Segment<T,V,SBUCKET_SIZE>(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), out_cuts.begin(), out_cuts.end());
-        
-        ret.push_back(&seg);
+        T key = out_cuts[i].start_key_;
+        ret.push_back(make_pair(key,seg));
     }
     return ret;
 }
@@ -384,6 +388,7 @@ bool Segment<T, V, SBUCKET_SIZE>::insert(KeyValue<T, V> &kv) {
 // }
 */
 
+/*
 //TODO: unit test
 template<typename T, typename V, size_t SBUCKET_SIZE>
 class Segment<T, V, SBUCKET_SIZE>::UnsortedIterator {
@@ -436,25 +441,38 @@ private:
     }
     size_t size;
 };
+*/
 
 //TODO: unit test
 template<typename T, typename V, size_t SBUCKET_SIZE>
-class Segment<T, V, SBUCKET_SIZE>::SortedIterator {
+class Segment<T, V, SBUCKET_SIZE>::const_iterator {
 public:
     using SegmentType = Segment<T, V, SBUCKET_SIZE>;
 
-    explicit SortedIterator(SegmentType *segment) : segment_(segment) {
+    explicit const_iterator(const SegmentType *segment) : segment_(segment) {
         assert(segment_ != nullptr);
         cur_buckID = 0;
-        cur_it = segment_->sbucket_list_[0].begin();
+        cur_index = 0;
+        sorted_list.clear();
+
+        // find the first valid bucket
+        while(!reach_to_end()){
+            if(segment_->sbucket_list_[cur_buckID].num_keys() == 0){
+                cur_buckID++;
+            }
+            else{
+                sorted_list = segment_->sbucket_list_[cur_buckID].get_vector(); // TODO
+                break;
+            }
+        }       
     }
 
-    SortedIterator(SegmentType *segment, int pos) : segment_(segment) {
+    const_iterator(const SegmentType *segment, int pos) : segment_(segment) {
         assert(pos >= 0 && pos <= segment_->size());
         cur_buckID = 0;
+        cur_index = 0;
         if(pos == segment_->size()){
-            cur_buckID = segment_->num_bucket_-1;
-            cur_it = segment_->sbucket_list_[cur_buckID].end();
+            cur_buckID = segment_->num_bucket_;
             return;
         }
 
@@ -464,51 +482,69 @@ public:
             pos -= segment_->sbucket_list_[cur_buckID].num_keys();
         }
 
-        // inside the bucket, locate the iterator
-        cur_it = segment_->sbucket_list_[cur_buckID].begin();
-        for (int i = 0;i<pos;i++){
-            cur_it++;
-        }
+        // inside the bucket, locate the index
+        sorted_list = segment_->sbucket_list_[cur_buckID].get_vector(); // TODO
+        cur_index = pos;
     }
 
     void operator++(int) {
         find_next();
     }
 
-    SortedIterator &operator++() {
+    // prefix ++it
+    const_iterator &operator++() {
         find_next();
         return *this;
     }
 
-    KeyValue<T, V> operator*() const {
-        return *cur_it;
+    // *it
+    const KeyValue<T, V> operator*() const {
+        return sorted_list[cur_index];
     }
 
-    bool operator==(const UnsortedIterator& rhs) const {
-        return segment_ == rhs.segment_ && cur_buckID == rhs.cur_buckID && cur_it == rhs.cur_it;
+    // it->
+    const KeyValue<T, V>* operator->() const {
+        return &(sorted_list[cur_index]);
     }
 
-    bool operator!=(const UnsortedIterator& rhs) const { return !(*this == rhs); };
+    bool operator==(const const_iterator& rhs) const {
+        return segment_ == rhs.segment_ && cur_buckID == rhs.cur_buckID && cur_index == rhs.cur_index;
+    }
+
+    bool operator!=(const const_iterator& rhs) const { return !(*this == rhs); };
 
 private:
     SegmentType *segment_;
     //int cur_pos_ = 0;  // current position in the sbucket list, 
     size_t cur_buckID = 0;
+    size_t cur_index = 0;
 
-    typename Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>::SortedIterator cur_it;
+    std::vector<KeyValue<T, V>> sorted_list; // initialized when cbegin() is called or move to another bucket
 
-    // skip invalid entries, and find the position of the next valid entry
+    // find the next entry in the sorted list (Can cross boundary of bucket)
     inline void find_next() {
         if (reach_to_end()) return;
-        cur_it++;
-        if(cur_it == segment_->sbucket_list_[cur_buckID].end()){
+        cur_index++;
+        if(cur_index == sorted_list.size()){
             cur_buckID++;
-            cur_it = segment_->sbucket_list_[cur_buckID].begin();
+            sorted_list.clear();
+            cur_index = 0;
+            
+            // find the next valid bucket
+            while(!reach_to_end()){
+                if(segment_->sbucket_list_[cur_buckID].num_keys() == 0){
+                    cur_buckID++;
+                }
+                else{
+                    sorted_list = segment_->sbucket_list_[cur_buckID].get_vector(); // TODO
+                    break;
+                }
+            }
         }
     }
 
     bool reach_to_end(){
-        return (cur_buckID == segment_->num_bucket_-1 && cur_it == segment_->sbucket_list_[cur_buckID].end());
+        return (cur_buckID == segment_->num_bucket_);
     }
 };
 
