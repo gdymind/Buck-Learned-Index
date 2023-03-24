@@ -9,6 +9,7 @@
 #include<iostream>
 #include<utility>
 #include<limits>
+#include <algorithm> 
 #include <immintrin.h> //SIMD
 
 #include "keyvalue.h"
@@ -131,35 +132,6 @@ private:
    
     T pivot_;
     LISTTYPE list_;
-
-    // helper function for find_kth_smallest()
-    int quickselect_partiton(std::vector<KeyValue<T, V>>& a, int left, int right, int pivot) const {
-        int pivotValue = a[pivot].key_;
-        std::swap(a[pivot], a[right]);  // Move pivot to end
-        int storeIndex = left;
-        for (int i = left; i < right; i++) {
-            if (a[i].key_ < pivotValue) {
-                std::swap(a[i], a[storeIndex]);
-                storeIndex++;
-            }
-        }
-        std::swap(a[storeIndex], a[right]);  // Move pivot to its final place
-        return storeIndex;
-    }
-
-    // helper function for find_kth_smallest()
-    KeyValue<T, V> quickselect(std::vector<KeyValue<T, V>>& a, int left, int right, int k) const {
-        if (left == right) return a[left];
-        int pivot = left +  (right - left) / 2;  // We can choose a random pivot
-        pivot = quickselect_partiton(a, left, right, pivot);
-        if (k == pivot) {
-            return a[k];
-        } else if (k < pivot) {
-            return quickselect(a, left, pivot - 1, k);
-        } else {
-            return quickselect(a, pivot + 1, right, k);
-        }
-    }
 };
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
@@ -227,14 +199,12 @@ KeyValue<T, V> Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) const {
     k--;
     assert(k >= 0 && k < n);
 
-    std::vector<KeyValue<T, V>> valid_kvs(n);
-    int id = 0;
-    for (int i = 0; i < SIZE; i++) {
-        if (valid(i)) valid_kvs[id++] = list_.at(i);
-    }
-    assert(id == n);
+    std::vector<KeyValue<T, V>> valid_kvs;
+    get_valid_kvs(valid_kvs);
+    assert(valid_kvs.size() == n);
     
-    return quickselect(valid_kvs, 0, n-1, k);
+    std::nth_element(valid_kvs.begin(), valid_kvs.begin() + k, valid_kvs.end());
+    return valid_kvs[k];
 }
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
