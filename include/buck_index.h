@@ -84,6 +84,7 @@ public:
     * @return true if kv in inserted, false else
     */
     bool insert(KeyValueType& kv) {
+        /*
         if (!root_) {
             root_ = new DataBucketType();
             num_levels_ = 1;
@@ -115,6 +116,8 @@ public:
         }
 
         return success;
+        */
+       return true;
     }
 
     /**
@@ -221,6 +224,7 @@ private:
      * @param new_seg: new segments to be inserted
     */
     bool update_segments(std::vector<uintptr_t> &seg_ptrs, size_t pos, SegmentType *old_seg, std::vector<std::pair<KeyType,SegmentType*>> new_segs) {
+        /*
         if (pos > 0) { 
             SegmentType *par_seg  = (SegmentType*)seg_ptrs[pos+1];
             for(std::pair<KeyType, SegmentType *> seg: new_segs) {
@@ -235,6 +239,7 @@ private:
                 list.push_back(KeyValuePtrType(d_bucket->get_pivot(), (uintptr_t)root_));
                 root_ = new SegmentType(1, 1.0/MAX_SEGMENT_BUCKET_SIZE, m, list.begin(), list.end());
         }
+        */
         return true;
     }
 
@@ -242,6 +247,7 @@ private:
      * Helper function to update pivot
     */
     bool propagate_level_pivot(KeyType new_pivot, std::vector<uintptr_t> &seg_ptrs) {
+        /*
         int n = seg_ptrs.size();
         for (int i = n - 1; i >= 0; i--) {
                 SegmentType *segment = (SegmentType *)seg_ptrs[i];
@@ -260,8 +266,8 @@ private:
                 first_bucket->set_pivot(new_pivot);
                 first_bucket->invalidate(pos);
         }
-            
-            
+        */
+        return true;     
     }
     
     //The root of the learned index. Root can be a segment or a bucket

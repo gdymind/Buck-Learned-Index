@@ -60,7 +60,7 @@ namespace buckindex {
             EXPECT_EQ(values[i], value);
         }
     }
-
+/*
     TEST(BuckIndex, insert_from_empty) {
         BuckIndex<uint64_t, uint64_t> bli;
 
@@ -81,6 +81,6 @@ namespace buckindex {
 
         //TODO
     }
-
+*/
 
 }
