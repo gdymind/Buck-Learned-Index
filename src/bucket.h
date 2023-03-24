@@ -57,11 +57,20 @@ public:
     SortedIterator begin() {return SortedIterator(this, 0); }
     SortedIterator end() {return SortedIterator(this, num_keys()); }
 
-    // TODO
     void get_valid_kvs(std::vector<KeyValue<T, V>> &v) const {
         // read bitmap
         // get all valid kvs
         // check the bitmap again, read everything again until bitmap matches
+        uint64_t bitmap2[BITMAP_SIZE];
+        do {
+            memcpy(bitmap2, bitmap_, sizeof(bitmap_));
+            v.clear();
+            for (int i = 0; i < SIZE; i++) {
+                if (valid(i)) {
+                    v.push_back(list_.at(i));
+                }
+            }
+        } while (memcmp(bitmap_, bitmap2, sizeof(bitmap_)) != 0);
     }  
 
 
