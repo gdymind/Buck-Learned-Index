@@ -129,6 +129,11 @@ public:
         return &sbucket_list_[pos];
     }
 
+    // TODO: delete an entry that matches the value
+    bool del_value(V value) {
+        return true;
+    } 
+
     // insert an entry to the target S-Bucket;
     // If the target S-Bucket is full, reblance the bucket with its right neighbor;
     // If bucket_rebalance does not work, insert() return false
@@ -237,7 +242,7 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
         des_buck_num = sbucket_list_[buckID+1].num_keys();
         if(des_buck_num == SBUCKET_SIZE){return false;}
         size_t median = (src_buck_num + des_buck_num)/2; // Be careful, current bucket can have one less element than the next one
-        T new_pivot = sbucket_list_[buckID].find_kth_smallest(median+1);
+        T new_pivot = sbucket_list_[buckID].find_kth_smallest(median+1).key_;
 
         // for concurrency, first insert new entries, then update pivot_, then remove old entries
         for(size_t i = 0;i<src_buck_num;i++){
@@ -267,7 +272,7 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
         size_t num_migration = src_buck_num - median;
 
         
-        T new_pivot = sbucket_list_[buckID].find_kth_smallest(num_migration+1);
+        T new_pivot = sbucket_list_[buckID].find_kth_smallest(num_migration+1).key_;
 
         // for concurrency, first insert new entries, then update pivot_, then remove old entries
         for(size_t i = 0;i<sbucket_list_[buckID].num_keys();i++){

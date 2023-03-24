@@ -165,68 +165,172 @@ namespace buckindex {
         for (int i = 0; i < 50; i++) EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(keys[i], keys[i] + 123456), true));
 
         for (int i = 0; i < 50; i++) {
-            EXPECT_EQ(i * 4 + 12, bucket.find_kth_smallest(i+1));
+            EXPECT_EQ(i * 4 + 12, bucket.find_kth_smallest(i+1).key_);
+            EXPECT_EQ(i * 4 + 12 + 123456, bucket.find_kth_smallest(i+1).value_);
         }
     }
 
-    // TEST(Bucket, unsorted_iterator) {
-    //     Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
+    TEST(Bucket, unsorted_iterator) {
+        Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
 
-    //     KeyListValueList<key_t, value_t, 8> list;
-    //     key_t key;
-    //     value_t value;
+        KeyListValueList<key_t, value_t, 8> list;
+        key_t key;
+        value_t value;
 
-    //     // insert {12, 24, 28, 67, 98} unsorted
-    //     list.put(0, 98, 12);
-    //     list.put(1, 24, 35);
-    //     list.put(2, 12, 62);
-    //     list.put(3, 28, 18);
-    //     list.put(4, 67, 12345678);
+        // insert {12, 24, 28, 67, 98} unsorted
+        list.put(0, 98, 12);
+        list.put(1, 24, 35);
+        list.put(2, 12, 62);
+        list.put(3, 28, 18);
+        list.put(4, 67, 12345678);
 
-    //     // test empty bucket
-    //     EXPECT_TRUE(bucket.begin() == bucket.end());
+        // test empty bucket
+        EXPECT_TRUE(bucket.begin_unsort() == bucket.end_unsort());
 
-    //     for (int i = 0; i < 5; i++) {
-    //         EXPECT_TRUE(bucket.insert(list.at(i), true));
-    //     }
-
-
-    //     // test begin(), end(), opreator* and it++
-    //     int i = 0;
-    //     for (auto it = bucket.begin(); it != bucket.end(); it++) {
-    //         KeyValue<key_t, value_t> kv = *it;
-    //         EXPECT_EQ(list.at(i).key_, kv.key_);
-    //         EXPECT_EQ(list.at(i).value_, kv.value_);
-    //         i++;
-    //     }
-    //     EXPECT_EQ(5, i); 
-
-    //     // test ++it basic usage
-    //     i = 0;
-    //     for (auto it = bucket.begin(); it != bucket.end(); ++it) {
-    //         KeyValue<key_t, value_t> kv = *it;
-    //         EXPECT_EQ(list.at(i).key_, kv.key_);
-    //         EXPECT_EQ(list.at(i).value_, kv.value_);
-    //         i++;
-    //     }
-    //     EXPECT_EQ(5, i); 
+        for (int i = 0; i < 5; i++) {
+            EXPECT_TRUE(bucket.insert(list.at(i), true));
+        }
 
 
-    //     // test ++it return value
-    //     i = 1;
-    //     for (auto it = bucket.begin(); it != bucket.end() && i < 4;) {
-    //         KeyValue<key_t, value_t> kv = *(++it);
-    //         EXPECT_EQ(list.at(i).key_, kv.key_);
-    //         EXPECT_EQ(list.at(i).value_, kv.value_);
-    //         i++;
-    //     }
-    //     EXPECT_EQ(4, i); 
+        // test begin(), end(), opreator* and it++
+        int i = 0;
+        for (auto it = bucket.begin_unsort(); it != bucket.end_unsort(); it++) {
+            KeyValue<key_t, value_t> kv = *it;
+            EXPECT_EQ(list.at(i).key_, kv.key_);
+            EXPECT_EQ(list.at(i).value_, kv.value_);
+            i++;
+        }
+        EXPECT_EQ(5, i); 
 
-    //     // test overflow
-    //     auto it = bucket.end();
-    //     it++;
-    //     EXPECT_TRUE(it == bucket.end());
-    //     ++it;
-    //     EXPECT_TRUE(it == bucket.end());
-    // }
+        // test ++it basic usage
+        i = 0;
+        for (auto it = bucket.begin_unsort(); it != bucket.end_unsort(); ++it) {
+            KeyValue<key_t, value_t> kv = *it;
+            EXPECT_EQ(list.at(i).key_, kv.key_);
+            EXPECT_EQ(list.at(i).value_, kv.value_);
+            i++;
+        }
+        EXPECT_EQ(5, i); 
+
+
+        // test ++it return value
+        i = 1;
+        for (auto it = bucket.begin_unsort(); it != bucket.end_unsort() && i < 4;) {
+            KeyValue<key_t, value_t> kv = *(++it);
+            EXPECT_EQ(list.at(i).key_, kv.key_);
+            EXPECT_EQ(list.at(i).value_, kv.value_);
+            i++;
+        }
+        EXPECT_EQ(4, i); 
+
+        // test overflow
+        auto it = bucket.end_unsort();
+        it++;
+        EXPECT_TRUE(it == bucket.end_unsort());
+        ++it;
+        EXPECT_TRUE(it == bucket.end_unsort());
+    }
+
+    TEST(Bucket, sorted_iterator) {
+        Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
+
+        KeyListValueList<key_t, value_t, 8> list;
+        key_t key;
+        value_t value;
+
+        // insert {12, 24, 28, 67, 98} unsorted
+        list.put(0, 98, 12);
+        list.put(1, 24, 35);
+        list.put(2, 12, 62);
+        list.put(3, 28, 18);
+        list.put(4, 67, 12345678);
+
+        // test empty bucket
+        EXPECT_TRUE(bucket.begin() == bucket.end());
+
+        for (int i = 0; i < 5; i++) {
+            EXPECT_TRUE(bucket.insert(list.at(i), true));
+        }
+
+
+        // insert {12, 24, 28, 67, 98} sorted
+        KeyListValueList<key_t, value_t, 8> list_sorted;
+        list_sorted.put(0, 12, 62);
+        list_sorted.put(1, 24, 35);
+        list_sorted.put(2, 28, 18);
+        list_sorted.put(3, 67, 12345678);
+        list_sorted.put(4, 98, 12);  
+
+        // test begin(), end(), opreator* and it++
+        int i = 0;
+        for (auto it = bucket.begin(); it != bucket.end(); it++) {
+            KeyValue<key_t, value_t> kv = *it;
+            EXPECT_EQ(list_sorted.at(i).key_, kv.key_);
+            // EXPECT_EQ(list_sorted.at(i).value_, kv.value_);
+            i++;
+        }
+        EXPECT_EQ(5, i); 
+
+        // test ++it basic usage
+        i = 0;
+        for (auto it = bucket.begin(); it != bucket.end(); ++it) {
+            KeyValue<key_t, value_t> kv = *it;
+            EXPECT_EQ(list_sorted.at(i).key_, kv.key_);
+            EXPECT_EQ(list_sorted.at(i).value_, kv.value_);
+            i++;
+        }
+        EXPECT_EQ(5, i); 
+
+
+        // test ++it return value
+        i = 1;
+        for (auto it = bucket.begin(); it != bucket.end() && i < 4;) {
+            KeyValue<key_t, value_t> kv = *(++it);
+            EXPECT_EQ(list_sorted.at(i).key_, kv.key_);
+            EXPECT_EQ(list_sorted.at(i).value_, kv.value_);
+            i++;
+        }
+        EXPECT_EQ(4, i); 
+
+        // test overflow
+        auto it = bucket.end();
+        it++;
+        EXPECT_TRUE(it == bucket.end());
+        ++it;
+        EXPECT_TRUE(it == bucket.end());
+    }
+
+    TEST(Bucket, get_valid_kv) {
+        Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
+
+        KeyListValueList<key_t, value_t, 8> list;
+        key_t key;
+        value_t value;
+
+        // insert {12, 24, 28, 67, 98} unsorted
+        list.put(0, 98, 12);
+        list.put(1, 24, 35);
+        list.put(2, 12, 62);
+        list.put(3, 28, 18);
+        list.put(4, 67, 12345678);
+
+        for (int i = 0; i < 5; i++) {
+            EXPECT_TRUE(bucket.insert(list.at(i), true));
+        }
+
+        bucket.invalidate(2);
+        bucket.invalidate(4);
+
+        std::vector<KeyValue<key_t, value_t>> valid_kv;
+        bucket.get_valid_kvs(valid_kv);
+        
+        EXPECT_EQ(3, valid_kv.size());
+        EXPECT_EQ(98, valid_kv[0].key_);
+        EXPECT_EQ(12, valid_kv[0].value_);
+        EXPECT_EQ(24, valid_kv[1].key_);
+        EXPECT_EQ(35, valid_kv[1].value_);
+        EXPECT_EQ(28, valid_kv[2].key_);
+        EXPECT_EQ(18, valid_kv[2].value_);
+    }
+
 }
