@@ -145,6 +145,7 @@ public:
     // bucket_index.update_seg(old_seg, new_segs)
     // ~old_seg()
     // assumption: error bound is the sbucket_size
+    // NOTE: the SBUCKET_SIZE of new segments is the same as the old one
     std::vector<std::pair<T, Segment<T, V, SBUCKET_SIZE>*>> scale_and_segmentation(double fill_ratio);
 
 private:

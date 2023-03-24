@@ -343,6 +343,46 @@ namespace buckindex {
         delete new_segs[0].second;
     }
 
+    TEST(Segment, scale_and_segmentation){
+        key_t keys[] = {0,1,2,2,2,2,6,7,8,9,10};
+        std::vector<KeyValue<key_t, value_t>> in_array;
+        size_t length = sizeof(keys)/sizeof(key_t);
+        for (size_t i = 0; i < length; i++) {
+            in_array.push_back(KeyValue<key_t, value_t>(keys[i], keys[i]));
+        }
+        // model is y=x
+        LinearModel<key_t> model(0.05,0);
+        double fill_ratio = 1;
+        Segment<key_t, value_t, 1> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        
+        EXPECT_EQ(11, seg.num_bucket_);
+
+        // insert key
+        bool success = true;
+        KeyValue<key_t, value_t> key1(5,4);
+        success = seg.insert(key1);
+        // expect insert fails because of no empty slot
+        EXPECT_FALSE(success);
+
+        // call scale_and_segmentation
+        std::vector<std::pair<key_t,Segment<key_t, value_t, 1>*>> new_segs;
+        new_segs.clear();
+        double new_fill_ratio = 1;
+        new_segs = seg.scale_and_segmentation(new_fill_ratio);
+
+        /*Expected cuts: 0,1,2|2,2|2,6,7|8,9,10*/
+        EXPECT_EQ(4, new_segs.size());
+        EXPECT_EQ(0, new_segs[0].first);
+        EXPECT_EQ(2, new_segs[1].first);
+        EXPECT_EQ(2, new_segs[2].first);
+        EXPECT_EQ(8, new_segs[3].first);
+
+        delete new_segs[0].second;
+        delete new_segs[1].second;
+        delete new_segs[2].second;
+        delete new_segs[3].second;
+    }
+
     TEST(Segment, const_iterator){
         // write unit test for segment::const_iterator including testing begin() and end() and ++ operator and * operator and == operator and != operator
         // construct a segment
@@ -391,4 +431,5 @@ namespace buckindex {
         EXPECT_TRUE(it == seg.cend());
 
     }
+
 }
