@@ -107,8 +107,8 @@ public:
     // UnsortedIterator unsorted_end() {return UnsortedIterator(this, SBUCKET_SIZE * num_bucket_); }
 
     class const_iterator;
-    const_iterator cbegin() const {return const_iterator(this, 0); }
-    const_iterator cend() const {return const_iterator(this, this->size()); }
+    const_iterator cbegin() {return const_iterator(this, 0); }
+    const_iterator cend() {return const_iterator(this, this->size()); }
 
 
     // TBD: build a function / store a variable 
@@ -210,12 +210,15 @@ std::vector<std::pair<T,Segment<T, V, SBUCKET_SIZE>*>> Segment<T, V, SBUCKET_SIZ
     Segmentation<Segment<T, V, SBUCKET_SIZE>, T>::compute_dynamic_segmentation(*this, out_cuts, error_bound);
 
     // put result of segmentation into multiple segments
+    size_t start_pos = 0;
     for(size_t i = 0;i<out_cuts.size();i++){
-        // using dynamica allocation incase the segment is destroyed after the loop
-        Segment<T,V,SBUCKET_SIZE>* seg = new Segment<T,V,SBUCKET_SIZE>(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), out_cuts.begin(), out_cuts.end());
+        // using dynamic allocation in case the segment is destroyed after the loop
+        Segment<T,V,SBUCKET_SIZE>* seg = new Segment<T,V,SBUCKET_SIZE>(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), const_iterator(this, start_pos), const_iterator(this, start_pos+out_cuts[i].size_));
         T key = out_cuts[i].start_key_;
         ret.push_back(make_pair(key,seg));
+        start_pos += out_cuts[i].size_;
     }
+    assert(start_pos == this->size());
     return ret;
 }
 
@@ -454,7 +457,7 @@ class Segment<T, V, SBUCKET_SIZE>::const_iterator {
 public:
     using SegmentType = Segment<T, V, SBUCKET_SIZE>;
 
-    explicit const_iterator(const SegmentType *segment) : segment_(segment) {
+    explicit const_iterator(SegmentType *segment) : segment_(segment) {
         assert(segment_ != nullptr);
         cur_buckID = 0;
         cur_index = 0;
@@ -473,7 +476,7 @@ public:
         }       
     }
 
-    const_iterator(const SegmentType *segment, int pos) : segment_(segment) {
+    const_iterator(SegmentType *segment, int pos) : segment_(segment) {
         assert(pos >= 0 && pos <= segment_->size());
         cur_buckID = 0;
         cur_index = 0;

@@ -320,27 +320,27 @@ namespace buckindex {
         // expect insert fails because of no empty slot
         EXPECT_FALSE(success);
 
-        // UNFINISHED !!!
-        // // call scale_and_segmentation
-        // std::vector<std::pair<key_t,Segment<key_t, value_t, 4>*>> new_segs;
-        // new_segs.clear();
-        // double new_fill_ratio = 0.5;
-        // new_segs = seg.scale_and_segmentation(new_fill_ratio);
+
+        // call scale_and_segmentation
+        std::vector<std::pair<key_t,Segment<key_t, value_t, 4>*>> new_segs;
+        new_segs.clear();
+        double new_fill_ratio = 0.5;
+        new_segs = seg.scale_and_segmentation(new_fill_ratio);
         
-        // EXPECT_EQ(1, new_segs.size());
-        // EXPECT_EQ(0, new_segs[0].first);
+        EXPECT_EQ(1, new_segs.size());
+        EXPECT_EQ(0, new_segs[0].first);
 
-        // // num_bucket_ is scaled up
-        // // and each bucket's fill ratio is 0.5
-        // EXPECT_EQ(4, new_segs[0].second->num_bucket_);
+        // num_bucket_ is scaled up
+        // and each bucket's fill ratio is 0.5
+        EXPECT_EQ(4, new_segs[0].second->num_bucket_);
 
-        // EXPECT_EQ(2, new_segs[0].second->sbucket_list_[1].num_keys());
-        // success = false;
-        // success = new_segs[0].second->insert(key1);
-        // EXPECT_TRUE(success);
-        // EXPECT_EQ(3, new_segs[0].second->sbucket_list_[1].num_keys());
+        EXPECT_EQ(2, new_segs[0].second->sbucket_list_[1].num_keys());
+        success = false;
+        success = new_segs[0].second->insert(key1);
+        EXPECT_TRUE(success);
+        EXPECT_EQ(3, new_segs[0].second->sbucket_list_[1].num_keys());
 
-        // delete new_segs[0].second;
+        delete new_segs[0].second;
     }
 
     TEST(Segment, const_iterator){

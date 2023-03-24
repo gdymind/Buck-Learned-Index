@@ -108,8 +108,8 @@ public:
         DataBucketType* d_bucket = (DataBucketType *)seg_ptrs[0];
         if (!d_bucket->insert(kv, true)) { // if fail to insert, call scale_and_segmentation //TODO: if no segment yet, create one //TODO: change if to while
             SegmentType* old_seg = (SegmentType*)seg_ptrs[1];
-            std::vector<std::pair<KeyType,SegmentType*>> new_segs = old_seg->scale_and_segmentation(); // TODO: return a vector of (pivot, segment) pairs
-            success = update_segments(seg_ptrs, 1, old_seg, new_segs);
+            //std::vector<std::pair<KeyType,SegmentType*>> new_segs = old_seg->scale_and_segmentation(); // TODO: return a vector of (pivot, segment) pairs
+            //success = update_segments(seg_ptrs, 1, old_seg, new_segs);
             // TODO: insert again
             delete old_seg;
         }

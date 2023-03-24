@@ -72,7 +72,7 @@ namespace buckindex {
                 } else {
                     out_cuts.push_back(c);
                     alg.init(start->get_key(), error_bound);
-                    c = Cut<uint64_t>(idx);
+                    c = Cut<KeyType>(idx);
                     c.add_sample(start->get_key());
                 }
                 idx++;
