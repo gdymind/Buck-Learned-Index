@@ -268,6 +268,38 @@ namespace buckindex {
         EXPECT_FALSE(success);
     }
 
+    TEST(Segment, size) {
+        key_t keys[] = {0,20,40,60,80,100,120,140};
+        std::vector<KeyValue<key_t, value_t>> in_array;
+        size_t length = sizeof(keys)/sizeof(key_t);
+        for (size_t i = 0; i < length; i++) {
+            in_array.push_back(KeyValue<key_t, value_t>(keys[i], keys[i]));
+        }
+        // model is y=0.05x
+        LinearModel<key_t> model(0.05,0);
+        double fill_ratio = 0.5;
+        Segment<key_t, value_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        EXPECT_EQ(8, seg.size());
+        
+        bool success = false;
+        KeyValue<key_t, value_t> key1(50,4);
+        success = seg.insert(key1);
+        EXPECT_TRUE(success);
+        EXPECT_EQ(9, seg.size());
+
+        success = false;
+        KeyValue<key_t, value_t> key2(70,4);
+        success = seg.insert(key2);
+        EXPECT_TRUE(success);
+        EXPECT_EQ(10, seg.size());
+
+        success = false;
+        KeyValue<key_t, value_t> key3(75,4);
+        success = seg.insert(key3);
+        EXPECT_TRUE(success);
+        EXPECT_EQ(11, seg.size());
+    }
+
     TEST(Segment, scale){
         key_t keys[] = {0,20,40,60,80,100,120,140};
         std::vector<KeyValue<key_t, value_t>> in_array;
