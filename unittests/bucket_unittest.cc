@@ -307,7 +307,7 @@ namespace buckindex {
         EXPECT_TRUE(it == bucket.end());
     }
 
-    TEST(Bucket, get_valid_kv) {
+    TEST(Bucket, get_valid_kvs) {
         Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
 
         KeyListValueList<key_t, value_t, 8> list;
