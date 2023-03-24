@@ -342,4 +342,53 @@ namespace buckindex {
 
         // delete new_segs[0].second;
     }
+
+    TEST(Segment, const_iterator){
+        // write unit test for segment::const_iterator including testing begin() and end() and ++ operator and * operator and == operator and != operator
+        // construct a segment
+        key_t keys[] = {0,20,40,60,80,100,120,140};
+        std::vector<KeyValue<key_t, value_t>> in_array;
+        size_t length = sizeof(keys)/sizeof(key_t);
+        for (size_t i = 0; i < length; i++) {
+            in_array.push_back(KeyValue<key_t, value_t>(keys[i], keys[i]));
+        }
+        // model is y=0.05x
+        LinearModel<key_t> model(0.05,0);
+        double fill_ratio = 1;
+        Segment<key_t, value_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        
+        // test begin(), end(), opreator* and it++
+        int i = 0;
+        for (auto it = seg.cbegin(); it != seg.cend(); it++) {
+            KeyValue<key_t, value_t> kv = *it;
+            EXPECT_EQ(keys[i], kv.key_);
+            i++;
+        }
+        EXPECT_EQ(8, i);
+
+        // test ++it basic usage
+        i = 0;
+        for (auto it = seg.cbegin(); it != seg.cend(); ++it) {
+            KeyValue<key_t, value_t> kv = *it;
+            EXPECT_EQ(keys[i], kv.key_);
+            i++;
+        }
+
+        // test ++it return value
+        i = 1;
+        for (auto it = seg.cbegin(); it != seg.cend() && i < 7;) {
+            KeyValue<key_t, value_t> kv = *(++it);
+            EXPECT_EQ(keys[i], kv.key_);
+            i++;
+        }
+        EXPECT_EQ(7, i);
+
+        // test overflow and == operator
+        auto it = seg.cend();
+        it++;
+        EXPECT_TRUE(it == seg.cend());
+        ++it;
+        EXPECT_TRUE(it == seg.cend());
+
+    }
 }

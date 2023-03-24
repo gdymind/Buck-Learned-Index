@@ -461,7 +461,8 @@ public:
                 cur_buckID++;
             }
             else{
-                sorted_list = segment_->sbucket_list_[cur_buckID].get_vector(); // TODO
+                segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list); // TODO
+                sort(sorted_list.begin(), sorted_list.end());
                 break;
             }
         }       
@@ -471,6 +472,7 @@ public:
         assert(pos >= 0 && pos <= segment_->size());
         cur_buckID = 0;
         cur_index = 0;
+        sorted_list.clear();
         if(pos == segment_->size()){
             cur_buckID = segment_->num_bucket_;
             return;
@@ -483,7 +485,8 @@ public:
         }
 
         // inside the bucket, locate the index
-        sorted_list = segment_->sbucket_list_[cur_buckID].get_vector(); // TODO
+        segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list); // TODO
+        sort(sorted_list.begin(), sorted_list.end());
         cur_index = pos;
     }
 
@@ -536,7 +539,8 @@ private:
                     cur_buckID++;
                 }
                 else{
-                    sorted_list = segment_->sbucket_list_[cur_buckID].get_vector(); // TODO
+                    segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list); // TODO
+                    sort(sorted_list.begin(), sorted_list.end());
                     break;
                 }
             }
