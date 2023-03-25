@@ -152,7 +152,7 @@ public:
     // ~old_seg()
     // assumption: error bound is the sbucket_size
     // NOTE: the SBUCKET_SIZE of new segments is the same as the old one
-    std::vector<std::pair<T, Segment<T, V, SBUCKET_SIZE>*>> scale_and_segmentation(double fill_ratio);
+    std::vector<KeyValue<T,uintptr_t>> scale_and_segmentation(double fill_ratio);
 
 private:
     LinearModel<T> model_;
@@ -200,10 +200,10 @@ private:
 };
 
 
-// TODO: std::pair -> KeyValue<>
+
 template<typename T, typename V, size_t SBUCKET_SIZE>
-std::vector<std::pair<T,Segment<T, V, SBUCKET_SIZE>*>> Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio){
-    std::vector<std::pair<T,Segment<T, V, SBUCKET_SIZE>*>> ret;
+std::vector<KeyValue<T,uintptr_t>> Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio){
+    std::vector<KeyValue<T,uintptr_t>> ret;
     //std::vector<Segment*> ret;
     ret.clear();
     uint64_t error_bound = SBUCKET_SIZE;
@@ -222,7 +222,8 @@ std::vector<std::pair<T,Segment<T, V, SBUCKET_SIZE>*>> Segment<T, V, SBUCKET_SIZ
         // using dynamic allocation in case the segment is destroyed after the loop
         Segment<T,V,SBUCKET_SIZE>* seg = new Segment<T,V,SBUCKET_SIZE>(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), const_iterator(this, start_pos), const_iterator(this, start_pos+out_cuts[i].size_));
         T key = out_cuts[i].start_key_;
-        ret.push_back(make_pair(key,seg));
+        KeyValue<T,uintptr_t> kv(key, (uintptr_t)seg);
+        ret.push_back(kv);
         start_pos += out_cuts[i].size_;
     }
     assert(start_pos == this->size());

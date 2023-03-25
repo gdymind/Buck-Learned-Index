@@ -322,25 +322,28 @@ namespace buckindex {
 
 
         // call scale_and_segmentation
-        std::vector<std::pair<key_t,Segment<key_t, value_t, 4>*>> new_segs;
+        std::vector<KeyValue<key_t,uintptr_t>> new_segs;
         new_segs.clear();
         double new_fill_ratio = 0.5;
         new_segs = seg.scale_and_segmentation(new_fill_ratio);
         
         EXPECT_EQ(1, new_segs.size());
-        EXPECT_EQ(0, new_segs[0].first);
+
+        Segment<key_t, value_t, 4> *seg1 = reinterpret_cast<Segment<key_t, value_t, 4> *>(new_segs[0].value_);
+        
+        // pivot key
+        EXPECT_EQ(0, new_segs[0].key_);
 
         // num_bucket_ is scaled up
         // and each bucket's fill ratio is 0.5
-        EXPECT_EQ(4, new_segs[0].second->num_bucket_);
-
-        EXPECT_EQ(2, new_segs[0].second->sbucket_list_[1].num_keys());
+        EXPECT_EQ(4, seg1->num_bucket_);
+        EXPECT_EQ(2, seg1->sbucket_list_[1].num_keys());
         success = false;
-        success = new_segs[0].second->insert(key1);
+        success = seg1->insert(key1);
         EXPECT_TRUE(success);
-        EXPECT_EQ(3, new_segs[0].second->sbucket_list_[1].num_keys());
+        EXPECT_EQ(3, seg1->sbucket_list_[1].num_keys());
 
-        delete new_segs[0].second;
+        delete seg1;
     }
 
     TEST(Segment, scale_and_segmentation){
@@ -365,22 +368,32 @@ namespace buckindex {
         EXPECT_FALSE(success);
 
         // call scale_and_segmentation
-        std::vector<std::pair<key_t,Segment<key_t, value_t, 1>*>> new_segs;
+        std::vector<KeyValue<key_t,uintptr_t>> new_segs;
         new_segs.clear();
         double new_fill_ratio = 1;
         new_segs = seg.scale_and_segmentation(new_fill_ratio);
 
         /*Expected cuts: 0,1,2|2,2|2,6,7|8,9,10*/
         EXPECT_EQ(4, new_segs.size());
-        EXPECT_EQ(0, new_segs[0].first);
-        EXPECT_EQ(2, new_segs[1].first);
-        EXPECT_EQ(2, new_segs[2].first);
-        EXPECT_EQ(8, new_segs[3].first);
+        EXPECT_EQ(0, new_segs[0].key_);
+        EXPECT_EQ(2, new_segs[1].key_);
+        EXPECT_EQ(2, new_segs[2].key_);
+        EXPECT_EQ(8, new_segs[3].key_);
 
-        delete new_segs[0].second;
-        delete new_segs[1].second;
-        delete new_segs[2].second;
-        delete new_segs[3].second;
+        Segment<key_t, value_t, 1> *seg1 = reinterpret_cast<Segment<key_t, value_t, 1> *>(new_segs[0].value_);
+        Segment<key_t, value_t, 1> *seg2 = reinterpret_cast<Segment<key_t, value_t, 1> *>(new_segs[1].value_);
+        Segment<key_t, value_t, 1> *seg3 = reinterpret_cast<Segment<key_t, value_t, 1> *>(new_segs[2].value_);
+        Segment<key_t, value_t, 1> *seg4 = reinterpret_cast<Segment<key_t, value_t, 1> *>(new_segs[3].value_);
+
+        EXPECT_EQ(3, seg1->num_bucket_);
+        EXPECT_EQ(2, seg2->num_bucket_);
+        EXPECT_EQ(3, seg3->num_bucket_);
+        EXPECT_EQ(3, seg4->num_bucket_);
+        
+        delete seg1;
+        delete seg2;
+        delete seg3;
+        delete seg4;
     }
 
     TEST(Segment, const_iterator){
