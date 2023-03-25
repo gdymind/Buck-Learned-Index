@@ -19,6 +19,8 @@ public:
     // T base; // key compression
     // TBD: flag to determine whether it has rebalanced
 
+    using SegmentType = Segment<T, V, SBUCKET_SIZE>;
+
 
     size_t num_bucket_; // total num of buckets
     Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>* sbucket_list_; // a list of S-Buckets
@@ -152,7 +154,8 @@ public:
     // ~old_seg()
     // assumption: error bound is the sbucket_size
     // NOTE: the SBUCKET_SIZE of new segments is the same as the old one
-    std::vector<KeyValue<T,uintptr_t>> scale_and_segmentation(double fill_ratio);
+    //bool Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs);
+    bool scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs);
 
 private:
     LinearModel<T> model_;
@@ -202,10 +205,10 @@ private:
 
 
 template<typename T, typename V, size_t SBUCKET_SIZE>
-std::vector<KeyValue<T,uintptr_t>> Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio){
-    std::vector<KeyValue<T,uintptr_t>> ret;
+bool Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs){
+    //std::vector<KeyValue<T,uintptr_t>> ret;
     //std::vector<Segment*> ret;
-    ret.clear();
+    //ret.clear();
     uint64_t error_bound = SBUCKET_SIZE;
 
     // collect all the valid keys (sorted)
@@ -214,20 +217,20 @@ std::vector<KeyValue<T,uintptr_t>> Segment<T, V, SBUCKET_SIZE>::scale_and_segmen
     // run the segmentation algorithm
     std::vector<Cut<T>> out_cuts;
     out_cuts.clear();
-    Segmentation<Segment<T, V, SBUCKET_SIZE>, T>::compute_dynamic_segmentation(*this, out_cuts, error_bound);
+    Segmentation<SegmentType, T>::compute_dynamic_segmentation(*this, out_cuts, error_bound);
 
     // put result of segmentation into multiple segments
     size_t start_pos = 0;
     for(size_t i = 0;i<out_cuts.size();i++){
         // using dynamic allocation in case the segment is destroyed after the loop
-        Segment<T,V,SBUCKET_SIZE>* seg = new Segment<T,V,SBUCKET_SIZE>(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), const_iterator(this, start_pos), const_iterator(this, start_pos+out_cuts[i].size_));
+        SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), const_iterator(this, start_pos), const_iterator(this, start_pos+out_cuts[i].size_));
         T key = out_cuts[i].start_key_;
         KeyValue<T,uintptr_t> kv(key, (uintptr_t)seg);
-        ret.push_back(kv);
+        new_segs.push_back(kv);
         start_pos += out_cuts[i].size_;
     }
     assert(start_pos == this->size());
-    return ret;
+    return true;
 }
 
 template<typename T, typename V, size_t SBUCKET_SIZE>

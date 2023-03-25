@@ -321,11 +321,13 @@ namespace buckindex {
         EXPECT_FALSE(success);
 
 
-        // call scale_and_segmentation
+        // call scale_and_segmentation 
         std::vector<KeyValue<key_t,uintptr_t>> new_segs;
         new_segs.clear();
         double new_fill_ratio = 0.5;
-        new_segs = seg.scale_and_segmentation(new_fill_ratio);
+        success = false;
+        success = seg.scale_and_segmentation(new_fill_ratio, new_segs);
+        EXPECT_TRUE(success);
         
         EXPECT_EQ(1, new_segs.size());
 
@@ -371,7 +373,9 @@ namespace buckindex {
         std::vector<KeyValue<key_t,uintptr_t>> new_segs;
         new_segs.clear();
         double new_fill_ratio = 1;
-        new_segs = seg.scale_and_segmentation(new_fill_ratio);
+        success = false;
+        success = seg.scale_and_segmentation(new_fill_ratio, new_segs);
+        EXPECT_TRUE(success);
 
         /*Expected cuts: 0,1,2|2,2|2,6,7|8,9,10*/
         EXPECT_EQ(4, new_segs.size());
