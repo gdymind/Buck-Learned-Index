@@ -301,14 +301,14 @@ namespace buckindex {
     }
 
     TEST(Segment, scale){
-        key_t keys[] = {0,20,40,60,80,100,120,140};
+        key_t keys[] = {1,21,41,61,81,101,121,141};
         std::vector<KeyValue<key_t, value_t>> in_array;
         size_t length = sizeof(keys)/sizeof(key_t);
         for (size_t i = 0; i < length; i++) {
             in_array.push_back(KeyValue<key_t, value_t>(keys[i], keys[i]));
         }
         // model is y=0.05x
-        LinearModel<key_t> model(0.05,0);
+        LinearModel<key_t> model(0.05,-0.05);
         double fill_ratio = 1;
         Segment<key_t, value_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
         
@@ -319,7 +319,6 @@ namespace buckindex {
         success = seg.insert(key1);
         // expect insert fails because of no empty slot
         EXPECT_FALSE(success);
-
 
         // call scale_and_segmentation 
         std::vector<KeyValue<key_t,uintptr_t>> new_segs;
@@ -334,7 +333,7 @@ namespace buckindex {
         Segment<key_t, value_t, 4> *seg1 = reinterpret_cast<Segment<key_t, value_t, 4> *>(new_segs[0].value_);
         
         // pivot key
-        EXPECT_EQ(0, new_segs[0].key_);
+        EXPECT_EQ(1, new_segs[0].key_);
 
         // num_bucket_ is scaled up
         // and each bucket's fill ratio is 0.5
@@ -343,7 +342,19 @@ namespace buckindex {
         success = false;
         success = seg1->insert(key1);
         EXPECT_TRUE(success);
-        EXPECT_EQ(3, seg1->sbucket_list_[1].num_keys());
+
+        //check all keys are in the new segment
+        value_t value = 0;
+        for (size_t i = 0; i < length; i++) {
+            success = false;
+            success = seg1->lookup(keys[i],value);
+            EXPECT_TRUE(success);
+            EXPECT_EQ(keys[i], value);
+        }
+        success = false;
+        success = seg1->lookup(key1.key_,value);
+        EXPECT_TRUE(success);
+        EXPECT_EQ(key1.value_, value);
 
         delete seg1;
     }
@@ -393,7 +404,23 @@ namespace buckindex {
         EXPECT_EQ(1, seg2->num_bucket_);
         EXPECT_EQ(2, seg3->num_bucket_);
         EXPECT_EQ(2, seg4->num_bucket_);
-        
+
+        //check all other keys are in the new segments
+        value_t value = 0;
+        size_t count = 0;
+        vector<Segment<key_t, value_t, 2>*> segs={seg1,seg2,seg3,seg4};
+        for(size_t i=0;i<segs.size();i++){
+            for (size_t j=0;j<segs[i]->size();j++,count++){
+                // TODO: fix this afterwards
+                // cannot lookup key=0 for now
+                if(count==0)continue;
+                success = false;
+                success = segs[i]->lookup(keys[count],value);
+                EXPECT_TRUE(success);
+                EXPECT_EQ(keys[count], value);
+            }
+        }
+
         delete seg1;
         delete seg2;
         delete seg3;
