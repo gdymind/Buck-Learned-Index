@@ -209,7 +209,9 @@ bool Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std:
     //std::vector<KeyValue<T,uintptr_t>> ret;
     //std::vector<Segment*> ret;
     //ret.clear();
-    uint64_t error_bound = SBUCKET_SIZE;
+
+    // the error_bound should be less than 1/2 of the bucket size.
+    uint64_t error_bound = 0.5 * SBUCKET_SIZE;
 
     // collect all the valid keys (sorted)
     // done by segment::SortedIterator 
@@ -217,6 +219,7 @@ bool Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std:
     // run the segmentation algorithm
     std::vector<Cut<T>> out_cuts;
     out_cuts.clear();
+
     Segmentation<SegmentType, T>::compute_dynamic_segmentation(*this, out_cuts, error_bound);
 
     // put result of segmentation into multiple segments
@@ -467,31 +470,32 @@ class Segment<T, V, SBUCKET_SIZE>::const_iterator {
 public:
     using SegmentType = Segment<T, V, SBUCKET_SIZE>;
 
-    explicit const_iterator(SegmentType *segment) : segment_(segment) {
-        assert(segment_ != nullptr);
-        cur_buckID = 0;
-        cur_index = 0;
-        sorted_list.clear();
+    /*
+    // explicit const_iterator(SegmentType *segment) : segment_(segment) {
+    //     assert(segment_ != nullptr);
+    //     cur_buckID = 0;
+    //     cur_index = 0;
+    //     sorted_list.clear();
 
-        // find the first valid bucket
-        while(!reach_to_end()){
-            if(segment_->sbucket_list_[cur_buckID].num_keys() == 0){
-                cur_buckID++;
-            }
-            else{
-                segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list); 
-                sort(sorted_list.begin(), sorted_list.end());
-                break;
-            }
-        }       
-    }
+    //     // find the first valid bucket
+    //     while(!reach_to_end()){
+    //         if(segment_->sbucket_list_[cur_buckID].num_keys() == 0){
+    //             cur_buckID++;
+    //         }
+    //         else{
+    //             segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list); 
+    //             sort(sorted_list.begin(), sorted_list.end());
+    //             break;
+    //         }
+    //     }       
+    // }
+    */
 
     // num of bucket to indicate the end
     const_iterator(SegmentType *segment, int pos) : segment_(segment) {
         assert(pos >= 0 && pos <= segment_->size());
         cur_buckID = 0;
         cur_index = 0;
-        sorted_list.clear();
         if(pos == segment_->size()){
             cur_buckID = segment_->num_bucket_;
             return;

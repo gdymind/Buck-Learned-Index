@@ -358,9 +358,9 @@ namespace buckindex {
         // model is y=x
         LinearModel<key_t> model(0.05,0);
         double fill_ratio = 1;
-        Segment<key_t, value_t, 1> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        Segment<key_t, value_t, 2> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
         
-        EXPECT_EQ(11, seg.num_bucket_);
+        EXPECT_EQ(6, seg.num_bucket_);
 
         // insert key
         bool success = true;
@@ -384,15 +384,15 @@ namespace buckindex {
         EXPECT_EQ(2, new_segs[2].key_);
         EXPECT_EQ(8, new_segs[3].key_);
 
-        Segment<key_t, value_t, 1> *seg1 = reinterpret_cast<Segment<key_t, value_t, 1> *>(new_segs[0].value_);
-        Segment<key_t, value_t, 1> *seg2 = reinterpret_cast<Segment<key_t, value_t, 1> *>(new_segs[1].value_);
-        Segment<key_t, value_t, 1> *seg3 = reinterpret_cast<Segment<key_t, value_t, 1> *>(new_segs[2].value_);
-        Segment<key_t, value_t, 1> *seg4 = reinterpret_cast<Segment<key_t, value_t, 1> *>(new_segs[3].value_);
+        Segment<key_t, value_t, 2> *seg1 = reinterpret_cast<Segment<key_t, value_t, 2> *>(new_segs[0].value_);
+        Segment<key_t, value_t, 2> *seg2 = reinterpret_cast<Segment<key_t, value_t, 2> *>(new_segs[1].value_);
+        Segment<key_t, value_t, 2> *seg3 = reinterpret_cast<Segment<key_t, value_t, 2> *>(new_segs[2].value_);
+        Segment<key_t, value_t, 2> *seg4 = reinterpret_cast<Segment<key_t, value_t, 2> *>(new_segs[3].value_);
 
-        EXPECT_EQ(3, seg1->num_bucket_);
-        EXPECT_EQ(2, seg2->num_bucket_);
-        EXPECT_EQ(3, seg3->num_bucket_);
-        EXPECT_EQ(3, seg4->num_bucket_);
+        EXPECT_EQ(2, seg1->num_bucket_);
+        EXPECT_EQ(1, seg2->num_bucket_);
+        EXPECT_EQ(2, seg3->num_bucket_);
+        EXPECT_EQ(2, seg4->num_bucket_);
         
         delete seg1;
         delete seg2;
