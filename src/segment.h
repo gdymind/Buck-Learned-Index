@@ -36,7 +36,7 @@ public:
     // a constructor that recevices the number of entries, fill ratio, and the model(before expansion)
     // also pass a start iterator and an end iterator; iterate over the list and insert into the sbucket_list_
     template<typename IterType>
-    Segment(size_t num_kv, double fill_ratio, LinearModel<T> model, IterType it, IterType end)
+    Segment(size_t num_kv, double fill_ratio, const LinearModel<T> &model, IterType it, IterType end)
     :model_(model){
         //assert(it+num_kv == end); // + operator may not be supported 
 
@@ -100,7 +100,7 @@ public:
         }
     }
 
-    // TODO: iterator?
+
     // iterator-related
     // class UnsortedIterator;
     // UnsortedIterator unsorted_begin() {return UnsortedIterator(this, 0); }
@@ -109,6 +109,12 @@ public:
     class const_iterator;
     const_iterator cbegin() {return const_iterator(this, 0); }
     const_iterator cend() {return const_iterator(this, this->size()); }
+    
+    //TODO:lower_bound, upper_bound 
+    // const_iterator func(KEY_TYPE key){
+
+    // }
+    //for(it = being();it!= ned())
 
 
     // TBD: build a function / store a variable 
@@ -193,8 +199,8 @@ private:
     bool bucket_rebalance(unsigned int buckID);
 };
 
-// TODO: unit test
-// TODO: return KV (K is pivot and V is segment pointer)
+
+// TODO: std::pair -> KeyValue<>
 template<typename T, typename V, size_t SBUCKET_SIZE>
 std::vector<std::pair<T,Segment<T, V, SBUCKET_SIZE>*>> Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio){
     std::vector<std::pair<T,Segment<T, V, SBUCKET_SIZE>*>> ret;
@@ -452,7 +458,6 @@ private:
 };
 */
 
-//TODO: unit test
 template<typename T, typename V, size_t SBUCKET_SIZE>
 class Segment<T, V, SBUCKET_SIZE>::const_iterator {
 public:
@@ -470,13 +475,14 @@ public:
                 cur_buckID++;
             }
             else{
-                segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list); // TODO
+                segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list); 
                 sort(sorted_list.begin(), sorted_list.end());
                 break;
             }
         }       
     }
 
+    // num of bucket to indicate the end
     const_iterator(SegmentType *segment, int pos) : segment_(segment) {
         assert(pos >= 0 && pos <= segment_->size());
         cur_buckID = 0;
@@ -494,7 +500,7 @@ public:
         }
 
         // inside the bucket, locate the index
-        segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list); // TODO
+        segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list); 
         sort(sorted_list.begin(), sorted_list.end());
         cur_index = pos;
     }
@@ -548,7 +554,7 @@ private:
                     cur_buckID++;
                 }
                 else{
-                    segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list); // TODO
+                    segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list); 
                     sort(sorted_list.begin(), sorted_list.end());
                     break;
                 }
