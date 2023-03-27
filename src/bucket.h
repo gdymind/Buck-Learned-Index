@@ -47,6 +47,7 @@ public:
         return -1;
     }
     
+    //TODO: remove all iterators
     // iterator-related
     class UnsortedIterator;
     UnsortedIterator begin_unsort() {return UnsortedIterator(this, 0); }
@@ -55,6 +56,22 @@ public:
     class SortedIterator;
     SortedIterator begin() {return SortedIterator(this, 0); }
     SortedIterator end() {return SortedIterator(this, num_keys()); }
+
+    void get_valid_kvs(std::vector<KeyValue<T, V>> &v) const {
+        // read bitmap
+        // get all valid kvs
+        // check the bitmap again, read everything again until bitmap matches
+        uint64_t bitmap2[BITMAP_SIZE];
+        do {
+            memcpy(bitmap2, bitmap_, sizeof(bitmap_));
+            v.clear();
+            for (int i = 0; i < SIZE; i++) {
+                if (valid(i)) {
+                    v.push_back(list_.at(i));
+                }
+            }
+        } while (memcmp(bitmap_, bitmap2, sizeof(bitmap_)) != 0);
+    }  
 
 
     inline T get_pivot() const { return pivot_; }
@@ -202,6 +219,8 @@ bool Bucket<LISTTYPE, T, V, SIZE>::insert(const KeyValue<T, V> &kv, bool update_
     return true;
 }
 
+
+//TODO: call get_valid_kvs and std::nth_element
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 KeyValue<T, V> Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) const {
     int n = num_keys();
@@ -233,7 +252,7 @@ public:
     UnsortedIterator(BucketType *bucket, int pos) : bucket_(bucket) {
       assert(pos >= 0 && pos <= SIZE);
       cur_pos_ = pos;
-      // cur_pos_ is always at a valid position
+      // cur_pos_ should always be at a valid position
       if (pos < SIZE && !bucket_->valid(cur_pos_)) find_next_valid();
     }
 

@@ -300,4 +300,37 @@ namespace buckindex {
         EXPECT_TRUE(it == bucket.end());
     }
 
+    TEST(Bucket, get_valid_kv) {
+        Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
+
+        KeyListValueList<key_t, value_t, 8> list;
+        key_t key;
+        value_t value;
+
+        // insert {12, 24, 28, 67, 98} unsorted
+        list.put(0, 98, 12);
+        list.put(1, 24, 35);
+        list.put(2, 12, 62);
+        list.put(3, 28, 18);
+        list.put(4, 67, 12345678);
+
+        for (int i = 0; i < 5; i++) {
+            EXPECT_TRUE(bucket.insert(list.at(i), true));
+        }
+
+        bucket.invalidate(2);
+        bucket.invalidate(4);
+
+        std::vector<KeyValue<key_t, value_t>> valid_kv;
+        bucket.get_valid_kvs(valid_kv);
+        
+        EXPECT_EQ(3, valid_kv.size());
+        EXPECT_EQ(98, valid_kv[0].key_);
+        EXPECT_EQ(12, valid_kv[0].value_);
+        EXPECT_EQ(24, valid_kv[1].key_);
+        EXPECT_EQ(35, valid_kv[1].value_);
+        EXPECT_EQ(28, valid_kv[2].key_);
+        EXPECT_EQ(18, valid_kv[2].value_);
+    }
+
 }

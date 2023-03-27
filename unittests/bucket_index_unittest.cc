@@ -60,33 +60,27 @@ namespace buckindex {
             EXPECT_EQ(values[i], value);
         }
     }
+/*
+    TEST(BuckIndex, insert_from_empty) {
+        BuckIndex<uint64_t, uint64_t> bli;
 
-    // TEST(BuckIndex, insert_from_empty) {
-    //     BuckIndex<uint64_t, uint64_t> bli;
+        uint64_t keys[] = {3, 5, 8, 4};
+        uint64_t values[] = {32, 52, 82, 42};
+        uint64_t length = sizeof(keys)/sizeof(uint64_t);
+        uint64_t value;
+        vector<KeyValue<uint64_t, uint64_t>> list;
+        for (auto i = 0; i < length; i++) {
+            list.push_back(KeyValue<uint64_t, uint64_t>(keys[i], values[i]));
+        }
 
-    //     uint64_t keys[] = {3, 5, 8, 4};
-    //     uint64_t values[] = {32, 52, 82, 42};
-    //     uint64_t length = sizeof(keys)/sizeof(uint64_t);
-    //     uint64_t value;
-    //     vector<KeyValue<uint64_t, uint64_t>> list;
-    //     for (auto i = 0; i < length; i++) {
-    //         list.push_back(KeyValue<uint64_t, uint64_t>(keys[i], values[i]));
-    //     }
+        for (auto i = 0; i < 2; i++) {
+            EXPECT_TRUE(bli.insert(list[i]));
+            EXPECT_TRUE(bli.lookup(list[i].key_, value));
+            EXPECT_EQ(list[i].value_, value);
+        }
 
-    //     for (auto i = 0; i < 2; i++) {
-    //         EXPECT_TRUE(bli.insert(list[i]));
-    //         EXPECT_TRUE(bli.lookup(list[i].key_, value));
-    //         EXPECT_EQ(list[i].value_, value);
-    //     }
-
-    //     for (auto i = 2; i < 4; i++) {
-    //         EXPECT_FALSE(bli.insert(list[i]));
-    //     }
-
-
-    //     // test overflow
-    //     // EXPECT_FALSE(bli.insert(kv));
-    // }
-
+        //TODO
+    }
+*/
 
 }
