@@ -33,7 +33,7 @@ public:
 
     bool lookup(const T &key, V& value) const;
     // Find the largest key that is <= the lookup key
-    bool lb_lookup(const T &key, V& value) const; // lower-bound lookup
+    bool lb_lookup(const T &key, V& value) const; // find the largest key that is <= the lookup key
     bool lookup_SIMD(const T &key, V& value) const; // TODO: LISTTYPE do the lookup
     bool lb_lookup_SIMD(const T &key, V& value) const; // lower-bound lookup
     bool insert(const KeyValue<T, V> &kv, bool update_pivot); // Return false if insert() fails
@@ -177,10 +177,10 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value) const {
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(const T &key, V &value) const {
     
-    T target_key = 0; // TODO: define zero as a template parameter?
+    T target_key = std::numeric_limits<T>::min();
     int pos = -1;
     for (int i = 0; i < SIZE; i++) {
-        if (valid(i) && list_.at(i).key_ <= key && list_.at(i).key_ > target_key) {
+        if (valid(i) && list_.at(i).key_ <= key && list_.at(i).key_ >= target_key) {
             target_key = list_.at(i).key_;
             pos = i;
         }
