@@ -411,9 +411,6 @@ namespace buckindex {
         vector<Segment<key_t, value_t, 2>*> segs={seg1,seg2,seg3,seg4};
         for(size_t i=0;i<segs.size();i++){
             for (size_t j=0;j<segs[i]->size();j++,count++){
-                // TODO: fix this afterwards
-                // cannot lookup key=0 for now
-                if(count==0)continue;
                 success = false;
                 success = segs[i]->lookup(keys[count],value);
                 EXPECT_TRUE(success);

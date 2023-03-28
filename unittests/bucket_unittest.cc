@@ -34,6 +34,9 @@ namespace buckindex {
         EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(28, 18), true));
         EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(67, 12345678), true));
 
+
+        EXPECT_EQ(false, bucket.lb_lookup(0, value));
+
         // test keys < pivot
         for (int i = 0; i < 11; i++) EXPECT_EQ(false, bucket.lb_lookup(i, value));
 
@@ -66,6 +69,10 @@ namespace buckindex {
             EXPECT_EQ(true, bucket.lb_lookup(i, value));
             EXPECT_EQ(12, value);
         }
+
+        EXPECT_TRUE(bucket.insert(KeyValue<key_t, value_t>(0, 20), true));
+        EXPECT_EQ(true, bucket.lb_lookup(0, value));
+        EXPECT_EQ(20, value);
     }
 
     TEST(Bucket, lookup_insert_basic) {
