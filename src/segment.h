@@ -111,12 +111,6 @@ public:
     class const_iterator;
     const_iterator cbegin() {return const_iterator(this, 0); }
     const_iterator cend() {return const_iterator(this, this->size()); }
-    
-    //TODO:lower_bound, upper_bound 
-    // const_iterator func(KEY_TYPE key){
-
-    // }
-    //for(it = being();it!= ned())
 
     // return the first element that is not less than key
     const_iterator lower_bound(T key);
@@ -160,7 +154,6 @@ public:
     // ~old_seg()
     // assumption: error bound is the sbucket_size
     // NOTE: the SBUCKET_SIZE of new segments is the same as the old one
-    //bool Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs);
     bool scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs);
 
 private:
@@ -211,9 +204,6 @@ private:
 
 template<typename T, typename V, size_t SBUCKET_SIZE>
 bool Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs){
-    //std::vector<KeyValue<T,uintptr_t>> ret;
-    //std::vector<Segment*> ret;
-    //ret.clear();
 
     // the error_bound should be less than 1/2 of the bucket size.
     uint64_t error_bound = 0.5 * SBUCKET_SIZE;
