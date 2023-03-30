@@ -118,6 +118,12 @@ public:
     // }
     //for(it = being();it!= ned())
 
+    // return the first element that is not less than key
+    const_iterator lower_bound(T key);
+
+    // return the first element that is greater than key
+    const_iterator upper_bound(T key);
+
 
     // TBD: build a function / store a variable 
     // count the valid keys in segment
@@ -186,7 +192,6 @@ private:
             }
         }
         else{ // search backwards
-
             while(buckID>0){
                 if(sbucket_list_[buckID-1].get_pivot() <= key){
                     buckID--;
@@ -361,6 +366,24 @@ bool Segment<T, V, SBUCKET_SIZE>::insert(KeyValue<T, V> &kv) {
     return ret;
 }
 
+// return the first element that is not less than key
+template<typename T, typename V, size_t SBUCKET_SIZE>
+typename Segment<T, V, SBUCKET_SIZE>::const_iterator Segment<T, V, SBUCKET_SIZE>::lower_bound(T key){
+    assert(num_bucket_>0);
+    unsigned int buckID = locate_buck(key);
+
+    return const_iterator(this, buckID, key, true);
+}
+
+// return the first element that is greater than key
+template<typename T, typename V, size_t SBUCKET_SIZE>
+typename Segment<T, V, SBUCKET_SIZE>::const_iterator Segment<T, V, SBUCKET_SIZE>::upper_bound(T key){
+    assert(num_bucket_>0);
+    unsigned int buckID = locate_buck(key);
+
+    return const_iterator(this, buckID, key, false);
+}
+
 /*
 // template<class T, class V, size_t SBUCKET_SIZE>
 // void Segment<T, V, SBUCKET_SIZE>::train_model() {
@@ -511,6 +534,37 @@ public:
         segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list); 
         sort(sorted_list.begin(), sorted_list.end());
         cur_index = pos;
+    }
+
+    // find the first key >= key or the first key > key
+    const_iterator(SegmentType *segment, int buckID, T key, bool allow_equal) : segment_(segment) {
+        assert(buckID >= 0 && buckID <= segment_->num_bucket_);
+        cur_buckID = buckID;
+        cur_index = 0;
+
+        // locate the bucket
+        while(segment_->sbucket_list_[cur_buckID].num_keys() == 0){
+            cur_buckID++;
+            if(cur_buckID == segment_->num_bucket_) return;
+        }
+        
+        segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list);
+        sort(sorted_list.begin(), sorted_list.end());
+        KeyValue<T, V> kv;
+        kv.key_ = key;
+        if(allow_equal){ // make sure no matter what the value is, it will be the first key >= key
+            kv.value_ = 0;
+            cur_index = std::lower_bound(sorted_list.begin(), sorted_list.end(), kv) - sorted_list.begin();
+        }
+        else{
+            kv.value_ = std::numeric_limits<V>::max(); // make sure no matter what the value is, it will be the first key > key
+            cur_index = std::upper_bound(sorted_list.begin(), sorted_list.end(), kv) - sorted_list.begin();
+        }
+        if(cur_index == sorted_list.size()) {
+            assert(cur_index > 0);
+            cur_index--;
+            find_next();
+        }
     }
 
     void operator++(int) {

@@ -473,4 +473,66 @@ namespace buckindex {
 
     }
 
+    TEST(Segment, lower_and_upper_bound){
+        // write unit test for segment::lower_bound and segment::upper_bound
+        // construct a segment
+        key_t keys[] = {0,20,40,60,80,100,120,140};
+        std::vector<KeyValue<key_t, value_t>> in_array;
+        size_t length = sizeof(keys)/sizeof(key_t);
+        for (size_t i = 0; i < length; i++) {
+            in_array.push_back(KeyValue<key_t, value_t>(keys[i], keys[i]));
+        }
+        // model is y=0.05x
+        LinearModel<key_t> model(0.05,0);
+        double fill_ratio = 1;
+        Segment<key_t, value_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+
+        // test lower_bound
+        auto it = seg.lower_bound(0);
+        EXPECT_EQ(0, it->key_);
+        it = seg.lower_bound(1);
+        EXPECT_EQ(20, it->key_);
+        it = seg.lower_bound(20);
+        EXPECT_EQ(20, it->key_);
+        it = seg.lower_bound(21);
+        EXPECT_EQ(40, it->key_);
+        it = seg.lower_bound(140);
+        EXPECT_EQ(140, it->key_);
+        it = seg.lower_bound(141);
+
+        EXPECT_TRUE(it == seg.cend());
+
+        // test upper_bound
+        it = seg.upper_bound(0);
+        EXPECT_EQ(20, it->key_);
+        it = seg.upper_bound(1);
+        EXPECT_EQ(20, it->key_);
+        it = seg.upper_bound(20);
+        EXPECT_EQ(40, it->key_);
+        it = seg.upper_bound(21);
+        EXPECT_EQ(40, it->key_);
+        it = seg.upper_bound(140);
+        EXPECT_TRUE(it == seg.cend());
+        it = seg.upper_bound(141);
+        EXPECT_TRUE(it == seg.cend());
+
+        int idx = 0;
+        // query key range [0,120] using lower_bound and upper_bound
+        for (it = seg.lower_bound(0); it != seg.upper_bound(120); ++it) {
+            EXPECT_TRUE(it->key_ >= 0 && it->key_ <= 120);
+            EXPECT_EQ(it->key_, keys[idx]);   
+            idx++;
+        }
+        EXPECT_EQ(7, idx);
+
+        idx = 1;
+        // query key range [1,99] using lower_bound and upper_bound
+        for (it = seg.lower_bound(1); it != seg.upper_bound(99); ++it) {
+            EXPECT_TRUE(it->key_ >= 1 && it->key_ <= 99);
+            EXPECT_EQ(it->key_, keys[idx]);
+            idx++;
+        }
+        EXPECT_EQ(5, idx);
+    }
+
 }
