@@ -502,37 +502,56 @@ namespace buckindex {
 
         EXPECT_TRUE(it == seg.cend());
 
-        // test upper_bound
-        it = seg.upper_bound(0);
-        EXPECT_EQ(20, it->key_);
-        it = seg.upper_bound(1);
-        EXPECT_EQ(20, it->key_);
-        it = seg.upper_bound(20);
-        EXPECT_EQ(40, it->key_);
-        it = seg.upper_bound(21);
-        EXPECT_EQ(40, it->key_);
-        it = seg.upper_bound(140);
-        EXPECT_TRUE(it == seg.cend());
-        it = seg.upper_bound(141);
-        EXPECT_TRUE(it == seg.cend());
+        // // test upper_bound
+        // it = seg.upper_bound(0);
+        // EXPECT_EQ(20, it->key_);
+        // it = seg.upper_bound(1);
+        // EXPECT_EQ(20, it->key_);
+        // it = seg.upper_bound(20);
+        // EXPECT_EQ(40, it->key_);
+        // it = seg.upper_bound(21);
+        // EXPECT_EQ(40, it->key_);
+        // it = seg.upper_bound(140);
+        // EXPECT_TRUE(it == seg.cend());
+        // it = seg.upper_bound(141);
+        // EXPECT_TRUE(it == seg.cend());
+        
 
         int idx = 0;
         // query key range [0,120] using lower_bound and upper_bound
         for (it = seg.lower_bound(0); it != seg.upper_bound(120); ++it) {
             EXPECT_TRUE(it->key_ >= 0 && it->key_ <= 120);
-            EXPECT_EQ(it->key_, keys[idx]);   
+            EXPECT_EQ(it->key_, keys[idx]);
+            //cout<<"key: "<<it->key_<<endl;
             idx++;
         }
         EXPECT_EQ(7, idx);
 
+    
+        // alternative:
+        // store the upper_bound(99) iterator to avoid calling upper_bound(99) multiple times
+        // may have an unexpected behavior if the segment is modified
+        // auto upper = seg.upper_bound(99);
+        
         idx = 1;
         // query key range [1,99] using lower_bound and upper_bound
         for (it = seg.lower_bound(1); it != seg.upper_bound(99); ++it) {
             EXPECT_TRUE(it->key_ >= 1 && it->key_ <= 99);
             EXPECT_EQ(it->key_, keys[idx]);
+            //cout<<"key: "<<it->key_<<endl;
             idx++;
         }
         EXPECT_EQ(5, idx);
+
+        idx = 1;
+        // query key range [1,150] using lower_bound and upper_bound
+        for (it = seg.lower_bound(1); it != seg.upper_bound(150); ++it) {
+            EXPECT_TRUE(it->key_ >= 1 && it->key_ <= 150);
+            EXPECT_EQ(it->key_, keys[idx]);
+            //cout<<"key: "<<it->key_<<endl;
+            idx++;
+        }
+        EXPECT_EQ(8, idx);
     }
 
 }

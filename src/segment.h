@@ -369,9 +369,9 @@ typename Segment<T, V, SBUCKET_SIZE>::const_iterator Segment<T, V, SBUCKET_SIZE>
 template<typename T, typename V, size_t SBUCKET_SIZE>
 typename Segment<T, V, SBUCKET_SIZE>::const_iterator Segment<T, V, SBUCKET_SIZE>::upper_bound(T key){
     assert(num_bucket_>0);
-    unsigned int buckID = locate_buck(key);
+    //unsigned int buckID = locate_buck(key);
 
-    return const_iterator(this, buckID, key, false);
+    return const_iterator(this, 0, key, false);
 }
 
 /*
@@ -532,6 +532,12 @@ public:
         cur_buckID = buckID;
         cur_index = 0;
 
+        if(!allow_equal){ // indicating this is an upper bound iterator
+            upper_bound = key;
+            cur_buckID = segment_->num_bucket_;
+            return;
+        }
+
         // locate the bucket
         while(segment_->sbucket_list_[cur_buckID].num_keys() == 0){
             cur_buckID++;
@@ -577,17 +583,27 @@ public:
         return &(sorted_list[cur_index]);
     }
 
+    // if rhs is an upper bound iterator, then it will return true, if cur_key > upper bound
     bool operator==(const const_iterator& rhs) const {
+        if (sorted_list.size() != 0 && cur_index < sorted_list.size() && sorted_list[cur_index].key_ > rhs.upper_bound) {
+            return true;
+        }
         return segment_ == rhs.segment_ && cur_buckID == rhs.cur_buckID && cur_index == rhs.cur_index;
     }
 
-    bool operator!=(const const_iterator& rhs) const { return !(*this == rhs); };
+    // q: what is rhs
+    // a: the iterator on the right hand side of the operator
+    bool operator!=(const const_iterator& rhs) const { 
+        return !(*this == rhs);
+    }
 
 private:
     SegmentType *segment_;
     //int cur_pos_ = 0;  // current position in the sbucket list, 
     size_t cur_buckID = 0;
     size_t cur_index = 0;
+
+    T upper_bound = std::numeric_limits<T>::max();
 
     std::vector<KeyValue<T, V>> sorted_list; // initialized when cbegin() is called or move to another bucket
 
