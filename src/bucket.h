@@ -38,6 +38,36 @@ public:
     bool lookup_SIMD(const T &key, V& value) const; // TODO: LISTTYPE do the lookup
     bool lb_lookup_SIMD(const T &key, V& value) const; // lower-bound lookup
     bool insert(const KeyValue<T, V> &kv, bool update_pivot); // Return false if insert() fails
+    bool update(const KeyValue<T, V> &kv); // Return false if update() fails
+
+    /**
+     * Split the bucket into two buckets by the median key
+     * need to call invalidate_keys_ge_median() later, once the new bucket is inserted
+     * @param bucket: the bucket to be split
+     * @return the new bucket
+     */
+    Bucket<LISTTYPE, T, V, SIZE> *split(T &median_key) {
+        // find the median key
+        median_key = find_kth_smallest((num_keys()+1) / 2).key_;
+        // create a new bucket
+        Bucket<LISTTYPE, T, V, SIZE> *new_bucket = new Bucket<LISTTYPE, T, V, SIZE>();
+        // move all keys that are > median_key to the new bucket
+        for (int i = 0; i < SIZE; i++) {
+            if (valid(i) && list_.at(i).key_ > median_key) {
+                new_bucket->insert(list_.at(i), true);
+            }
+        }
+        return new_bucket;
+    }
+
+    // helper function for split(); invalidate all the keys that are > median_key
+    void invalidate_keys_gr_median(T median_key) {
+        for (int i = 0; i < SIZE; i++) {
+            if (valid(i) && list_.at(i).key_ > median_key) {
+                invalidate(i);
+            }
+        }
+    }
 
     int get_pos(const T &key) const{ // get the index of key in list_; return -1 if not found
         for (int i = 0; i < SIZE; i++) {
@@ -191,8 +221,17 @@ bool Bucket<LISTTYPE, T, V, SIZE>::insert(const KeyValue<T, V> &kv, bool update_
     return true;
 }
 
+template<class LISTTYPE, typename T, typename V, size_t SIZE>
+bool Bucket<LISTTYPE, T, V, SIZE>::update(const KeyValue<T, V> &kv) {
+    for (int i = 0; i < SIZE; i++) {
+        if (valid(i) && list_.at(i).key_ == kv.key_) {
+            list_.put(i, kv.key_, kv.value_);
+            return true;
+        }
+    }
+    return false;
+}
 
-//TODO: call get_valid_kvs and std::nth_element
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 KeyValue<T, V> Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) const {
     int n = num_keys();
