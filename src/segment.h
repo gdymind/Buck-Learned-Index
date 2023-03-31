@@ -14,13 +14,13 @@ namespace buckindex {
 template<typename T, typename V, size_t SBUCKET_SIZE>
 class Segment {
 public:
+    using SegmentType = Segment<T, V, SBUCKET_SIZE>;
+    using KeyValuePtrType = KeyValue<T, uintptr_t>;
+
     //bool is_leaf_; // true -> segment; false -> segment group
     //Segment* parent_; // the parent Segment node, which enables bottom-up tranversal
     // T base; // key compression
     // TBD: flag to determine whether it has rebalanced
-
-    using SegmentType = Segment<T, V, SBUCKET_SIZE>;
-
 
     size_t num_bucket_; // total num of buckets
     Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>* sbucket_list_; // a list of S-Buckets
@@ -156,7 +156,27 @@ public:
     // NOTE: the SBUCKET_SIZE of new segments is the same as the old one
     //bool Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs);
     bool scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs);
+    // Replace old_seg with new_segs
+    // Assume that the first element in new_segs has the same as pivot as old_seg
+    bool batch_update(SegmentType *old_seg, std::vector<KeyValuePtrType> &new_segs) {
+        int buckID1 = locate_buck(new_segs.front().key_);
+        int buckId2 = locate_buck(new_segs.back().key_);
+        assert(buckID1 == buckId2); // TODO: handle the case when the new_segs are not in the same bucket
 
+        int left = SBUCKET_SIZE - sbucket_list_[buckID1].num_keys() + 1;
+        if (left < new_segs.size()) { return false; }
+
+        // skip the first element in new_segs, and insert the rest
+        for (int i = 1; i < new_segs.size(); i++) {
+            sbucket_list_[buckID1].insert(new_segs[i], true);
+        }
+
+        // update the first element in new_segs
+        bool success = sbucket_list_[buckID1].update(new_segs.front());
+        assert(success);
+        
+        return true;
+    }
 private:
     LinearModel<T> model_;
 
