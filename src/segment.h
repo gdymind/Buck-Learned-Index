@@ -527,6 +527,7 @@ public:
     }
 
     // find the first key >= key or the first key > key
+    // allow_qual -> upper_bound
     const_iterator(SegmentType *segment, int buckID, T key, bool allow_equal) : segment_(segment) {
         assert(buckID >= 0 && buckID <= segment_->num_bucket_);
         cur_buckID = buckID;
@@ -563,23 +564,29 @@ public:
         }
     }
 
+    // disable upper bound iterator to be increased or deferenced 
+
     void operator++(int) {
+        assert(upper_bound == std::numeric_limits<T>::max());
         find_next();
     }
 
     // prefix ++it
     const_iterator &operator++() {
+        assert(upper_bound == std::numeric_limits<T>::max());
         find_next();
         return *this;
     }
 
     // *it
     const KeyValue<T, V> operator*() const {
+        assert(upper_bound == std::numeric_limits<T>::max());
         return sorted_list[cur_index];
     }
 
     // it->
     const KeyValue<T, V>* operator->() const {
+        assert(upper_bound == std::numeric_limits<T>::max());
         return &(sorted_list[cur_index]);
     }
 
@@ -591,8 +598,6 @@ public:
         return segment_ == rhs.segment_ && cur_buckID == rhs.cur_buckID && cur_index == rhs.cur_index;
     }
 
-    // q: what is rhs
-    // a: the iterator on the right hand side of the operator
     bool operator!=(const const_iterator& rhs) const { 
         return !(*this == rhs);
     }

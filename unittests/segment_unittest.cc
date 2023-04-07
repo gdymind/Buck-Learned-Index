@@ -518,8 +518,10 @@ namespace buckindex {
         
 
         int idx = 0;
+        auto lower = seg.lower_bound(0); // shallow copy is enough
+        auto upper = seg.upper_bound(120);
         // query key range [0,120] using lower_bound and upper_bound
-        for (it = seg.lower_bound(0); it != seg.upper_bound(120); ++it) {
+        for (it = lower; it != upper; ++it) {
             EXPECT_TRUE(it->key_ >= 0 && it->key_ <= 120);
             EXPECT_EQ(it->key_, keys[idx]);
             //cout<<"key: "<<it->key_<<endl;
@@ -534,8 +536,10 @@ namespace buckindex {
         // auto upper = seg.upper_bound(99);
         
         idx = 1;
+        lower = seg.lower_bound(1);
+        upper = seg.upper_bound(99);
         // query key range [1,99] using lower_bound and upper_bound
-        for (it = seg.lower_bound(1); it != seg.upper_bound(99); ++it) {
+        for (it = lower; it != upper; ++it) {
             EXPECT_TRUE(it->key_ >= 1 && it->key_ <= 99);
             EXPECT_EQ(it->key_, keys[idx]);
             //cout<<"key: "<<it->key_<<endl;
@@ -544,8 +548,10 @@ namespace buckindex {
         EXPECT_EQ(5, idx);
 
         idx = 1;
+        lower = seg.lower_bound(1);
+        upper = seg.upper_bound(150);
         // query key range [1,150] using lower_bound and upper_bound
-        for (it = seg.lower_bound(1); it != seg.upper_bound(150); ++it) {
+        for (it = lower; it != upper; ++it) {
             EXPECT_TRUE(it->key_ >= 1 && it->key_ <= 150);
             EXPECT_EQ(it->key_, keys[idx]);
             //cout<<"key: "<<it->key_<<endl;
