@@ -111,12 +111,12 @@ public:
     class const_iterator;
     const_iterator cbegin() {return const_iterator(this, 0); }
     const_iterator cend() {return const_iterator(this, this->size()); }
-    
-    //TODO:lower_bound, upper_bound 
-    // const_iterator func(KEY_TYPE key){
 
-    // }
-    //for(it = being();it!= ned())
+    // return the first element that is not less than key
+    const_iterator lower_bound(T key);
+
+    // return the first element that is greater than key
+    const_iterator upper_bound(T key);
 
 
     // TBD: build a function / store a variable 
@@ -154,7 +154,6 @@ public:
     // ~old_seg()
     // assumption: error bound is the sbucket_size
     // NOTE: the SBUCKET_SIZE of new segments is the same as the old one
-    //bool Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs);
     bool scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs);
 
 private:
@@ -186,7 +185,6 @@ private:
             }
         }
         else{ // search backwards
-
             while(buckID>0){
                 if(sbucket_list_[buckID-1].get_pivot() <= key){
                     buckID--;
@@ -206,9 +204,6 @@ private:
 
 template<typename T, typename V, size_t SBUCKET_SIZE>
 bool Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs){
-    //std::vector<KeyValue<T,uintptr_t>> ret;
-    //std::vector<Segment*> ret;
-    //ret.clear();
 
     // the error_bound should be less than 1/2 of the bucket size.
     uint64_t error_bound = 0.5 * SBUCKET_SIZE;
@@ -359,6 +354,24 @@ bool Segment<T, V, SBUCKET_SIZE>::insert(KeyValue<T, V> &kv) {
     bool ret = sbucket_list_[buckID].insert(kv, true);
 
     return ret;
+}
+
+// return the first element that is not less than key
+template<typename T, typename V, size_t SBUCKET_SIZE>
+typename Segment<T, V, SBUCKET_SIZE>::const_iterator Segment<T, V, SBUCKET_SIZE>::lower_bound(T key){
+    assert(num_bucket_>0);
+    unsigned int buckID = locate_buck(key);
+
+    return const_iterator(this, buckID, key, true);
+}
+
+// return the first element that is greater than key
+template<typename T, typename V, size_t SBUCKET_SIZE>
+typename Segment<T, V, SBUCKET_SIZE>::const_iterator Segment<T, V, SBUCKET_SIZE>::upper_bound(T key){
+    assert(num_bucket_>0);
+    //unsigned int buckID = locate_buck(key);
+
+    return const_iterator(this, 0, key, false);
 }
 
 /*
@@ -513,37 +526,89 @@ public:
         cur_index = pos;
     }
 
+    // find the first key >= key or the first key > key
+    // allow_qual -> upper_bound
+    const_iterator(SegmentType *segment, int buckID, T key, bool allow_equal) : segment_(segment) {
+        assert(buckID >= 0 && buckID <= segment_->num_bucket_);
+        cur_buckID = buckID;
+        cur_index = 0;
+
+        if(!allow_equal){ // indicating this is an upper bound iterator
+            upper_bound = key;
+            cur_buckID = segment_->num_bucket_;
+            return;
+        }
+
+        // locate the bucket
+        while(segment_->sbucket_list_[cur_buckID].num_keys() == 0){
+            cur_buckID++;
+            if(cur_buckID == segment_->num_bucket_) return;
+        }
+        
+        segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list);
+        sort(sorted_list.begin(), sorted_list.end());
+        KeyValue<T, V> kv;
+        kv.key_ = key;
+        if(allow_equal){ // make sure no matter what the value is, it will be the first key >= key
+            kv.value_ = 0;
+            cur_index = std::lower_bound(sorted_list.begin(), sorted_list.end(), kv) - sorted_list.begin();
+        }
+        else{
+            kv.value_ = std::numeric_limits<V>::max(); // make sure no matter what the value is, it will be the first key > key
+            cur_index = std::upper_bound(sorted_list.begin(), sorted_list.end(), kv) - sorted_list.begin();
+        }
+        if(cur_index == sorted_list.size()) {
+            assert(cur_index > 0);
+            cur_index--;
+            find_next();
+        }
+    }
+
+    // disable upper bound iterator to be increased or deferenced 
+
     void operator++(int) {
+        assert(upper_bound == std::numeric_limits<T>::max());
         find_next();
     }
 
     // prefix ++it
     const_iterator &operator++() {
+        assert(upper_bound == std::numeric_limits<T>::max());
         find_next();
         return *this;
     }
 
     // *it
     const KeyValue<T, V> operator*() const {
+        assert(upper_bound == std::numeric_limits<T>::max());
         return sorted_list[cur_index];
     }
 
     // it->
     const KeyValue<T, V>* operator->() const {
+        assert(upper_bound == std::numeric_limits<T>::max());
         return &(sorted_list[cur_index]);
     }
 
+    // if rhs is an upper bound iterator, then it will return true, if cur_key > upper bound
     bool operator==(const const_iterator& rhs) const {
+        if (sorted_list.size() != 0 && cur_index < sorted_list.size() && sorted_list[cur_index].key_ > rhs.upper_bound) {
+            return true;
+        }
         return segment_ == rhs.segment_ && cur_buckID == rhs.cur_buckID && cur_index == rhs.cur_index;
     }
 
-    bool operator!=(const const_iterator& rhs) const { return !(*this == rhs); };
+    bool operator!=(const const_iterator& rhs) const { 
+        return !(*this == rhs);
+    }
 
 private:
     SegmentType *segment_;
     //int cur_pos_ = 0;  // current position in the sbucket list, 
     size_t cur_buckID = 0;
     size_t cur_index = 0;
+
+    T upper_bound = std::numeric_limits<T>::max();
 
     std::vector<KeyValue<T, V>> sorted_list; // initialized when cbegin() is called or move to another bucket
 
