@@ -560,4 +560,63 @@ namespace buckindex {
         EXPECT_EQ(8, idx);
     }
 
+    TEST(Segment, scale_and_batch_insert){
+        // write unit test for segment::scale_and_batch_insert
+        // construct a segment
+        key_t keys[] = {0,20,40,60};
+        std::vector<KeyValue<key_t, value_t>> in_array;
+        size_t length = sizeof(keys)/sizeof(key_t);
+        for (size_t i = 0; i < length; i++) {
+            in_array.push_back(KeyValue<key_t, value_t>(keys[i], keys[i]));
+        }
+        // model is y=0.05x
+        LinearModel<key_t> model(0.05,0);
+        double fill_ratio = 1;
+        Segment<key_t, value_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+
+        std::vector<KeyValue<key_t,value_t>> insert_anchors;
+        key_t keys2[] = {10,30,50,70,190,191,192,193,194,195,196,197,400,410,420,430};
+        // result should be {0,10,20,30,40,50,60,70,|190,191,192,193,194,195,196,197,|400,410,420,430}
+        // total 20 keys
+        length = sizeof(keys2)/sizeof(key_t);
+        for (size_t i = 0; i < length; i++) {
+            insert_anchors.push_back(KeyValue<key_t, value_t>(keys2[i], keys2[i]));
+        }
+        std::vector<KeyValue<key_t,uintptr_t>> new_segs;
+        bool success = seg.scale_and_batch_insert(fill_ratio, insert_anchors, new_segs);
+        
+        EXPECT_TRUE(success);
+        EXPECT_EQ(3, new_segs.size());
+        EXPECT_EQ(0, new_segs[0].key_);
+        EXPECT_EQ(190, new_segs[1].key_);
+        EXPECT_EQ(400, new_segs[2].key_);
+
+        Segment<key_t, value_t, 4> *seg1 = reinterpret_cast<Segment<key_t, value_t, 4> *>(new_segs[0].value_);
+        Segment<key_t, value_t, 4> *seg2 = reinterpret_cast<Segment<key_t, value_t, 4> *>(new_segs[1].value_);
+        Segment<key_t, value_t, 4> *seg3 = reinterpret_cast<Segment<key_t, value_t, 4> *>(new_segs[2].value_);
+
+
+        EXPECT_EQ(2, seg1->num_bucket_);
+        EXPECT_EQ(2, seg2->num_bucket_);
+        EXPECT_EQ(1, seg3->num_bucket_);
+
+        //check all other keys are in the new segments
+        value_t value = 0;
+        size_t count = 0;
+        vector<Segment<key_t, value_t, 4>*> segs={seg1,seg2,seg3};
+        vector<key_t> key_list = {0,10,20,30,40,50,60,70,190,191,192,193,194,195,196,197,400,410,420,430};
+        for(size_t i=0;i<segs.size();i++){
+            for (size_t j=0;j<segs[i]->size();j++,count++){
+                success = false;
+                success = segs[i]->lookup(key_list[count],value);
+                EXPECT_TRUE(success);
+                EXPECT_EQ(key_list[count], value);
+            }
+        }
+
+        delete seg1;
+        delete seg2;
+        delete seg3;
+    }
+
 }

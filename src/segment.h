@@ -164,7 +164,7 @@ public:
     * @param new_segs: the new segments after scale and batch insert
     * @return true if scale and batch insert success, false otherwise
     */
-    bool scale_and_batch_insert(double scale_factor, const std::vector<KeyValue<T,uintptr_t>> &insert_anchors,std::vector<KeyValue<T,uintptr_t>> &new_segs);
+    bool scale_and_batch_insert(double fill_ratio, const std::vector<KeyValue<T,V>> &insert_anchors,std::vector<KeyValue<T,uintptr_t>> &new_segs);
 
 private:
     LinearModel<T> model_;
@@ -244,52 +244,83 @@ bool Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std:
 
 template<typename T, typename V, size_t SBUCKET_SIZE>
 bool Segment<T, V, SBUCKET_SIZE>::scale_and_batch_insert(
-    double scale_factor, 
-    const std::vector<KeyValue<T,uintptr_t>> &insert_anchors,
+    double fill_ratio, 
+    const std::vector<KeyValue<T,V>> &insert_anchors,
     std::vector<KeyValue<T,uintptr_t>> &new_segs){
 
-    // scale the segment
-    double fill_ratio = (double)this->size() / (double)(SBUCKET_SIZE * num_bucket_);
-    fill_ratio = fill_ratio / scale_factor;
+    // the error_bound should be less than 1/2 of the bucket size.
+    uint64_t error_bound = 0.5 * SBUCKET_SIZE;
 
-    scale_and_segmentation(fill_ratio, new_segs);
-
-    // insert the new keys into the new segments
-    int i = 0;
-    size_t segID = 0; // move segID outside the loop to avoid unnecessary computation
-    
-    for(;i<insert_anchors.size();i++){
-        T key = insert_anchors[i].key;
-        uintptr_t ptr = insert_anchors[i].value;
-
-        // find the segment that contains the key
-        for(;segID<new_segs.size();segID++){
-            if(new_segs[segID].key > key){
-                break;
-            }
-        }
-        assert(segID>0);
-        segID--;
-        SegmentType* seg = (SegmentType*)new_segs[segID].value;
-        
-        bool success = seg->insert(key, ptr);
-        
-        // if the insert fails, redo the segmentation for the unsuccesful segment with a smaller fill ratio
-        if (!success){
-            double new_fill_ratio = (double)seg->size() / (double)(SBUCKET_SIZE * seg->num_bucket_);
-            new_fill_ratio = new_fill_ratio / scale_factor;
-            seg->scale_and_segmentation(new_fill_ratio, new_segs);
-
-            // remove the old segment from the new_segs
-            new_segs.erase(new_segs.begin()+segID);
-
-            // more segments are appended to the end of new_segs, we need to find the segment that contains the key
-            sort(new_segs.begin(), new_segs.end());
-            
-            i--; // redo the insertion
-        }
-
+    // collect all the valid keys (sorted)
+    std::vector<KeyValue<T,V>> list = insert_anchors;
+    for(auto it = this->cbegin();it!=this->cend();it++){
+        list.push_back(*it);
     }
+    sort(list.begin(), list.end());
+
+    // run the segmentation algorithm
+    std::vector<Cut<T>> out_cuts;
+    out_cuts.clear();
+
+    Segmentation<std::vector<KeyValue<T,V>>, T>::compute_dynamic_segmentation(list, out_cuts, error_bound);
+
+    // put result of segmentation into multiple segments
+    size_t start_pos = 0;
+    for(size_t i = 0;i<out_cuts.size();i++){
+        // using dynamic allocation in case the segment is destroyed after the loop
+        SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), list.begin() + start_pos, list.begin() + start_pos+out_cuts[i].size_);
+        T key = out_cuts[i].start_key_;
+        KeyValue<T,uintptr_t> kv(key, (uintptr_t)seg);
+        new_segs.push_back(kv);
+        start_pos += out_cuts[i].size_;
+    }
+    assert(start_pos == list.size());
+
+    // // scale the segment
+    // double fill_ratio = (double)this->size() / (double)(SBUCKET_SIZE * num_bucket_);
+    // fill_ratio = fill_ratio / scale_factor;
+
+    // scale_and_segmentation(fill_ratio, new_segs);
+
+    // // insert the new keys into the new segments
+    // int i = 0;
+    // size_t segID = 0; // move segID outside the loop to avoid unnecessary computation
+    
+    // for(;i<insert_anchors.size();i++){
+    //     T key = insert_anchors[i].key_;
+    //     uintptr_t ptr = insert_anchors[i].value_;
+    //     cout<<"key="<<key<<endl;
+
+    //     // find the segment that contains the key
+    //     for(;segID<new_segs.size();segID++){
+    //         if(new_segs[segID].key_ > key){
+    //             break;
+    //         }
+    //     }
+    //     assert(segID>0);
+    //     segID--;
+    //     SegmentType* seg = (SegmentType*)new_segs[segID].value_;
+
+    //     KeyValue<T,V> key_value(key, (V)ptr);
+    //     bool success = seg->insert(key_value);
+        
+    //     // if the insert fails, redo the segmentation for the unsuccesful segment with a smaller fill ratio
+    //     if (!success){
+    //         double new_fill_ratio = (double)seg->size() / (double)(SBUCKET_SIZE * seg->num_bucket_);
+    //         new_fill_ratio = new_fill_ratio / scale_factor;
+    //         cout<<"redo segmentation with fill_ratio="<<new_fill_ratio<<endl;
+    //         seg->scale_and_segmentation(new_fill_ratio, new_segs);
+
+    //         // remove the old segment from the new_segs
+    //         new_segs.erase(new_segs.begin()+segID);
+
+    //         // more segments are appended to the end of new_segs, we need to find the segment that contains the key
+    //         sort(new_segs.begin(), new_segs.end());
+            
+    //         i--; // redo the insertion
+    //     }
+
+    // }
     return true;
 }
 
