@@ -166,7 +166,7 @@ public:
     * NOTE: the SBUCKET_SIZE of new segments is the same as the old one
     * NOTE: the new segments are not inserted into the tree index and old segment is not destroyed
     */
-    bool scale_and_batch_insert(double fill_ratio, const std::vector<KeyValue<T,V>> &insert_anchors,std::vector<KeyValue<T,uintptr_t>> &new_segs);
+    bool segment_and_batch_insert(double fill_ratio, const std::vector<KeyValue<T,V>> &insert_anchors,std::vector<KeyValue<T,uintptr_t>> &new_segs);
 
 private:
     LinearModel<T> model_;
@@ -245,7 +245,7 @@ bool Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std:
 
 
 template<typename T, typename V, size_t SBUCKET_SIZE>
-bool Segment<T, V, SBUCKET_SIZE>::scale_and_batch_insert(
+bool Segment<T, V, SBUCKET_SIZE>::segment_and_batch_insert(
     double fill_ratio, 
     const std::vector<KeyValue<T,V>> &insert_anchors,
     std::vector<KeyValue<T,uintptr_t>> &new_segs){

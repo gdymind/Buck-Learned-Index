@@ -583,7 +583,7 @@ namespace buckindex {
             insert_anchors.push_back(KeyValue<key_t, value_t>(keys2[i], keys2[i]));
         }
         std::vector<KeyValue<key_t,uintptr_t>> new_segs;
-        bool success = seg.scale_and_batch_insert(fill_ratio, insert_anchors, new_segs);
+        bool success = seg.segment_and_batch_insert(fill_ratio, insert_anchors, new_segs);
         
         EXPECT_TRUE(success);
         EXPECT_EQ(3, new_segs.size());
