@@ -132,6 +132,7 @@ public:
     // TODO: a non-pivoting version (deferred)
 
     bool lookup(T key, V &value) const; //return the child pointer; return nullptr if not exist
+
     Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE> *get_bucket(int pos) {
         assert(pos >= 0 && pos < num_bucket_);
         return &sbucket_list_[pos];
@@ -155,6 +156,17 @@ public:
     // assumption: error bound is the sbucket_size
     // NOTE: the SBUCKET_SIZE of new segments is the same as the old one
     bool scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs);
+
+    /**
+    * scale the segment and batch insert the new keys
+    * @param fill_ratio: the fill ratio of the new segment
+    * @param insert_anchors: the new keys to be inserted; keys are sorted
+    * @param new_segs: the new segments after scale and batch insert
+    * @return true if scale and batch insert success, false otherwise
+    * NOTE: the SBUCKET_SIZE of new segments is the same as the old one
+    * NOTE: the new segments are not inserted into the tree index and old segment is not destroyed
+    */
+    bool scale_and_batch_insert(double fill_ratio, const std::vector<KeyValue<T,V>> &insert_anchors,std::vector<KeyValue<T,uintptr_t>> &new_segs);
 
 private:
     LinearModel<T> model_;
@@ -228,6 +240,43 @@ bool Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std:
         start_pos += out_cuts[i].size_;
     }
     assert(start_pos == this->size());
+    return true;
+}
+
+
+template<typename T, typename V, size_t SBUCKET_SIZE>
+bool Segment<T, V, SBUCKET_SIZE>::scale_and_batch_insert(
+    double fill_ratio, 
+    const std::vector<KeyValue<T,V>> &insert_anchors,
+    std::vector<KeyValue<T,uintptr_t>> &new_segs){
+
+    // the error_bound should be less than 1/2 of the bucket size.
+    uint64_t error_bound = 0.5 * SBUCKET_SIZE;
+
+    // collect all the valid keys (sorted)
+    std::vector<KeyValue<T,V>> list = insert_anchors;
+    for(auto it = this->cbegin();it!=this->cend();it++){
+        list.push_back(*it);
+    }
+    sort(list.begin(), list.end());
+
+    // run the segmentation algorithm
+    std::vector<Cut<T>> out_cuts;
+    out_cuts.clear();
+
+    Segmentation<std::vector<KeyValue<T,V>>, T>::compute_dynamic_segmentation(list, out_cuts, error_bound);
+
+    // put result of segmentation into multiple segments
+    size_t start_pos = 0;
+    for(size_t i = 0;i<out_cuts.size();i++){
+        // using dynamic allocation in case the segment is destroyed after the loop
+        SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), list.begin() + start_pos, list.begin() + start_pos+out_cuts[i].size_);
+        T key = out_cuts[i].start_key_;
+        KeyValue<T,uintptr_t> kv(key, (uintptr_t)seg);
+        new_segs.push_back(kv);
+        start_pos += out_cuts[i].size_;
+    }
+    assert(start_pos == list.size());
     return true;
 }
 
