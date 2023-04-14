@@ -159,10 +159,12 @@ public:
 
     /**
     * scale the segment and batch insert the new keys
-    * @param scale_factor: the scale factor
+    * @param fill_ratio: the fill ratio of the new segment
     * @param insert_anchors: the new keys to be inserted; keys are sorted
     * @param new_segs: the new segments after scale and batch insert
     * @return true if scale and batch insert success, false otherwise
+    * NOTE: the SBUCKET_SIZE of new segments is the same as the old one
+    * NOTE: the new segments are not inserted into the tree index and old segment is not destroyed
     */
     bool scale_and_batch_insert(double fill_ratio, const std::vector<KeyValue<T,V>> &insert_anchors,std::vector<KeyValue<T,uintptr_t>> &new_segs);
 
@@ -275,52 +277,6 @@ bool Segment<T, V, SBUCKET_SIZE>::scale_and_batch_insert(
         start_pos += out_cuts[i].size_;
     }
     assert(start_pos == list.size());
-
-    // // scale the segment
-    // double fill_ratio = (double)this->size() / (double)(SBUCKET_SIZE * num_bucket_);
-    // fill_ratio = fill_ratio / scale_factor;
-
-    // scale_and_segmentation(fill_ratio, new_segs);
-
-    // // insert the new keys into the new segments
-    // int i = 0;
-    // size_t segID = 0; // move segID outside the loop to avoid unnecessary computation
-    
-    // for(;i<insert_anchors.size();i++){
-    //     T key = insert_anchors[i].key_;
-    //     uintptr_t ptr = insert_anchors[i].value_;
-    //     cout<<"key="<<key<<endl;
-
-    //     // find the segment that contains the key
-    //     for(;segID<new_segs.size();segID++){
-    //         if(new_segs[segID].key_ > key){
-    //             break;
-    //         }
-    //     }
-    //     assert(segID>0);
-    //     segID--;
-    //     SegmentType* seg = (SegmentType*)new_segs[segID].value_;
-
-    //     KeyValue<T,V> key_value(key, (V)ptr);
-    //     bool success = seg->insert(key_value);
-        
-    //     // if the insert fails, redo the segmentation for the unsuccesful segment with a smaller fill ratio
-    //     if (!success){
-    //         double new_fill_ratio = (double)seg->size() / (double)(SBUCKET_SIZE * seg->num_bucket_);
-    //         new_fill_ratio = new_fill_ratio / scale_factor;
-    //         cout<<"redo segmentation with fill_ratio="<<new_fill_ratio<<endl;
-    //         seg->scale_and_segmentation(new_fill_ratio, new_segs);
-
-    //         // remove the old segment from the new_segs
-    //         new_segs.erase(new_segs.begin()+segID);
-
-    //         // more segments are appended to the end of new_segs, we need to find the segment that contains the key
-    //         sort(new_segs.begin(), new_segs.end());
-            
-    //         i--; // redo the insertion
-    //     }
-
-    // }
     return true;
 }
 
