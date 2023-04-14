@@ -132,6 +132,7 @@ public:
     // TODO: a non-pivoting version (deferred)
 
     bool lookup(T key, V &value) const; //return the child pointer; return nullptr if not exist
+
     Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE> *get_bucket(int pos) {
         assert(pos >= 0 && pos < num_bucket_);
         return &sbucket_list_[pos];
@@ -155,6 +156,15 @@ public:
     // assumption: error bound is the sbucket_size
     // NOTE: the SBUCKET_SIZE of new segments is the same as the old one
     bool scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs);
+
+    /**
+    * scale the segment and batch insert the new keys
+    * @param scale_factor: the scale factor
+    * @param insert_anchors: the new keys to be inserted; keys are sorted
+    * @param new_segs: the new segments after scale and batch insert
+    * @return true if scale and batch insert success, false otherwise
+    */
+    bool scale_and_batch_insert(double scale_factor, const std::vector<KeyValue<T,uintptr_t>> &insert_anchors,std::vector<KeyValue<T,uintptr_t>> &new_segs);
 
 private:
     LinearModel<T> model_;
@@ -228,6 +238,58 @@ bool Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std:
         start_pos += out_cuts[i].size_;
     }
     assert(start_pos == this->size());
+    return true;
+}
+
+
+template<typename T, typename V, size_t SBUCKET_SIZE>
+bool Segment<T, V, SBUCKET_SIZE>::scale_and_batch_insert(
+    double scale_factor, 
+    const std::vector<KeyValue<T,uintptr_t>> &insert_anchors,
+    std::vector<KeyValue<T,uintptr_t>> &new_segs){
+
+    // scale the segment
+    double fill_ratio = (double)this->size() / (double)(SBUCKET_SIZE * num_bucket_);
+    fill_ratio = fill_ratio / scale_factor;
+
+    scale_and_segmentation(fill_ratio, new_segs);
+
+    // insert the new keys into the new segments
+    int i = 0;
+    size_t segID = 0; // move segID outside the loop to avoid unnecessary computation
+    
+    for(;i<insert_anchors.size();i++){
+        T key = insert_anchors[i].key;
+        uintptr_t ptr = insert_anchors[i].value;
+
+        // find the segment that contains the key
+        for(;segID<new_segs.size();segID++){
+            if(new_segs[segID].key > key){
+                break;
+            }
+        }
+        assert(segID>0);
+        segID--;
+        SegmentType* seg = (SegmentType*)new_segs[segID].value;
+        
+        bool success = seg->insert(key, ptr);
+        
+        // if the insert fails, redo the segmentation for the unsuccesful segment with a smaller fill ratio
+        if (!success){
+            double new_fill_ratio = (double)seg->size() / (double)(SBUCKET_SIZE * seg->num_bucket_);
+            new_fill_ratio = new_fill_ratio / scale_factor;
+            seg->scale_and_segmentation(new_fill_ratio, new_segs);
+
+            // remove the old segment from the new_segs
+            new_segs.erase(new_segs.begin()+segID);
+
+            // more segments are appended to the end of new_segs, we need to find the segment that contains the key
+            sort(new_segs.begin(), new_segs.end());
+            
+            i--; // redo the insertion
+        }
+
+    }
     return true;
 }
 
