@@ -170,8 +170,6 @@ public:
         T old_pivot_key = old_seg->get_pivot();
         assert(old_pivot_key == new_pivots[0].key_);
 
-        std::cout << "batch_update: old_pivot_key: " << old_pivot_key << std::endl << std::flush;
-
         // check if have enough space to insert new_pivots
         int cnt_current_bucket = 0;
         int first_buckID = locate_buck(new_pivots[0].key_);
