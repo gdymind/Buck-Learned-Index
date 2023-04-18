@@ -11,13 +11,17 @@ namespace buckindex {
  */
 #ifdef UNITTEST
 // Parameters used by the unit test
-#define MAX_DATA_BUCKET_SIZE 2
+#define MAX_DATA_BUCKET_SIZE 4
 #define MAX_SEGMENT_BUCKET_SIZE 2
 #define FILLED_RATIO 0.5
 #else
 #define MAX_DATA_BUCKET_SIZE 128
 #define MAX_SEGMENT_BUCKET_SIZE 8
 #define FILLED_RATIO 0.5
+#endif
+
+#ifndef DEBUG
+#define DEBUG
 #endif
 
 
@@ -84,40 +88,107 @@ public:
     * @return true if kv in inserted, false else
     */
     bool insert(KeyValueType& kv) {
-        /*
-        if (!root_) {
-            root_ = new DataBucketType();
-            num_levels_ = 1;
+        // std::cout << "inserting key: " << kv.key_ << std::endl << std::flush;
+        if (root_ == nullptr) { 
+            std::vector<KeyValueType> kvs(1, kv);
+            // kvs[0] = KeyValueType(std::numeric_limits<KeyType>::min(), 0);
+            // kvs[1] = kv;
+            bulk_load(kvs);
+            return true;
         }
 
-        bool success = true;
+        // traverse to the leaf D-Bucket, and record the path
+        std::vector<uintptr_t> seg_ptrs(num_levels_, (uintptr_t)nullptr);//root-to-leaf path, including the  data bucket
+        bool success = lookup(kv.key_, seg_ptrs);
+        assert(success);
 
-        uint64_t layer_idx = num_levels_ - 1;
-        std::vector<uintptr_t> seg_ptrs(num_levels_, (uintptr_t)nullptr);
-        seg_ptrs[layer_idx] = (uintptr_t)root_;
+        // std::cout << "lookup done" << std::endl;
 
-        while (layer_idx > 0) {
-            SegmentType* segment = (SegmentType*)seg_ptrs[layer_idx];
-            success &= segment->lookup(kv.key_, seg_ptrs[layer_idx-1]);
-            assert((void *)seg_ptrs[layer_idx-1] != nullptr);
-            layer_idx--; 
-        }
-        
-        // propagate the new pivot
-        if (!success) propagate_level_pivot(kv.key_,seg_ptrs);
-        
-        DataBucketType* d_bucket = (DataBucketType *)seg_ptrs[0];
-        if (!d_bucket->insert(kv, true)) { // if fail to insert, call scale_and_segmentation //TODO: if no segment yet, create one //TODO: change if to while
-            SegmentType* old_seg = (SegmentType*)seg_ptrs[1];
-            //std::vector<std::pair<KeyType,SegmentType*>> new_segs = old_seg->scale_and_segmentation(); // TODO: return a vector of (pivot, segment) pairs
-            //success = update_segments(seg_ptrs, 1, old_seg, new_segs);
-            // TODO: insert again
-            delete old_seg;
+        DataBucketType* d_bucket = (DataBucketType *)seg_ptrs[num_levels_-1];
+        success = d_bucket->insert(kv, true);
+
+        // TODO: need to implement the GC
+        std::vector<uintptr_t> GC_segs;
+
+        // if fail to insert, split the bucket, and add new kvptr on parent segment
+        if (!success) {
+            // split the bucket, and insert the new kv
+            KeyType median_key;
+            DataBucketType* new_bucket = d_bucket->split(median_key);
+            if (kv.get_key() <= median_key) d_bucket->insert(kv, true);
+            else new_bucket->insert(kv, true);
+            KeyValuePtrType new_entry = KeyValuePtrType(new_bucket->get_pivot(), (uintptr_t)new_bucket);
+
+            // std::cout << "split done: " << "median_key = " << median_key << std::endl;
+            // std::cout << "new_entry: " << new_entry.key_ << ", " << new_entry.value_ << std::endl;
+            // std::cout << "old bucket size: " << d_bucket->num_keys() << std::endl;
+            // std::cout << "new bucket size: " << new_bucket->num_keys() << std::endl;
+
+            // insert into leaf segment
+            assert(num_levels_ >= 2);
+            // std::cout << "num_levels_: " << num_levels_ << std::endl;
+            SegmentType* leaf_segment = (SegmentType*)seg_ptrs[num_levels_-2];
+            success = leaf_segment->insert(new_entry);
+            if (!success) {
+                std::vector<KeyValuePtrType> pivot_list[2]; // ping-pong list
+                int ping = 0, pong = 1;
+                pivot_list[ping].push_back(new_entry);
+
+                SegmentType *old_segment = nullptr;
+                int cur_level = num_levels_ - 2; // leaf_segment level
+                while(cur_level >= 0) {
+                    // std::cout << "cur_level: " << cur_level << std::endl;
+                    SegmentType* cur_segment = (SegmentType*)seg_ptrs[cur_level];
+                    
+                    if ((cur_level != num_levels_ - 2)
+                        && cur_segment->batch_update(old_segment, pivot_list[ping])) {
+                        pivot_list[ping].clear();
+                        break;
+                    }
+
+                    // std::cout << "did not batch update" << std::endl;
+
+                    pivot_list[pong].clear();
+                    success = cur_segment->segment_and_batch_insert(FILLED_RATIO, pivot_list[ping], pivot_list[pong]);
+                    // std::cout << "segment_and_batch_insert done" << std::endl;
+                    old_segment = cur_segment;
+                    assert(success);
+
+                    GC_segs.push_back((uintptr_t)cur_segment);
+                    cur_level--;
+                    ping = 1 - ping;
+                    pong = 1 - pong;
+                }
+
+                // add one more level
+                assert(pivot_list[ping].size() == 0 || cur_level == -1);
+                if (pivot_list[ping].size() > 0) {
+                    // std::cout << "adding one more level" << std::endl;
+                    GC_segs.push_back((uintptr_t)root_);
+                    double start_key = pivot_list[ping].front().key_;
+                    double end_key = pivot_list[ping].back().key_;
+                    double slope = (double)(pivot_list[ping].size()- 1) / (end_key - start_key);
+                    double offset = -slope * start_key;
+                    LinearModel<KeyType> model(slope, offset);
+                    root_ = new SegmentType(pivot_list[ping].size(), FILLED_RATIO, model, 
+                                        pivot_list[ping].begin(), pivot_list[ping].end());
+                    num_levels_++;
+                    // std::cout << "added one more level" << std::endl;
+                }
+            }
+       
+            d_bucket->invalidate_keys_gr_median(median_key);
+            num_data_buckets_++;
+
+            // GC
+            // TODO: support MRSW
+            // for (auto seg_ptr : GC_segs) {
+            //     SegmentType* seg = (SegmentType*)seg_ptr;
+            //     delete seg;
+            // }
         }
 
         return success;
-        */
-       return true;
     }
 
     /**
@@ -130,24 +201,26 @@ public:
         num_levels_ = 0;
         run_data_layer_segmentation(kvs,
                                     kvptr_array[ping]);
-        if (kvptr_array[ping].size() > 0) {
+        num_data_buckets_ = kvptr_array[ping].size();
+        num_levels_++;
+
+        assert(kvptr_array[ping].size() > 0);
+
+        do { // at least one model layer
+            run_model_layer_segmentation(kvptr_array[ping],
+                                            kvptr_array[pong]);
+            ping = (ping +1) % 2;
+            pong = (pong +1) % 2;
+            kvptr_array[pong].clear();
+            level_stats_[num_levels_] = kvptr_array[ping].size();
             num_levels_++;
-            while (kvptr_array[ping].size() > 1) {
-                run_model_layer_segmentation(kvptr_array[ping],
-                                             kvptr_array[pong]);
-                ping = (ping +1) % 2;
-                pong = (pong +1) % 2;
-                kvptr_array[pong].clear();
-                level_stats_[num_levels_] = kvptr_array[ping].size();
-                num_levels_++;
-            }
-            /*
-             * Build the root
-             */
-            KeyValuePtrType& kv_ptr = kvptr_array[ping][0];
-            root_ = (void *)kv_ptr.value_;
-            dump();
-        }
+        } while (kvptr_array[ping].size() > 1);
+        
+        // Build the root
+        KeyValuePtrType& kv_ptr = kvptr_array[ping][0];
+        root_ = (void *)kv_ptr.value_;
+        dump();
+
     }
     /**
      * Helper function to dump the index structure
@@ -159,7 +232,49 @@ public:
             std::cout << "    Layer " << i << " size: " << level_stats_[i] << std::endl;
         }
     }
+
+    /**
+     * Helper function to get the number of levels in the index
+     *
+     * @return the number of levels in the index
+     */
+    uint64_t get_num_levels() {
+        return num_levels_;
+    }
+
+    /**
+     * Helper function to get the number of levels in the index
+     *
+     * @return the number of data buckets in the index
+     */
+    uint64_t get_num_data_buckets() {
+        return num_data_buckets_;
+    }
 private:
+
+    /**
+     * Lookup function, traverse the index to the leaf D-Bucket, and record the path
+     * @param key: lookup key
+     * @param seg_ptrs: the path from root to the leaf D-Bucket
+    */
+    bool lookup(KeyType key, std::vector<uintptr_t> &seg_ptrs) {
+        // std::cout << "Finding lookup path: key = " << key << endl;
+        // std::cout << "num_levels_ = " << num_levels_ << endl;
+        // traverse the index to the leaf D-Bucket, and record the path
+        bool success = true;
+        seg_ptrs.resize(num_levels_);
+        seg_ptrs[0] = (uintptr_t)root_;
+        for (int i = 1; i < num_levels_; i++) {
+            SegmentType* segment = (SegmentType*)seg_ptrs[i-1];
+            // std::cout << "i = " << i << "; \t";
+            // std::cout << "looking up key = " << key << std::endl << std::flush;
+            success &= segment->lookup(key, seg_ptrs[i]);
+            assert((void *)seg_ptrs[i] != nullptr);
+        }
+        assert(success);
+        return success;
+    }
+
     /**
      * Helper function to perform bucketizaion on the data layer
      *
@@ -216,67 +331,13 @@ private:
         }
     }
 
-    /**
-     * Helper function for insert() to update from a single segment to multiple new segments
-     * @param seg_ptrs: segment pointers path of every level for this insert()
-     * @param pos: the position of old_seg, whose parent seg is at pos+1
-     * @param old_seg: the old segment to be removed
-     * @param new_seg: new segments to be inserted
-    */
-    bool update_segments(std::vector<uintptr_t> &seg_ptrs, size_t pos, SegmentType *old_seg, std::vector<std::pair<KeyType,SegmentType*>> new_segs) {
-        /*
-        if (pos > 0) { 
-            SegmentType *par_seg  = (SegmentType*)seg_ptrs[pos+1];
-            for(std::pair<KeyType, SegmentType *> seg: new_segs) {
-                KeyValuePtrType kvptr = KeyValuePtrType(seg.first, (uintptr_t)seg.second);
-                par_seg->insert(kvptr);
-            }
-            par_seg->del_value((uintptr_t)old_seg); //TODO: add seg_delete
-        } else { // alreay at the root level, and we need to add one more level
-                DataBucketType* d_bucket = (DataBucketType *)seg_ptrs[0];
-                LinearModel<KeyType> m(0.0, 0.0);
-                std::vector<KeyValuePtrType> list;
-                list.push_back(KeyValuePtrType(d_bucket->get_pivot(), (uintptr_t)root_));
-                root_ = new SegmentType(1, 1.0/MAX_SEGMENT_BUCKET_SIZE, m, list.begin(), list.end());
-        }
-        */
-        return true;
-    }
-
-    /**
-     * Helper function to update pivot
-    */
-    bool propagate_level_pivot(KeyType new_pivot, std::vector<uintptr_t> &seg_ptrs) {
-        /*
-        int n = seg_ptrs.size();
-        for (int i = n - 1; i >= 0; i--) {
-                SegmentType *segment = (SegmentType *)seg_ptrs[i];
-                SegBucketType *first_bucket; // the first bucket has the smallest pivot
-                first_bucket = segment->get_bucket(0);
-                ValueType pivot = first_bucket->get_pivot();
-
-                int pos = first_bucket->get_pos(pivot); // get the position of the pivot entry
-                assert(pos != -1);
-
-                ValueType value; // get the child pointer of the pivot entry
-                assert(first_bucket->lookup(pivot, value) == true);
-
-                // note the order of the following three opreations to support concurency
-                first_bucket->insert(KeyValueType(new_pivot, value), true); 
-                first_bucket->set_pivot(new_pivot);
-                first_bucket->invalidate(pos);
-        }
-        */
-        return true;     
-    }
-    
-    //The root of the learned index. Root can be a segment or a bucket
+    //The root segment of the learned index.
     void* root_;
     //Learned index constants
     static const uint8_t max_levels_ = 16;
     //const double filled_ratio_ = 0.50;
     //Statistics
-    uint8_t num_levels_;
+    uint64_t num_levels_; // the number of layers including model layers and the data layer
     uint64_t num_data_buckets_; //TODO: update num_data_buckets_ during bulk_load and insert
     uint64_t level_stats_[max_levels_];
 
