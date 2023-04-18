@@ -17,8 +17,6 @@ public:
     using SegmentType = Segment<T, V, SBUCKET_SIZE>;
     using KeyValuePtrType = KeyValue<T, uintptr_t>;
 
-    //bool is_leaf_; // true -> segment; false -> segment group
-    //Segment* parent_; // the parent Segment node, which enables bottom-up tranversal
     // T base; // key compression
     // TBD: flag to determine whether it has rebalanced
 
@@ -133,15 +131,16 @@ public:
 
     bool lookup(T key, V &value) const; //return the child pointer; return nullptr if not exist
 
+    T get_pivot() {
+        assert(num_bucket_ > 0);
+        return sbucket_list_[0].get_pivot();
+    }
+
     Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE> *get_bucket(int pos) {
         assert(pos >= 0 && pos < num_bucket_);
         return &sbucket_list_[pos];
     }
 
-    // TODO: delete an entry that matches the value
-    bool del_value(V value) {
-        return true;
-    } 
 
     // insert an entry to the target S-Bucket;
     // If the target S-Bucket is full, reblance the bucket with its right neighbor;
@@ -155,29 +154,64 @@ public:
     // ~old_seg()
     // assumption: error bound is the sbucket_size
     // NOTE: the SBUCKET_SIZE of new segments is the same as the old one
-    bool scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs);
-    // Replace old_seg with new_segs
-    // Assume that the first element in new_segs has the same as pivot as old_seg
-    bool batch_update(SegmentType *old_seg, std::vector<KeyValuePtrType> &new_segs) {
-        int buckID1 = locate_buck(new_segs.front().key_);
-        int buckId2 = locate_buck(new_segs.back().key_);
-        assert(buckID1 == buckId2); // TODO: handle the case when the new_segs are not in the same bucket
+    // bool scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs);
 
-        int left = SBUCKET_SIZE - sbucket_list_[buckID1].num_keys() + 1;
-        if (left < new_segs.size()) { return false; }
+    /**
+     * @brief the old segment with new_pivots
+     * Asuume that the new_pivots can be inserted into different buckets
+     * But actually, the new_pivots are always inserted into the same bucket at this point
+     * We can still use this multi-bucket version to support the future multi-bucket insertion
+     * And the multi-bucket insertion overhead is small in the same bucket case
+     * @param old_seg: the old segment to be replaced
+     * @param new_pivots: the new pivots to be inserted
+     * @return true if success, false if fail
+    */
+    bool batch_update(SegmentType *old_seg, std::vector<KeyValuePtrType> &new_pivots) {
+        T old_pivot_key = old_seg->get_pivot();
+        assert(old_pivot_key == new_pivots[0].key_);
 
-        // skip the first element in new_segs, and insert the rest
-        for (int i = 1; i < new_segs.size(); i++) {
-            sbucket_list_[buckID1].insert(new_segs[i], true);
+        std::cout << "batch_update: old_pivot_key: " << old_pivot_key << std::endl << std::flush;
+
+        // check if have enough space to insert new_pivots
+        int cnt_current_bucket = 0;
+        int first_buckID = locate_buck(new_pivots[0].key_);
+        int current_buckID = first_buckID;
+        for (int i = 0; i < new_pivots.size(); i++) {
+            int buckID = current_buckID;
+            while(buckID + 1 < num_bucket_ && sbucket_list_[buckID+1].get_pivot() <= new_pivots[i].key_){
+                buckID++;
+            }
+
+            if (buckID == current_buckID) cnt_current_bucket++;
+            else {
+                int left = SBUCKET_SIZE - sbucket_list_[current_buckID].num_keys();
+                if (current_buckID == first_buckID) left++; // the first bucket has one more space (old_seg)
+                if (left < cnt_current_bucket) { return false; }
+                cnt_current_bucket = 1;
+                current_buckID = buckID;
+            }
+        }
+        if (cnt_current_bucket > 0) {
+            int left = SBUCKET_SIZE - sbucket_list_[current_buckID].num_keys();
+            if (current_buckID == first_buckID) left++; // the first bucket has one more space (old_seg)
+            if (left < cnt_current_bucket) { return false; }
         }
 
-        // update the first element in new_segs
-        bool success = sbucket_list_[buckID1].update(new_segs.front());
+        if (new_pivots.size() > 1) current_buckID = locate_buck(new_pivots[1].key_);
+        for (int i = 1; i < new_pivots.size(); i++) {
+            while(current_buckID + 1 < num_bucket_ && sbucket_list_[current_buckID+1].get_pivot() <= new_pivots[i].key_){
+                current_buckID++;
+            }
+            bool success = sbucket_list_[current_buckID].insert(new_pivots[i], true);
+            assert(success);
+        }
+
+        bool success = sbucket_list_[first_buckID].update(new_pivots[0]);
         assert(success);
         
         return true;
     }
-    
+
     /**
     * scale the segment and batch insert the new keys
     * @param fill_ratio: the fill ratio of the new segment
@@ -187,7 +221,7 @@ public:
     * NOTE: the SBUCKET_SIZE of new segments is the same as the old one
     * NOTE: the new segments are not inserted into the tree index and old segment is not destroyed
     */
-    bool scale_and_batch_insert(double fill_ratio, const std::vector<KeyValue<T,V>> &insert_anchors,std::vector<KeyValue<T,uintptr_t>> &new_segs);
+    bool segment_and_batch_insert(double fill_ratio, const std::vector<KeyValue<T,V>> &insert_anchors,std::vector<KeyValue<T,uintptr_t>> &new_segs);
 
 private:
     LinearModel<T> model_;
@@ -234,7 +268,7 @@ private:
 };
 
 
-
+/*
 template<typename T, typename V, size_t SBUCKET_SIZE>
 bool Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs){
 
@@ -263,10 +297,11 @@ bool Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std:
     assert(start_pos == this->size());
     return true;
 }
+*/
 
 
 template<typename T, typename V, size_t SBUCKET_SIZE>
-bool Segment<T, V, SBUCKET_SIZE>::scale_and_batch_insert(
+bool Segment<T, V, SBUCKET_SIZE>::segment_and_batch_insert(
     double fill_ratio, 
     const std::vector<KeyValue<T,V>> &insert_anchors,
     std::vector<KeyValue<T,uintptr_t>> &new_segs){

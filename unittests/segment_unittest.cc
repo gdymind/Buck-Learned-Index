@@ -299,7 +299,7 @@ namespace buckindex {
         EXPECT_TRUE(success);
         EXPECT_EQ(11, seg.size());
     }
-
+/*
     TEST(Segment, scale){
         key_t keys[] = {1,21,41,61,81,101,121,141};
         std::vector<KeyValue<key_t, value_t>> in_array;
@@ -388,7 +388,7 @@ namespace buckindex {
         success = seg.scale_and_segmentation(new_fill_ratio, new_segs);
         EXPECT_TRUE(success);
 
-        /*Expected cuts: 0,1,2|2,2|2,6,7|8,9,10*/
+        //Expected cuts: 0,1,2|2,2|2,6,7|8,9,10
         EXPECT_EQ(4, new_segs.size());
         EXPECT_EQ(0, new_segs[0].key_);
         EXPECT_EQ(2, new_segs[1].key_);
@@ -423,7 +423,7 @@ namespace buckindex {
         delete seg3;
         delete seg4;
     }
-
+*/
     TEST(Segment, const_iterator){
         // write unit test for segment::const_iterator including testing begin() and end() and ++ operator and * operator and == operator and != operator
         // construct a segment
@@ -473,19 +473,24 @@ namespace buckindex {
 
     }
 
-    TEST(Segment, batch_update) {
+    TEST(Segment, batch_update_same_bucket) {
+        using SegmentType = Segment<key_t, uintptr_t, 8>;
+
         key_t keys[] = {0,20,40,60,80,100,120,140};
         std::vector<KeyValue<key_t, uintptr_t>> in_array;
         size_t length = sizeof(keys)/sizeof(key_t);
+        SegmentType *segs[length];
         for (size_t i = 0; i < length; i++) {
-            in_array.push_back(KeyValue<key_t, uintptr_t>(keys[i], keys[i] + 0xdeadbeefaaaa0000));
+            std::vector<KeyValue<key_t, uintptr_t>> pivot_list(1, KeyValue<key_t, uintptr_t>(keys[i], keys[i]));
+            segs[i] = new SegmentType(1, 1, LinearModel<key_t>(0, 0), pivot_list.begin(), pivot_list.end());
+            in_array.push_back(KeyValue<key_t, uintptr_t>(keys[i], reinterpret_cast<uintptr_t>(segs[i])));
         }
         // model is y=0.05x
         LinearModel<key_t> model(0.05,0);
         double fill_ratio = 0.25;
         Segment<key_t, uintptr_t, 8> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
         
-        // 4 buckets, each bucket has 2 keys
+        // 4 buckets, each bucket has 2 keys and 2 empty slots
         // Each bucket has 6 empty slots
         EXPECT_EQ(4, seg.num_bucket_);
         EXPECT_EQ(2, seg.sbucket_list_[0].num_keys()); // 0, 20
@@ -496,8 +501,8 @@ namespace buckindex {
         // look up all inserted keys
         uintptr_t value;
         for (size_t i = 0; i < length; i++) {
-            seg.lookup(keys[i], value);
-            EXPECT_EQ(keys[i] + 0xdeadbeefaaaa0000, value);
+            EXPECT_TRUE(seg.lookup(keys[i], value));
+            EXPECT_EQ(reinterpret_cast<uintptr_t>(segs[i]), value);
         }
 
         // update (100, 100+0xdeadbeefaaaa0000) to a bunch of new entries
@@ -507,7 +512,8 @@ namespace buckindex {
         for (size_t i = 0; i < len2; i++) {
             update_list.push_back(KeyValue<key_t, uintptr_t>(update_keys[i], update_keys[i] + 0xdeadbeefbbbb0000));
         }
-        Segment<key_t, uintptr_t, 8>* old_seg = (Segment<key_t, uintptr_t, 8>*)(void *)(100 + 0xdeadbeefaaaa0000);
+        EXPECT_TRUE(seg.lookup(100, value));
+        Segment<key_t, uintptr_t, 8>* old_seg = (Segment<key_t, uintptr_t, 8>*)(void *)value;
         EXPECT_TRUE(seg.batch_update(old_seg, update_list));
 
         // 4 buckets, each bucket has 2 keys
@@ -527,9 +533,85 @@ namespace buckindex {
         for (size_t i = 0; i < length; i++) {
             if (keys[i] == 100) continue;
             seg.lookup(keys[i], value);
-            EXPECT_EQ(keys[i] + 0xdeadbeefaaaa0000, value);
+            EXPECT_EQ(reinterpret_cast<uintptr_t>(segs[i]), value);
+        }
+
+        // delete all segments
+        for (size_t i = 0; i < length; i++) {
+            delete segs[i];
         }
     }
+
+    TEST(Segment, batch_update_multi_bucket) {
+        using SegmentType = Segment<key_t, uintptr_t, 8>;
+
+        key_t keys[] = {0,20,40,60,80,100,120,140};
+        std::vector<KeyValue<key_t, uintptr_t>> in_array;
+        size_t length = sizeof(keys)/sizeof(key_t);
+        SegmentType *segs[length];
+        for (size_t i = 0; i < length; i++) {
+            std::vector<KeyValue<key_t, uintptr_t>> pivot_list(1, KeyValue<key_t, uintptr_t>(keys[i], keys[i]));
+            segs[i] = new SegmentType(1, 1, LinearModel<key_t>(0, 0), pivot_list.begin(), pivot_list.end());
+            in_array.push_back(KeyValue<key_t, uintptr_t>(keys[i], reinterpret_cast<uintptr_t>(segs[i])));
+        }
+        // model is y=0.05x
+        LinearModel<key_t> model(0.05,0);
+        double fill_ratio = 0.25;
+        Segment<key_t, uintptr_t, 8> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        
+        // 4 buckets, each bucket has 2 keys and 2 empty slots
+        // Each bucket has 6 empty slots
+        EXPECT_EQ(4, seg.num_bucket_);
+        EXPECT_EQ(2, seg.sbucket_list_[0].num_keys()); // 0, 20
+        EXPECT_EQ(2, seg.sbucket_list_[1].num_keys()); // 40, 60
+        EXPECT_EQ(2, seg.sbucket_list_[2].num_keys()); // 80, 100
+        EXPECT_EQ(2, seg.sbucket_list_[3].num_keys()); // 120, 140
+
+        // look up all inserted keys
+        uintptr_t value;
+        for (size_t i = 0; i < length; i++) {
+            EXPECT_TRUE(seg.lookup(keys[i], value));
+            EXPECT_EQ(reinterpret_cast<uintptr_t>(segs[i]), value);
+        }
+
+        // update (100, 100+0xdeadbeefaaaa0000) to a bunch of new entries
+        const int len2 = 6;
+        key_t update_keys[len2] = {100, 102, 104, 106, 121, 123};
+        std::vector<KeyValue<key_t, uintptr_t>>update_list;
+        for (size_t i = 0; i < len2; i++) {
+            update_list.push_back(KeyValue<key_t, uintptr_t>(update_keys[i], update_keys[i] + 0xdeadbeefbbbb0000));
+        }
+        EXPECT_TRUE(seg.lookup(100, value));
+        Segment<key_t, uintptr_t, 8>* old_seg = (Segment<key_t, uintptr_t, 8>*)(void *)value;
+        EXPECT_TRUE(seg.batch_update(old_seg, update_list));
+
+        // 4 buckets, each bucket has 2 keys
+        // Each bucket has 6 empty slots
+        EXPECT_EQ(4, seg.num_bucket_);
+        EXPECT_EQ(2, seg.sbucket_list_[0].num_keys()); // 0, 20
+        EXPECT_EQ(2, seg.sbucket_list_[1].num_keys()); // 40, 60
+        EXPECT_EQ(5, seg.sbucket_list_[2].num_keys()); // 80, 100, 102, 104, 106
+        EXPECT_EQ(4, seg.sbucket_list_[3].num_keys()); // 120, 121, 123, 140
+
+        // look up all updated entries: 100, 102, 104, 106, 109, 115
+        for (size_t i = 0; i < len2; i++) {
+            seg.lookup(update_keys[i], value);
+            EXPECT_EQ(update_keys[i] + 0xdeadbeefbbbb0000, value);
+        }
+        // look up all old keys except 100
+        for (size_t i = 0; i < length; i++) {
+            if (keys[i] == 100) continue;
+            seg.lookup(keys[i], value);
+            EXPECT_EQ(reinterpret_cast<uintptr_t>(segs[i]), value);
+        }
+
+        // delete all segments
+        for (size_t i = 0; i < length; i++) {
+            delete segs[i];
+        }
+    }
+
+
     TEST(Segment, lower_and_upper_bound){
         // write unit test for segment::lower_bound and segment::upper_bound
         // construct a segment
@@ -617,8 +699,8 @@ namespace buckindex {
         EXPECT_EQ(8, idx);
     }
 
-    TEST(Segment, scale_and_batch_insert){
-        // write unit test for segment::scale_and_batch_insert
+    TEST(Segment, segment_and_batch_insert){
+        // write unit test for segment::segment_and_batch_insert
         // construct a segment
         key_t keys[] = {0,20,40,60};
         std::vector<KeyValue<key_t, value_t>> in_array;
@@ -640,7 +722,7 @@ namespace buckindex {
             insert_anchors.push_back(KeyValue<key_t, value_t>(keys2[i], keys2[i]));
         }
         std::vector<KeyValue<key_t,uintptr_t>> new_segs;
-        bool success = seg.scale_and_batch_insert(fill_ratio, insert_anchors, new_segs);
+        bool success = seg.segment_and_batch_insert(fill_ratio, insert_anchors, new_segs);
         
         EXPECT_TRUE(success);
         EXPECT_EQ(3, new_segs.size());
