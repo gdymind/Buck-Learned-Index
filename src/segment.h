@@ -129,7 +129,8 @@ public:
 
     // TODO: a non-pivoting version (deferred)
 
-    bool lookup(T key, V &value) const; //return the child pointer; return nullptr if not exist
+    bool lookup(T key, V &value) const; //return the child pointer;
+                                        // return the first element if key is smaller than the first element
 
     T get_pivot() {
         assert(num_bucket_ > 0);
@@ -162,13 +163,13 @@ public:
      * But actually, the new_pivots are always inserted into the same bucket at this point
      * We can still use this multi-bucket version to support the future multi-bucket insertion
      * And the multi-bucket insertion overhead is small in the same bucket case
-     * @param old_seg: the old segment to be replaced
+     * @param old_ptr: the old segment or d-bucket pointer to be replaced
      * @param new_pivots: the new pivots to be inserted
      * @return true if success, false if fail
     */
-    bool batch_update(SegmentType *old_seg, std::vector<KeyValuePtrType> &new_pivots) {
-        T old_pivot_key = old_seg->get_pivot();
-        assert(old_pivot_key == new_pivots[0].key_);
+    bool batch_update(uintptr_t old_ptr, std::vector<KeyValuePtrType> &new_pivots) {
+        T old_pivot_key = reinterpret_cast<Segment*>(old_ptr)->get_pivot();
+        // assert(old_pivot_key == new_pivots[0].key_);
 
         // check if have enough space to insert new_pivots
         int cnt_current_bucket = 0;
@@ -183,7 +184,7 @@ public:
             if (buckID == current_buckID) cnt_current_bucket++;
             else {
                 int left = SBUCKET_SIZE - sbucket_list_[current_buckID].num_keys();
-                if (current_buckID == first_buckID) left++; // the first bucket has one more space (old_seg)
+                // if (current_buckID == first_buckID) left++; // the first bucket has one more space (old_seg)
                 if (left < cnt_current_bucket) { return false; }
                 cnt_current_bucket = 1;
                 current_buckID = buckID;
@@ -191,10 +192,11 @@ public:
         }
         if (cnt_current_bucket > 0) {
             int left = SBUCKET_SIZE - sbucket_list_[current_buckID].num_keys();
-            if (current_buckID == first_buckID) left++; // the first bucket has one more space (old_seg)
+            // if (current_buckID == first_buckID) left++; // the first bucket has one more space (old_seg)
             if (left < cnt_current_bucket) { return false; }
         }
 
+        // insert new_pivots except the first one
         if (new_pivots.size() > 1) current_buckID = locate_buck(new_pivots[1].key_);
         for (int i = 1; i < new_pivots.size(); i++) {
             while(current_buckID + 1 < num_bucket_ && sbucket_list_[current_buckID+1].get_pivot() <= new_pivots[i].key_){
@@ -204,8 +206,19 @@ public:
             assert(success);
         }
 
-        bool success = sbucket_list_[first_buckID].update(new_pivots[0]);
-        assert(success);
+        // insert the first pivot
+        bool success;
+        if (old_pivot_key == new_pivots[0].key_) {  // update the first pivot
+            success = sbucket_list_[first_buckID].update(new_pivots[0]);
+            assert(success);
+        } else { // insert the first pivot, and invalidate the old pivot
+            int buckID = locate_buck(old_pivot_key);
+            success = sbucket_list_[buckID].insert(new_pivots[0], true);
+            assert(success);
+            int pos = sbucket_list_[buckID].get_pos(old_pivot_key);
+            assert(pos >= 0);
+            sbucket_list_[buckID].invalidate(pos);
+        }  
         
         return true;
     }
@@ -412,11 +425,15 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
 
 
 template<typename T, typename V, size_t SBUCKET_SIZE>
-bool Segment<T, V, SBUCKET_SIZE>::lookup(T key, V &value) const { // pass return value by argument; return a boolean to decide success or not
+bool Segment<T, V, SBUCKET_SIZE>::lookup(T key, V &value) const {
     assert(num_bucket_>0);
     unsigned int buckID = locate_buck(key);
-
+    
     bool success = sbucket_list_[buckID].lb_lookup(key, value);
+    if (!success && buckID == 0) { // TODO: assert this segment is the first one of the whole level
+        value = sbucket_list_[0].find_kth_smallest(1).value_;
+        return true;
+    }
 
     // TODO: predict -> search within bucket -> locate -> search (put a flag) (deferred)
     return success;

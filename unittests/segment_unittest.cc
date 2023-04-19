@@ -120,7 +120,7 @@ namespace buckindex {
         EXPECT_EQ(1, value);
 
         success = seg.lookup(0,value);
-        EXPECT_EQ(false, success);
+        EXPECT_EQ(true, success); // seg.lookup always return true
 
         success = seg.lookup(5,value); // find the lower bound
         EXPECT_EQ(true, success);
@@ -513,8 +513,7 @@ namespace buckindex {
             update_list.push_back(KeyValue<key_t, uintptr_t>(update_keys[i], update_keys[i] + 0xdeadbeefbbbb0000));
         }
         EXPECT_TRUE(seg.lookup(100, value));
-        Segment<key_t, uintptr_t, 8>* old_seg = (Segment<key_t, uintptr_t, 8>*)(void *)value;
-        EXPECT_TRUE(seg.batch_update(old_seg, update_list));
+        EXPECT_TRUE(seg.batch_update(value, update_list));
 
         // 4 buckets, each bucket has 2 keys
         // Each bucket has 6 empty slots
@@ -582,8 +581,7 @@ namespace buckindex {
             update_list.push_back(KeyValue<key_t, uintptr_t>(update_keys[i], update_keys[i] + 0xdeadbeefbbbb0000));
         }
         EXPECT_TRUE(seg.lookup(100, value));
-        Segment<key_t, uintptr_t, 8>* old_seg = (Segment<key_t, uintptr_t, 8>*)(void *)value;
-        EXPECT_TRUE(seg.batch_update(old_seg, update_list));
+        EXPECT_TRUE(seg.batch_update(value, update_list));
 
         // 4 buckets, each bucket has 2 keys
         // Each bucket has 6 empty slots
@@ -604,6 +602,78 @@ namespace buckindex {
             seg.lookup(keys[i], value);
             EXPECT_EQ(reinterpret_cast<uintptr_t>(segs[i]), value);
         }
+
+        // delete all segments
+        for (size_t i = 0; i < length; i++) {
+            delete segs[i];
+        }
+    }
+
+
+    TEST(Segment, batch_update_old_seg_not_in_new_segs) {
+        using SegmentType = Segment<key_t, uintptr_t, 8>;
+
+        key_t keys[] = {0,20,40,60,80,100,120,140};
+        std::vector<KeyValue<key_t, uintptr_t>> in_array;
+        size_t length = sizeof(keys)/sizeof(key_t);
+        SegmentType *segs[length];
+        for (size_t i = 0; i < length; i++) {
+            std::vector<KeyValue<key_t, uintptr_t>> pivot_list(1, KeyValue<key_t, uintptr_t>(keys[i], keys[i]));
+            segs[i] = new SegmentType(1, 1, LinearModel<key_t>(0, 0), pivot_list.begin(), pivot_list.end());
+            in_array.push_back(KeyValue<key_t, uintptr_t>(keys[i], reinterpret_cast<uintptr_t>(segs[i])));
+        }
+        // model is y=0.05x
+        LinearModel<key_t> model(0.05,0);
+        double fill_ratio = 0.25;
+        Segment<key_t, uintptr_t, 8> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        
+        // 4 buckets, each bucket has 2 keys and 2 empty slots
+        // Each bucket has 6 empty slots
+        EXPECT_EQ(4, seg.num_bucket_);
+        EXPECT_EQ(2, seg.sbucket_list_[0].num_keys()); // 0, 20
+        EXPECT_EQ(2, seg.sbucket_list_[1].num_keys()); // 40, 60
+        EXPECT_EQ(2, seg.sbucket_list_[2].num_keys()); // 80, 100
+        EXPECT_EQ(2, seg.sbucket_list_[3].num_keys()); // 120, 140
+
+        // look up all inserted keys
+        uintptr_t value;
+        for (size_t i = 0; i < length; i++) {
+            EXPECT_TRUE(seg.lookup(keys[i], value));
+            EXPECT_EQ(reinterpret_cast<uintptr_t>(segs[i]), value);
+        }
+
+        // update (100, 100+0xdeadbeefaaaa0000) to a bunch of new entries
+        const int len2 = 6;
+        key_t update_keys[len2] = {82, 102, 104, 106, 109, 115}; // 82 is not the old key 100
+        std::vector<KeyValue<key_t, uintptr_t>>update_list;
+        for (size_t i = 0; i < len2; i++) {
+            update_list.push_back(KeyValue<key_t, uintptr_t>(update_keys[i], update_keys[i] + 0xdeadbeefbbbb0000));
+        }
+        EXPECT_TRUE(seg.lookup(100, value));
+        EXPECT_TRUE(seg.batch_update(value, update_list));
+
+        // 4 buckets, each bucket has 2 keys
+        // Each bucket has 6 empty slots
+        EXPECT_EQ(4, seg.num_bucket_);
+        EXPECT_EQ(2, seg.sbucket_list_[0].num_keys()); // 0, 20
+        EXPECT_EQ(2, seg.sbucket_list_[1].num_keys()); // 40, 60
+        EXPECT_EQ(7, seg.sbucket_list_[2].num_keys()); // 80, 82, 102, 104, 106, 109, 115
+        EXPECT_EQ(2, seg.sbucket_list_[3].num_keys()); // 120, 140
+
+        // look up all updated entries: 82, 102, 104, 106, 109, 115
+        for (size_t i = 0; i < len2; i++) {
+            seg.lookup(update_keys[i], value);
+            EXPECT_EQ(update_keys[i] + 0xdeadbeefbbbb0000, value);
+        }
+        // look up all old keys except 100
+        for (size_t i = 0; i < length; i++) {
+            if (keys[i] == 100) continue;
+            seg.lookup(keys[i], value);
+            EXPECT_EQ(reinterpret_cast<uintptr_t>(segs[i]), value);
+        }
+
+        seg.lookup(100, value); // should find 82
+        EXPECT_EQ(82 + 0xdeadbeefbbbb0000, value);
 
         // delete all segments
         for (size_t i = 0; i < length; i++) {
