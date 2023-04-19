@@ -457,6 +457,149 @@ namespace buckindex {
         EXPECT_FALSE(bucket.lookup(100, value));
     }
 
+    TEST(Bucket, split_and_insert_middle_key) {
+        using KeyValuePtrType = KeyValue<key_t, uintptr_t>;
+        using BucketType = Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8>;
+
+
+        Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
+
+        KeyListValueList<key_t, value_t, 8> list;
+        key_t key;
+        value_t value;
+
+        // insert {12, 24, 28, 67, 98, 100} unsorted
+        list.put(0, 98, 12);
+        list.put(1, 24, 35);
+        list.put(2, 12, 62);
+        list.put(3, 28, 18);
+        list.put(4, 67, 12345678);
+        list.put(5, 100, 5552);
+
+        for (int i = 0; i < 6; i++) {
+            EXPECT_TRUE(bucket.insert(list.at(i), true));
+        }
+
+        // insert 88, which in the middle of the bucket key range
+        std::pair<KeyValuePtrType, KeyValuePtrType> new_buckets = bucket.split_and_insert(KeyValue<key_t, value_t>(88, 1234));
+
+        BucketType *bucket1;
+        BucketType *bucket2;
+        bucket1 = (BucketType *)(void *)(new_buckets.first.value_);
+        bucket2 = (BucketType *)(void *)(new_buckets.second.value_);
+
+        EXPECT_EQ(6, bucket.num_keys()); // the old bucket does not change
+        EXPECT_EQ(3, bucket1->num_keys()); // keys = 12, 24, 28
+        EXPECT_EQ(4, bucket2->num_keys()); // keys = 67, 88, 98, 100
+
+        // look up all key values in bucket
+        for (int i = 0; i < 6; i++) {
+            EXPECT_TRUE(bucket.lookup(list.at(i).key_, value));
+            EXPECT_EQ(list.at(i).value_, value);
+        }
+
+        // look up keys in bucket1
+        EXPECT_TRUE(bucket1->lookup(12, value));
+        EXPECT_EQ(62, value);
+        EXPECT_TRUE(bucket1->lookup(24, value));
+        EXPECT_EQ(35, value);
+        EXPECT_TRUE(bucket1->lookup(28, value));
+        EXPECT_EQ(18, value);
+
+        // look up keys not in bucket1
+        EXPECT_FALSE(bucket1->lookup(67, value));
+        EXPECT_FALSE(bucket1->lookup(88, value));
+        EXPECT_FALSE(bucket1->lookup(98, value));
+        EXPECT_FALSE(bucket1->lookup(100, value));
+
+        // look up keys in bucket2
+        EXPECT_TRUE(bucket2->lookup(67, value));
+        EXPECT_EQ(12345678, value);
+        EXPECT_TRUE(bucket2->lookup(88, value));
+        EXPECT_EQ(1234, value);
+        EXPECT_TRUE(bucket2->lookup(98, value));
+        EXPECT_EQ(12, value);
+        EXPECT_TRUE(bucket2->lookup(100, value));
+        EXPECT_EQ(5552, value);
+
+        // look up keys not in bucket2
+        EXPECT_FALSE(bucket2->lookup(12, value));
+        EXPECT_FALSE(bucket2->lookup(24, value));
+        EXPECT_FALSE(bucket2->lookup(28, value));
+    }
+
+
+    TEST(Bucket, split_and_insert_smaller_key) {
+        using KeyValuePtrType = KeyValue<key_t, uintptr_t>;
+        using BucketType = Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8>;
+
+        Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
+
+        KeyListValueList<key_t, value_t, 8> list;
+        key_t key;
+        value_t value;
+
+        // insert {12, 24, 28, 67, 98, 100} unsorted
+        list.put(0, 98, 12);
+        list.put(1, 24, 35);
+        list.put(2, 12, 62);
+        list.put(3, 28, 18);
+        list.put(4, 67, 12345678);
+        list.put(5, 100, 5552);
+
+        for (int i = 0; i < 6; i++) {
+            EXPECT_TRUE(bucket.insert(list.at(i), true));
+        }
+
+        // insert 20, which is smaller than keys in the bucket
+        auto new_buckets = bucket.split_and_insert(KeyValue<key_t, value_t>(20, 1234));
+
+        BucketType *bucket1;
+        BucketType *bucket2;
+        bucket1 = (BucketType *)(void *)(new_buckets.first.value_);
+        bucket2 = (BucketType *)(void *)(new_buckets.second.value_);
+
+        EXPECT_EQ(6, bucket.num_keys()); // the old bucket does not change
+        EXPECT_EQ(4, bucket1->num_keys()); // keys = 12, 20, 24, 28
+        EXPECT_EQ(3, bucket2->num_keys()); // keys = 67, 98, 100
+
+        // look up all key values in bucket
+        for (int i = 0; i < 6; i++) {
+            EXPECT_TRUE(bucket.lookup(list.at(i).key_, value));
+            EXPECT_EQ(list.at(i).value_, value);
+        }
+
+        // look up keys in bucket1
+        EXPECT_TRUE(bucket1->lookup(12, value));
+        EXPECT_EQ(62, value);
+        EXPECT_TRUE(bucket1->lookup(20, value));
+        EXPECT_EQ(1234, value);
+        EXPECT_TRUE(bucket1->lookup(24, value));
+        EXPECT_EQ(35, value);
+        EXPECT_TRUE(bucket1->lookup(28, value));
+        EXPECT_EQ(18, value);
+
+        // look up keys not in bucket1
+        EXPECT_FALSE(bucket1->lookup(67, value));
+        EXPECT_FALSE(bucket1->lookup(98, value));
+        EXPECT_FALSE(bucket1->lookup(100, value));
+
+        // look up keys in bucket2
+        EXPECT_TRUE(bucket2->lookup(67, value));
+        EXPECT_EQ(12345678, value);
+        EXPECT_TRUE(bucket2->lookup(98, value));
+        EXPECT_EQ(12, value);
+        EXPECT_TRUE(bucket2->lookup(100, value));
+        EXPECT_EQ(5552, value);
+
+        // look up keys not in bucket2
+        EXPECT_FALSE(bucket2->lookup(12, value));
+        EXPECT_FALSE(bucket2->lookup(20, value));
+        EXPECT_FALSE(bucket2->lookup(24, value));
+        EXPECT_FALSE(bucket2->lookup(28, value));
+    }
+
+
     TEST(Bucket, update) {
         Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
 

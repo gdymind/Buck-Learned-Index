@@ -26,7 +26,9 @@ const unsigned int BITS_UINT64_T = 64;
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 class Bucket { // can be an S-Bucket or a D-Bucket. S-Bucket and D-Bucket and different size
 public:
-
+    using KeyValueType = KeyValue<T, V>;
+    using KeyValuePtrType = KeyValue<T, uintptr_t>;
+    using BucketType = Bucket<LISTTYPE, T, V, SIZE>;
     Bucket() {
         pivot_ = std::numeric_limits<T>::max();
         memset(bitmap_, 0, sizeof(bitmap_));
@@ -37,20 +39,20 @@ public:
     bool lb_lookup(const T &key, V& value) const; // find the largest key that is <= the lookup key
     bool lookup_SIMD(const T &key, V& value) const; // TODO: LISTTYPE do the lookup
     bool lb_lookup_SIMD(const T &key, V& value) const; // lower-bound lookup
-    bool insert(const KeyValue<T, V> &kv, bool update_pivot); // Return false if insert() fails
-    bool update(const KeyValue<T, V> &kv); // Return false if update() fails
+    bool insert(const KeyValueType &kv, bool update_pivot); // Return false if insert() fails
+    bool update(const KeyValueType &kv); // Return false if update() fails
 
     /**
      * Split the bucket into two buckets by the median key
      * need to call invalidate_keys_ge_median() later, once the new bucket is inserted
-     * @param bucket: the bucket to be split
+     * @param median_key: the median key of the old bucket
      * @return the new bucket
      */
-    Bucket<LISTTYPE, T, V, SIZE> *split(T &median_key) {
+    BucketType *split(T &median_key) {
         // find the median key
         median_key = find_kth_smallest((num_keys()+1) / 2).key_;
         // create a new bucket
-        Bucket<LISTTYPE, T, V, SIZE> *new_bucket = new Bucket<LISTTYPE, T, V, SIZE>();
+        BucketType *new_bucket = new BucketType();
         // move all keys that are > median_key to the new bucket
         for (int i = 0; i < SIZE; i++) {
             if (valid(i) && list_.at(i).key_ > median_key) {
@@ -58,6 +60,35 @@ public:
             }
         }
         return new_bucket;
+    }
+
+    /**
+     * Split the bucket into two buckets by the median key, and insert a new key-value pair
+     * @param kv: the new key-value pair to be inserted
+     * @return two KVptr of the new buckets
+     */
+    std::pair<KeyValuePtrType, KeyValuePtrType> split_and_insert(const KeyValueType &kv) {
+        // find the median key
+        T median_key = find_kth_smallest((num_keys()+1) / 2).key_;
+        // create a new bucket
+        BucketType *new_bucket1 = new BucketType();
+        BucketType *new_bucket2 = new BucketType();
+        // move all keys that are > median_key to the new bucket
+        for (int i = 0; i < SIZE; i++) {
+            if (valid(i)) {
+                if (list_.at(i).key_ <= median_key)  new_bucket1->insert(list_.at(i), true);
+                else new_bucket2->insert(list_.at(i), true);
+            }
+        }
+
+        if (kv.key_ <= median_key) new_bucket1->insert(kv, true);
+        else new_bucket2->insert(kv, true);
+
+         std::pair<KeyValuePtrType, KeyValuePtrType> ret;
+         ret.first = KeyValuePtrType(new_bucket1->get_pivot(), reinterpret_cast<uintptr_t>(new_bucket1));
+            ret.second = KeyValuePtrType(new_bucket2->get_pivot(), reinterpret_cast<uintptr_t>(new_bucket2));
+
+        return ret;
     }
 
     // helper function for split(); invalidate all the keys that are > median_key
@@ -88,7 +119,7 @@ public:
     SortedIterator begin() {return SortedIterator(this, 0); }
     SortedIterator end() {return SortedIterator(this, num_keys()); }
 
-    void get_valid_kvs(std::vector<KeyValue<T, V>> &v) const {
+    void get_valid_kvs(std::vector<KeyValueType> &v) const {
         // read bitmap
         // get all valid kvs
         // check the bitmap again, read everything again until bitmap matches
@@ -116,10 +147,10 @@ public:
         return cnt;
     }
 
-    inline KeyValue<T, V> at(int pos) const { return list_.at(pos); }
+    inline KeyValueType at(int pos) const { return list_.at(pos); }
     inline std::pair<T*, V*> get_kvptr(int pos) { return list_.get_kvptr(pos); }
 
-    KeyValue<T, V> find_kth_smallest(int k) const; // find the kth smallest element in 1-based index
+    KeyValueType find_kth_smallest(int k) const; // find the kth smallest element in 1-based index
 
     //bitmap operations
     inline int find_empty_slot() const { // return the offset of the first bit=0
@@ -178,7 +209,6 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value) const {
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(const T &key, V &value) const {
-    
     T target_key = std::numeric_limits<T>::min();
     int pos = -1;
     for (int i = 0; i < SIZE; i++) {
@@ -208,7 +238,7 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup_SIMD(const T &key, V &value) const 
 }
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::insert(const KeyValue<T, V> &kv, bool update_pivot) {
+bool Bucket<LISTTYPE, T, V, SIZE>::insert(const KeyValueType &kv, bool update_pivot) {
     int pos = find_empty_slot();
     if (pos == -1 || pos >= SIZE) return false; // return false if the Bucket is already full
     list_.put(pos, kv.key_, kv.value_);
@@ -222,7 +252,7 @@ bool Bucket<LISTTYPE, T, V, SIZE>::insert(const KeyValue<T, V> &kv, bool update_
 }
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::update(const KeyValue<T, V> &kv) {
+bool Bucket<LISTTYPE, T, V, SIZE>::update(const KeyValueType &kv) {
     for (int i = 0; i < SIZE; i++) {
         if (valid(i) && list_.at(i).key_ == kv.key_) {
             list_.put(i, kv.key_, kv.value_);
@@ -238,7 +268,7 @@ KeyValue<T, V> Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) const {
     k--;
     assert(k >= 0 && k < n);
 
-    std::vector<KeyValue<T, V>> valid_kvs;
+    std::vector<KeyValueType> valid_kvs;
     get_valid_kvs(valid_kvs);
     assert(valid_kvs.size() == n);
     
@@ -250,7 +280,6 @@ template<class LISTTYPE, typename T, typename V, size_t SIZE>
 class Bucket<LISTTYPE, T, V, SIZE>::UnsortedIterator {
 public:
     using BucketType = Bucket<LISTTYPE, T, V, SIZE>;
-    using KeyValueType = KeyValue<T, V>;
 
     explicit UnsortedIterator(BucketType *bucket) : bucket_(bucket) {
         assert(bucket_ != nullptr);
@@ -305,7 +334,6 @@ template<class LISTTYPE, typename T, typename V, size_t SIZE>
 class Bucket<LISTTYPE, T, V, SIZE>::SortedIterator {
 public:
     using BucketType = Bucket<LISTTYPE, T, V, SIZE>;
-    using KeyValueType = KeyValue<T, V>;
 
     explicit SortedIterator(BucketType *bucket) : bucket_(bucket) {
         assert(bucket_ != nullptr);
