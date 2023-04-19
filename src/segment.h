@@ -16,6 +16,8 @@ class Segment {
 public:
     using SegmentType = Segment<T, V, SBUCKET_SIZE>;
     using KeyValuePtrType = KeyValue<T, uintptr_t>;
+    using DataBucketType = Bucket<KeyListValueList<T, V, MAX_DATA_BUCKET_SIZE>,
+                                  T, V, MAX_DATA_BUCKET_SIZE>;
 
     // T base; // key compression
     // TBD: flag to determine whether it has rebalanced
@@ -165,10 +167,13 @@ public:
      * And the multi-bucket insertion overhead is small in the same bucket case
      * @param old_ptr: the old segment or d-bucket pointer to be replaced
      * @param new_pivots: the new pivots to be inserted
+     * @param is_segment: true if old_ptr is a segment, false if old_ptr is a d-bucket
      * @return true if success, false if fail
     */
-    bool batch_update(uintptr_t old_ptr, std::vector<KeyValuePtrType> &new_pivots) {
-        T old_pivot_key = reinterpret_cast<Segment*>(old_ptr)->get_pivot();
+    bool batch_update(uintptr_t old_ptr, std::vector<KeyValuePtrType> &new_pivots, bool is_segment) {
+        T old_pivot_key;
+        if (is_segment) old_pivot_key = reinterpret_cast<SegmentType*>(old_ptr)->get_pivot();
+        else  old_pivot_key = reinterpret_cast<DataBucketType*>(old_ptr)->get_pivot();
         // assert(old_pivot_key == new_pivots[0].key_);
 
         // check if have enough space to insert new_pivots
