@@ -214,6 +214,7 @@ public:
 
         // insert the first pivot
         bool success;
+        assert(old_pivot_key == new_pivots[0].key_);
         if (old_pivot_key == new_pivots[0].key_) {  // update the first pivot
             success = sbucket_list_[first_buckID].update(new_pivots[0]);
             assert(success);
@@ -338,6 +339,7 @@ bool Segment<T, V, SBUCKET_SIZE>::segment_and_batch_update( // TODO: change to b
         if(kv.key_ >= input_min) break;
         list.push_back(kv);
     }
+    assert(input_min == (*it).key_);
     // current segment: skip entries in the input_pivots range
     for(;it!=this->cend();it++){
         KeyValue<T,V> kv = *it;
@@ -353,7 +355,7 @@ bool Segment<T, V, SBUCKET_SIZE>::segment_and_batch_update( // TODO: change to b
         list.push_back(*it);
     }
 
-    sort(list.begin(), list.end());
+    // sort(list.begin(), list.end());
 
     // run the segmentation algorithm
     std::vector<Cut<T>> out_cuts;
@@ -453,7 +455,7 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
 
 
 template<typename T, typename V, size_t SBUCKET_SIZE>
-bool Segment<T, V, SBUCKET_SIZE>::lookup(T key, V &value) const {
+bool Segment<T, V, SBUCKET_SIZE>::lookup(T key, V &value) const { // TODO: return lb_key and value
     assert(num_bucket_>0);
     unsigned int buckID = locate_buck(key);
     
