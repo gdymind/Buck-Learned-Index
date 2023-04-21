@@ -133,7 +133,11 @@ public:
 
     T get_pivot() {
         assert(num_bucket_ > 0);
-        return sbucket_list_[0].get_pivot();
+        int buckID = 0;
+        while (buckID < num_bucket_ && sbucket_list_[buckID].num_keys() == 0) {
+            buckID++;
+        }
+        return sbucket_list_[buckID].get_pivot();
     }
 
     Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE> *get_bucket(int pos) {
