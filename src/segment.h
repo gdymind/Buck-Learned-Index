@@ -52,7 +52,6 @@ public:
         //model_.dump();
         model_.expand(1/fill_ratio);
         //model_.dump();
-        //std::cout<<num_bucket_<<" "<<num_slot<<std::endl;
 
         // model_based insertion
         // normal case: insert in the bucket of prdiction
@@ -61,7 +60,7 @@ public:
         //      2. if the remaining slots are not enough for the future insertion,
         //          insert at the nearest bucket, so that future insertion has enough slots
 
-
+    
         size_t remaining_slots = num_bucket_ * SBUCKET_SIZE;
         size_t remaining_keys = num_kv;
         size_t buckID = 0;
@@ -70,7 +69,6 @@ public:
             buckID = model_.predict(it->get_key()) / SBUCKET_SIZE; // TBD: suppose iterator iterate through KeyValue element
             // model predicts the offset, we translate it to buckID
 
-            //std::cout<<"key: "<<it->get_key()<<" buckID: "<<buckID;
             while(buckID<num_bucket_ && sbucket_list_[buckID].num_keys()==SBUCKET_SIZE){
                 buckID++; // search forwards until find a bucket with empty slot
             }
@@ -85,7 +83,6 @@ public:
                 // update the remaining_slot if insert in the new buckID
             }
             // else: accept to insert in this bucket
-            //std::cout<<" inserted buckID: "<<buckID<<std::endl;
             sbucket_list_[buckID].insert(*it, true); // TBD: suppose iterator iterate through KeyValue element
             remaining_keys--;
             remaining_slots--;
@@ -217,9 +214,10 @@ public:
             success = sbucket_list_[first_buckID].update(new_pivots[0]);
             assert(success);
         } else { // insert the first pivot, and invalidate the old pivot
-            int buckID = locate_buck(old_pivot_key);
-            success = sbucket_list_[buckID].insert(new_pivots[0], true);
+            success = sbucket_list_[first_buckID].insert(new_pivots[0], true);
             assert(success);
+
+            int buckID = locate_buck(old_pivot_key);
             int pos = sbucket_list_[buckID].get_pos(old_pivot_key);
             assert(pos >= 0);
             sbucket_list_[buckID].invalidate(pos);
@@ -229,7 +227,7 @@ public:
     }
 
     /**
-    * scale the segment and batch insert the new keys
+    * scale the segment and batch insert the new keys, and remove the entries within the new keys range
     * @param fill_ratio: the fill ratio of the new segment
     * @param insert_anchors: the new keys to be inserted; keys are sorted
     * @param new_segs: the new segments after scale and batch insert
@@ -237,7 +235,7 @@ public:
     * NOTE: the SBUCKET_SIZE of new segments is the same as the old one
     * NOTE: the new segments are not inserted into the tree index and old segment is not destroyed
     */
-    bool segment_and_batch_insert(double fill_ratio, const std::vector<KeyValue<T,V>> &insert_anchors,std::vector<KeyValue<T,uintptr_t>> &new_segs);
+    bool segment_and_batch_update(double fill_ratio, const std::vector<KeyValue<T,V>> &insert_anchors,std::vector<KeyValue<T,uintptr_t>> &new_segs);
 
 private:
     LinearModel<T> model_;
@@ -317,19 +315,40 @@ bool Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std:
 
 
 template<typename T, typename V, size_t SBUCKET_SIZE>
-bool Segment<T, V, SBUCKET_SIZE>::segment_and_batch_insert(
+bool Segment<T, V, SBUCKET_SIZE>::segment_and_batch_update( // TODO: change to batch_update
     double fill_ratio, 
-    const std::vector<KeyValue<T,V>> &insert_anchors,
+    const std::vector<KeyValue<T,V>> &input_pivots,
     std::vector<KeyValue<T,uintptr_t>> &new_segs){
 
     // the error_bound should be less than 1/2 of the bucket size.
     uint64_t error_bound = 0.5 * SBUCKET_SIZE;
 
     // collect all the valid keys (sorted)
-    std::vector<KeyValue<T,V>> list = insert_anchors;
-    for(auto it = this->cbegin();it!=this->cend();it++){
+    std::vector<KeyValue<T,V>> list;
+    int input_min = input_pivots.front().key_;
+    int input_max = input_pivots.back().key_;
+    auto it = this->cbegin();
+    // current segment: insert entries before the input_pivots range
+    for(;it!=this->cend();it++){ 
+        KeyValue<T,V> kv = *it;
+        if(kv.key_ >= input_min) break;
+        list.push_back(kv);
+    }
+    // current segment: skip entries in the input_pivots range
+    for(;it!=this->cend();it++){
+        KeyValue<T,V> kv = *it;
+        if((*it).key_ > input_max) break;
+    }
+    // input_pivots: insert the input_pivots range
+    for(auto it2 = input_pivots.begin(); it2 != input_pivots.end(); it2++){
+        list.push_back(*it2);
+    }
+    // current segment: insert entries after the input_pivots range
+    for(;it!=this->cend();it++){ 
+        KeyValue<T,V> kv = *it;
         list.push_back(*it);
     }
+
     sort(list.begin(), list.end());
 
     // run the segmentation algorithm

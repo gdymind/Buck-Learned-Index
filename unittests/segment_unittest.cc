@@ -839,10 +839,10 @@ namespace buckindex {
         EXPECT_EQ(8, idx);
     }
 
-    TEST(Segment, segment_and_batch_insert){
-        // write unit test for segment::segment_and_batch_insert
+    TEST(Segment, segment_and_batch_update){
+        // write unit test for segment::segment_and_batch_update
         // construct a segment
-        key_t keys[] = {0,20,40,60};
+        key_t keys[] = {0,25,42,55};
         std::vector<KeyValue<key_t, value_t>> in_array;
         size_t length = sizeof(keys)/sizeof(key_t);
         for (size_t i = 0; i < length; i++) {
@@ -854,7 +854,7 @@ namespace buckindex {
         Segment<key_t, value_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
 
         std::vector<KeyValue<key_t,value_t>> insert_anchors;
-        key_t keys2[] = {10,30,50,70,190,191,192,193,194,195,196,197,400,410,420,430};
+        key_t keys2[] = {10,20,30,40,50,60,70,190,191,192,193,194,195,196,197,400,410,420,430};
         // result should be {0,10,20,30,40,50,60,70,|190,191,192,193,194,195,196,197,|400,410,420,430}
         // total 20 keys
         length = sizeof(keys2)/sizeof(key_t);
@@ -862,7 +862,7 @@ namespace buckindex {
             insert_anchors.push_back(KeyValue<key_t, value_t>(keys2[i], keys2[i]));
         }
         std::vector<KeyValue<key_t,uintptr_t>> new_segs;
-        bool success = seg.segment_and_batch_insert(fill_ratio, insert_anchors, new_segs);
+        bool success = seg.segment_and_batch_update(fill_ratio, insert_anchors, new_segs);
         
         EXPECT_TRUE(success);
         EXPECT_EQ(3, new_segs.size());
