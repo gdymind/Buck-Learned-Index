@@ -25,7 +25,7 @@ public:
                                   KeyType, ValueType, MAX_DATA_BUCKET_SIZE>;
     using SegBucketType = Bucket<KeyValueList<KeyType, ValueType, MAX_SEGMENT_BUCKET_SIZE>,
                                   KeyType, ValueType, MAX_SEGMENT_BUCKET_SIZE>;
-    using SegmentType = Segment<KeyType, ValueType,
+    using SegmentType = Segment<KeyType,
                                 MAX_SEGMENT_BUCKET_SIZE>;
     using KeyValueType = KeyValue<KeyType, ValueType>;
     using KeyValuePtrType = KeyValue<KeyType, uintptr_t>;
@@ -60,9 +60,11 @@ public:
         uintptr_t seg_ptr = (uintptr_t)root_;
         bool result = false;
         value = 0;
+        KeyValuePtrType kv_ptr;
         while (layer_idx > 0) {
             SegmentType* segment = (SegmentType*)seg_ptr;
-            result = segment->lookup(key, seg_ptr);
+            result = segment->lookup(key, kv_ptr);
+            seg_ptr = kv_ptr.value_;
             if (!seg_ptr) {
                 std::cerr << " failed to perform segment lookup for key: " << key << std::endl;
                 return false;
@@ -90,11 +92,11 @@ public:
         }
 
         // traverse to the leaf D-Bucket, and record the path
-        std::vector<uintptr_t> seg_ptrs(num_levels_);//root-to-leaf path, including the  data bucket
-        bool success = lookup(kv.key_, seg_ptrs);
+        std::vector<KeyValuePtrType> path(num_levels_);//root-to-leaf path, including the  data bucket
+        bool success = lookup(kv.key_, path);
         assert(success);
 
-        DataBucketType* d_bucket = (DataBucketType *)seg_ptrs[num_levels_-1];
+        DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1].value_);
         success = d_bucket->insert(kv, true);
 
         // TODO: need to implement the GC
@@ -109,24 +111,24 @@ public:
             auto new_d_buckets = d_bucket->split_and_insert(kv);
             pivot_list[ping].push_back(new_d_buckets.first);
             pivot_list[ping].push_back(new_d_buckets.second);
-            uintptr_t old_ptr = reinterpret_cast<uintptr_t>(d_bucket);
+            KeyValuePtrType old_pivot = path[num_levels_-1];
 
             // propagate the insertion to the parent segments
             assert(num_levels_ >= 2); // insert into leaf segment
             int cur_level = num_levels_ - 2; // leaf_segment level
             while(cur_level >= 0) {
-                SegmentType* cur_segment = (SegmentType*)seg_ptrs[cur_level];
+                SegmentType* cur_segment = (SegmentType*)(path[cur_level].value_);
                 
                 bool is_segment = true;
                 if (cur_level == num_levels_ - 2) is_segment = false; // TODO: let seg.lookup() return key+value ptr instead of ptr only
-                if (cur_segment->batch_update(old_ptr, pivot_list[ping], is_segment)) {
+                if (cur_segment->batch_update(old_pivot, pivot_list[ping], is_segment)) {
                     pivot_list[ping].clear();
                     break;
                 }
 
                 pivot_list[pong].clear();
                 success = cur_segment->segment_and_batch_update(FILLED_RATIO, pivot_list[ping], pivot_list[pong]);
-                old_ptr = reinterpret_cast<uintptr_t>(cur_segment);
+                old_pivot = path[cur_level];
                 assert(success);
 
                 GC_segs.push_back((uintptr_t)cur_segment);
@@ -227,16 +229,16 @@ private:
     /**
      * Lookup function, traverse the index to the leaf D-Bucket, and record the path
      * @param key: lookup key
-     * @param seg_ptrs: the path from root to the leaf D-Bucket
+     * @param path: the path from root to the leaf D-Bucket
     */
-    bool lookup(KeyType key, std::vector<uintptr_t> &seg_ptrs) {
+    bool lookup(KeyType key, std::vector<KeyValuePtrType> &path) {
         // traverse the index to the leaf D-Bucket, and record the path
         bool success = true;
-        seg_ptrs[0] = (uintptr_t)root_;
+        path[0] = KeyValuePtrType(std::numeric_limits<KeyType>::min(), (uintptr_t)root_);
         for (int i = 1; i < num_levels_; i++) {
-            SegmentType* segment = (SegmentType*)seg_ptrs[i-1];
-            success &= segment->lookup(key, seg_ptrs[i]);
-            assert((void *)seg_ptrs[i] != nullptr);
+            SegmentType* segment = (SegmentType*)path[i-1].value_;
+            success &= segment->lookup(key, path[i]);
+            assert((void *)path[i].value_ != nullptr);
         }
         assert(success);
         return success;
@@ -306,7 +308,7 @@ private:
     //Statistics
     uint64_t num_levels_; // the number of layers including model layers and the data layer
     uint64_t num_data_buckets_; //TODO: update num_data_buckets_ during bulk_load and insert
-    uint64_t level_stats_[max_levels_];
+    uint64_t level_stats_[max_levels_]; // TODO: update level_stats_ during bulk_load and insert
 
 };
 

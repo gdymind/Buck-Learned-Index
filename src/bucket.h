@@ -45,31 +45,11 @@ public:
 
     bool lookup(const T &key, V& value) const;
     // Find the largest key that is <= the lookup key
-    bool lb_lookup(const T &key, V& value) const; // find the largest key that is <= the lookup key
-    bool lookup_SIMD(const T &key, V& value) const; // TODO: LISTTYPE do the lookup
-    bool lb_lookup_SIMD(const T &key, V& value) const; // lower-bound lookup
+    bool lb_lookup(const T &key, KeyValueType& kv) const; // find the largest key that is <= the lookup key
+    bool lookup_SIMD(const T &key, KeyValueType& value) const; // TODO: LISTTYPE do the lookup
+    bool lb_lookup_SIMD(const T &key, KeyValueType& value) const; // lower-bound lookup
     bool insert(const KeyValueType &kv, bool update_pivot); // Return false if insert() fails
     bool update(const KeyValueType &kv); // Return false if update() fails
-
-    /**
-     * Split the bucket into two buckets by the median key
-     * need to call invalidate_keys_ge_median() later, once the new bucket is inserted
-     * @param median_key: the median key of the old bucket
-     * @return the new bucket
-     */
-    BucketType *split(T &median_key) {
-        // find the median key
-        median_key = find_kth_smallest((num_keys()+1) / 2).key_;
-        // create a new bucket
-        BucketType *new_bucket = new BucketType();
-        // move all keys that are > median_key to the new bucket
-        for (int i = 0; i < SIZE; i++) {
-            if (valid(i) && list_.at(i).key_ > median_key) {
-                new_bucket->insert(list_.at(i), true);
-            }
-        }
-        return new_bucket;
-    }
 
     /**
      * Split the bucket into two buckets by the median key, and insert a new key-value pair
@@ -111,15 +91,6 @@ public:
         ret.second = KeyValuePtrType(new_bucket2->get_pivot(), reinterpret_cast<uintptr_t>(new_bucket2));
 
         return ret;
-    }
-
-    // helper function for split(); invalidate all the keys that are > median_key
-    void invalidate_keys_gr_median(T median_key) {
-        for (int i = 0; i < SIZE; i++) {
-            if (valid(i) && list_.at(i).key_ > median_key) {
-                invalidate(i);
-            }
-        }
     }
 
     int get_pos(const T &key) const{ // get the index of key in list_; return -1 if not found
@@ -230,7 +201,7 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value) const {
 }
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(const T &key, V &value) const {
+bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(const T &key, KeyValueType &kv) const {
     T target_key = std::numeric_limits<T>::min();
     int pos = -1;
     for (int i = 0; i < SIZE; i++) {
@@ -242,19 +213,19 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(const T &key, V &value) const {
 
     if (pos == -1) return false;
 
-    value = list_.at(pos).value_;
+    kv = list_.at(pos);
     return true;
 }
 
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::lookup_SIMD(const T &key, V &value) const {
+bool Bucket<LISTTYPE, T, V, SIZE>::lookup_SIMD(const T &key, KeyValueType &value) const {
     // TODO
     return false;
 }
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup_SIMD(const T &key, V &value) const {
+bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup_SIMD(const T &key, KeyValueType &value) const {
     // TODO
     return false;
 }

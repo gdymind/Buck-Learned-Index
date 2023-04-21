@@ -11,19 +11,17 @@
 
 namespace buckindex {
 
-template<typename T, typename V, size_t SBUCKET_SIZE>
+template<typename T, size_t SBUCKET_SIZE>
 class Segment {
 public:
-    using SegmentType = Segment<T, V, SBUCKET_SIZE>;
+    using SegmentType = Segment<T, SBUCKET_SIZE>;
     using KeyValuePtrType = KeyValue<T, uintptr_t>;
-    using DataBucketType = Bucket<KeyListValueList<T, V, MAX_DATA_BUCKET_SIZE>,
-                                  T, V, MAX_DATA_BUCKET_SIZE>;
-
+    using BucketType = Bucket<KeyValueList<T, uintptr_t,  SBUCKET_SIZE>, T, uintptr_t, SBUCKET_SIZE>;
     // T base; // key compression
     // TBD: flag to determine whether it has rebalanced
 
     size_t num_bucket_; // total num of buckets
-    Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>* sbucket_list_; // a list of S-Buckets
+    BucketType* sbucket_list_; // a list of S-Buckets
 
     // default constructors
     Segment(){
@@ -48,7 +46,7 @@ public:
         assert(fill_ratio>0 && fill_ratio<=1);
         size_t num_slot = ceil(num_kv / fill_ratio);
         num_bucket_ = ceil((double)num_slot / SBUCKET_SIZE);
-        sbucket_list_ = new Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>[num_bucket_];
+        sbucket_list_ = new BucketType[num_bucket_];
         //model_.dump();
         model_.expand(1/fill_ratio);
         //model_.dump();
@@ -93,7 +91,7 @@ public:
     ~Segment(){
         if (sbucket_list_ != nullptr) {
             for(size_t i = 0; i<num_bucket_;i++){
-                sbucket_list_[i].~Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE>();
+                sbucket_list_[i].~BucketType();
             }
             delete[] sbucket_list_; // delete the array of pointers
         }
@@ -128,19 +126,10 @@ public:
 
     // TODO: a non-pivoting version (deferred)
 
-    bool lookup(T key, V &value) const; //return the child pointer;
+    bool lookup(T key, KeyValuePtrType &kvptr) const; //return the child pointer;
                                         // return the first element if key is smaller than the first element
 
-    T get_pivot() {
-        assert(num_bucket_ > 0);
-        int buckID = 0;
-        while (buckID < num_bucket_ && sbucket_list_[buckID].num_keys() == 0) {
-            buckID++;
-        }
-        return sbucket_list_[buckID].get_pivot();
-    }
-
-    Bucket<KeyValueList<T, V,  SBUCKET_SIZE>, T, V, SBUCKET_SIZE> *get_bucket(int pos) {
+    BucketType *get_bucket(int pos) {
         assert(pos >= 0 && pos < num_bucket_);
         return &sbucket_list_[pos];
     }
@@ -149,7 +138,7 @@ public:
     // insert an entry to the target S-Bucket;
     // If the target S-Bucket is full, reblance the bucket with its right neighbor;
     // If bucket_rebalance does not work, insert() return false
-    bool insert(KeyValue<T, V> &kvptr);
+    bool insert(KeyValue<T, uintptr_t> &kvptr);
 
     // is called by BucketIndex when insert/bucket_rebalance failed
     // return a list of segments after scale and segmentation; put the segments into the tree index, then destroy the old seg
@@ -166,16 +155,13 @@ public:
      * But actually, the new_pivots are always inserted into the same bucket at this point
      * We can still use this multi-bucket version to support the future multi-bucket insertion
      * And the multi-bucket insertion overhead is small in the same bucket case
-     * @param old_ptr: the old segment or d-bucket pointer to be replaced
+     * @param old_pivot: the old segment or d-bucket pointer to be replaced
      * @param new_pivots: the new pivots to be inserted
-     * @param is_segment: true if old_ptr is a segment, false if old_ptr is a d-bucket
+     * @param is_segment: true if old_pivot is a segment, false if old_pivot is a d-bucket
      * @return true if success, false if fail
     */
-    bool batch_update(uintptr_t old_ptr, std::vector<KeyValuePtrType> &new_pivots, bool is_segment) {
-        T old_pivot_key;
-        if (is_segment) old_pivot_key = reinterpret_cast<SegmentType*>(old_ptr)->get_pivot();
-        else  old_pivot_key = reinterpret_cast<DataBucketType*>(old_ptr)->get_pivot();
-        // assert(old_pivot_key == new_pivots[0].key_);
+    bool batch_update(KeyValuePtrType old_pivot, std::vector<KeyValuePtrType> &new_pivots, bool is_segment) {
+        T old_pivot_key = old_pivot.key_;
 
         // check if have enough space to insert new_pivots
         int cnt_current_bucket = 0;
@@ -240,7 +226,7 @@ public:
     * NOTE: the SBUCKET_SIZE of new segments is the same as the old one
     * NOTE: the new segments are not inserted into the tree index and old segment is not destroyed
     */
-    bool segment_and_batch_update(double fill_ratio, const std::vector<KeyValue<T,V>> &insert_anchors,std::vector<KeyValue<T,uintptr_t>> &new_segs);
+    bool segment_and_batch_update(double fill_ratio, const std::vector<KeyValue<T,uintptr_t>> &insert_anchors,std::vector<KeyValue<T,uintptr_t>> &new_segs);
 
 private:
     LinearModel<T> model_;
@@ -288,8 +274,8 @@ private:
 
 
 /*
-template<typename T, typename V, size_t SBUCKET_SIZE>
-bool Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs){
+template<typename T, size_t SBUCKET_SIZE>
+bool Segment<T, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs){
 
     // the error_bound should be less than 1/2 of the bucket size.
     uint64_t error_bound = 0.5 * SBUCKET_SIZE;
@@ -319,30 +305,30 @@ bool Segment<T, V, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std:
 */
 
 
-template<typename T, typename V, size_t SBUCKET_SIZE>
-bool Segment<T, V, SBUCKET_SIZE>::segment_and_batch_update( // TODO: change to batch_update
+template<typename T,  size_t SBUCKET_SIZE>
+bool Segment<T, SBUCKET_SIZE>::segment_and_batch_update(
     double fill_ratio, 
-    const std::vector<KeyValue<T,V>> &input_pivots,
+    const std::vector<KeyValue<T,uintptr_t>> &input_pivots,
     std::vector<KeyValue<T,uintptr_t>> &new_segs){
 
     // the error_bound should be less than 1/2 of the bucket size.
     uint64_t error_bound = 0.5 * SBUCKET_SIZE;
 
     // collect all the valid keys (sorted)
-    std::vector<KeyValue<T,V>> list;
+    std::vector<KeyValue<T,uintptr_t>> list;
     int input_min = input_pivots.front().key_;
     int input_max = input_pivots.back().key_;
     auto it = this->cbegin();
     // current segment: insert entries before the input_pivots range
     for(;it!=this->cend();it++){ 
-        KeyValue<T,V> kv = *it;
+        KeyValue<T,uintptr_t> kv = *it;
         if(kv.key_ >= input_min) break;
         list.push_back(kv);
     }
     assert(input_min == (*it).key_);
     // current segment: skip entries in the input_pivots range
     for(;it!=this->cend();it++){
-        KeyValue<T,V> kv = *it;
+        KeyValue<T,uintptr_t> kv = *it;
         if((*it).key_ > input_max) break;
     }
     // input_pivots: insert the input_pivots range
@@ -351,7 +337,7 @@ bool Segment<T, V, SBUCKET_SIZE>::segment_and_batch_update( // TODO: change to b
     }
     // current segment: insert entries after the input_pivots range
     for(;it!=this->cend();it++){ 
-        KeyValue<T,V> kv = *it;
+        KeyValue<T,uintptr_t> kv = *it;
         list.push_back(*it);
     }
 
@@ -361,7 +347,7 @@ bool Segment<T, V, SBUCKET_SIZE>::segment_and_batch_update( // TODO: change to b
     std::vector<Cut<T>> out_cuts;
     out_cuts.clear();
 
-    Segmentation<std::vector<KeyValue<T,V>>, T>::compute_dynamic_segmentation(list, out_cuts, error_bound);
+    Segmentation<std::vector<KeyValue<T,uintptr_t>>, T>::compute_dynamic_segmentation(list, out_cuts, error_bound);
 
     // put result of segmentation into multiple segments
     size_t start_pos = 0;
@@ -377,8 +363,8 @@ bool Segment<T, V, SBUCKET_SIZE>::segment_and_batch_update( // TODO: change to b
     return true;
 }
 
-template<typename T, typename V, size_t SBUCKET_SIZE>
-bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-balance between adjcent bucket
+template<typename T, size_t SBUCKET_SIZE>
+bool Segment<T, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-balance between adjcent bucket
     // Case 1: migrate forwards
 
     // Case 2: migrate backwards
@@ -454,14 +440,15 @@ bool Segment<T, V, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-
 }
 
 
-template<typename T, typename V, size_t SBUCKET_SIZE>
-bool Segment<T, V, SBUCKET_SIZE>::lookup(T key, V &value) const { // TODO: return lb_key and value
+template<typename T, size_t SBUCKET_SIZE>
+bool Segment<T, SBUCKET_SIZE>::lookup(T key, KeyValuePtrType &kvptr) const {
     assert(num_bucket_>0);
     unsigned int buckID = locate_buck(key);
     
-    bool success = sbucket_list_[buckID].lb_lookup(key, value);
+    bool success = sbucket_list_[buckID].lb_lookup(key, kvptr);
+    
     if (!success && buckID == 0) { // TODO: assert this segment is the first one of the whole level
-        value = sbucket_list_[0].find_kth_smallest(1).value_;
+        kvptr = sbucket_list_[0].find_kth_smallest(1);
         return true;
     }
 
@@ -469,8 +456,8 @@ bool Segment<T, V, SBUCKET_SIZE>::lookup(T key, V &value) const { // TODO: retur
     return success;
 }
 
-template<typename T, typename V, size_t SBUCKET_SIZE>
-bool Segment<T, V, SBUCKET_SIZE>::insert(KeyValue<T, V> &kv) {
+template<typename T, size_t SBUCKET_SIZE>
+bool Segment<T, SBUCKET_SIZE>::insert(KeyValue<T, uintptr_t> &kv) {
 
     assert(num_bucket_>0);
 
@@ -507,8 +494,8 @@ bool Segment<T, V, SBUCKET_SIZE>::insert(KeyValue<T, V> &kv) {
 }
 
 // return the first element that is not less than key
-template<typename T, typename V, size_t SBUCKET_SIZE>
-typename Segment<T, V, SBUCKET_SIZE>::const_iterator Segment<T, V, SBUCKET_SIZE>::lower_bound(T key){
+template<typename T, size_t SBUCKET_SIZE>
+typename Segment<T, SBUCKET_SIZE>::const_iterator Segment<T, SBUCKET_SIZE>::lower_bound(T key){
     assert(num_bucket_>0);
     unsigned int buckID = locate_buck(key);
 
@@ -516,8 +503,8 @@ typename Segment<T, V, SBUCKET_SIZE>::const_iterator Segment<T, V, SBUCKET_SIZE>
 }
 
 // return the first element that is greater than key
-template<typename T, typename V, size_t SBUCKET_SIZE>
-typename Segment<T, V, SBUCKET_SIZE>::const_iterator Segment<T, V, SBUCKET_SIZE>::upper_bound(T key){
+template<typename T, size_t SBUCKET_SIZE>
+typename Segment<T, SBUCKET_SIZE>::const_iterator Segment<T, SBUCKET_SIZE>::upper_bound(T key){
     assert(num_bucket_>0);
     //unsigned int buckID = locate_buck(key);
 
@@ -525,8 +512,8 @@ typename Segment<T, V, SBUCKET_SIZE>::const_iterator Segment<T, V, SBUCKET_SIZE>
 }
 
 /*
-// template<class T, class V, size_t SBUCKET_SIZE>
-// void Segment<T, V, SBUCKET_SIZE>::train_model() {
+// template<class T, size_t SBUCKET_SIZE>
+// void Segment<T, SBUCKET_SIZE>::train_model() {
 //     // input: pivot key of each bucket
 //     // output: model's slope and intercept
 
@@ -575,10 +562,10 @@ typename Segment<T, V, SBUCKET_SIZE>::const_iterator Segment<T, V, SBUCKET_SIZE>
 
 /*
 //TODO: unit test
-template<typename T, typename V, size_t SBUCKET_SIZE>
-class Segment<T, V, SBUCKET_SIZE>::UnsortedIterator {
+template<typename T, size_t SBUCKET_SIZE>
+class Segment<T, SBUCKET_SIZE>::UnsortedIterator {
 public:
-    using SegmentType = Segment<T, V, SBUCKET_SIZE>;
+    using SegmentType = Segment<T, SBUCKET_SIZE>;
 
     explicit UnsortedIterator(SegmentType *segment) : segment_(segment) {
         assert(segment_ != nullptr);
@@ -604,7 +591,7 @@ public:
         return *this;
     }
 
-    KeyValue<T, V> operator*() const {
+    KeyValue<T, uintptr_t> operator*() const {
         return sbucket_list_[cur_pos_/SBUCKET_SIZE].at(cur_pos_%SBUCKET_SIZE);
     }
 
@@ -628,10 +615,10 @@ private:
 };
 */
 
-template<typename T, typename V, size_t SBUCKET_SIZE>
-class Segment<T, V, SBUCKET_SIZE>::const_iterator {
+template<typename T, size_t SBUCKET_SIZE>
+class Segment<T, SBUCKET_SIZE>::const_iterator {
 public:
-    using SegmentType = Segment<T, V, SBUCKET_SIZE>;
+    using SegmentType = Segment<T, SBUCKET_SIZE>;
 
     /*
     // explicit const_iterator(SegmentType *segment) : segment_(segment) {
@@ -697,14 +684,14 @@ public:
         
         segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list);
         sort(sorted_list.begin(), sorted_list.end());
-        KeyValue<T, V> kv;
+        KeyValue<T, uintptr_t> kv;
         kv.key_ = key;
         if(allow_equal){ // make sure no matter what the value is, it will be the first key >= key
             kv.value_ = 0;
             cur_index = std::lower_bound(sorted_list.begin(), sorted_list.end(), kv) - sorted_list.begin();
         }
         else{
-            kv.value_ = std::numeric_limits<V>::max(); // make sure no matter what the value is, it will be the first key > key
+            kv.value_ = std::numeric_limits<uintptr_t>::max(); // make sure no matter what the value is, it will be the first key > key
             cur_index = std::upper_bound(sorted_list.begin(), sorted_list.end(), kv) - sorted_list.begin();
         }
         if(cur_index == sorted_list.size()) {
@@ -729,13 +716,13 @@ public:
     }
 
     // *it
-    const KeyValue<T, V> operator*() const {
+    const KeyValue<T, uintptr_t> operator*() const {
         assert(upper_bound == std::numeric_limits<T>::max());
         return sorted_list[cur_index];
     }
 
     // it->
-    const KeyValue<T, V>* operator->() const {
+    const KeyValue<T, uintptr_t>* operator->() const {
         assert(upper_bound == std::numeric_limits<T>::max());
         return &(sorted_list[cur_index]);
     }
@@ -760,7 +747,7 @@ private:
 
     T upper_bound = std::numeric_limits<T>::max();
 
-    std::vector<KeyValue<T, V>> sorted_list; // initialized when cbegin() is called or move to another bucket
+    std::vector<KeyValue<T, uintptr_t>> sorted_list; // initialized when cbegin() is called or move to another bucket
 
     // find the next entry in the sorted list (Can cross boundary of bucket)
     inline void find_next() {
