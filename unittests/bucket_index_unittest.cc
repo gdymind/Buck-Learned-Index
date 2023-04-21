@@ -2,6 +2,10 @@
 #define UNITTEST
 #include "buck_index.h"
 
+#include <stdlib.h>
+#include <time.h>
+#include <unordered_set>
+
 namespace buckindex {
 
     TEST(BuckIndex, bulk_load_basic) {
@@ -86,14 +90,13 @@ namespace buckindex {
 
         bli.dump();
     }
-
     TEST(BuckIndex, insert_perfectly_linear_keys) {
         BuckIndex<uint64_t, uint64_t> bli;
 
         uint64_t key;
         uint64_t value;
 
-        for (int i = 0; i < 1000; i += 2) {
+        for (int i = 2; i < 1000; i += 2) {
             KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(i, i * 2 + 5);
             EXPECT_TRUE(bli.insert(kv));
             EXPECT_TRUE(bli.lookup(i, value));
@@ -108,7 +111,7 @@ namespace buckindex {
         uint64_t key;
         uint64_t value;
 
-        for (int i = 0; i < 200; i += 2) {
+        for (int i = 2; i < 200; i += 2) {
             KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(i, i * 2 + 5);
             EXPECT_TRUE(bli.insert(kv));
             EXPECT_TRUE(bli.lookup(i, value));
@@ -142,18 +145,58 @@ namespace buckindex {
         }
     }
 
-    // TEST(BuckIndex, insert_reverse_order) {
-    //     BuckIndex<uint64_t, uint64_t> bli;
 
-    //     uint64_t key;
-    //     uint64_t value;
+    TEST(BuckIndex, insert_reverse_order) {
+        BuckIndex<uint64_t, uint64_t> bli;
 
-    //     for (int i = 10; i >= 0; i -= 2) {
-    //         KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(i, i * 2 + 5);
-    //         EXPECT_TRUE(bli.insert(kv));
-    //         EXPECT_TRUE(bli.lookup(i, value));
-    //         EXPECT_EQ(i * 2 + 5, value);
-    //         EXPECT_FALSE(bli.lookup(i+1, value));
-    //     }
-    // }
+        uint64_t key;
+        uint64_t value;
+
+        for (int i = 10; i >= 2; i -= 2) {
+            KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(i, i * 2 + 5);
+            EXPECT_TRUE(bli.insert(kv));
+            EXPECT_TRUE(bli.lookup(i, value));
+            EXPECT_EQ(i * 2 + 5, value);
+            EXPECT_FALSE(bli.lookup(i+1, value));
+        }
+    }
+
+
+    TEST(BuckIndex, insert_random_order) {
+        srand (time(NULL));
+
+        BuckIndex<uint64_t, uint64_t> bli;
+
+        uint64_t key;
+        uint64_t value;
+
+        const int N = 10000;
+
+        std::unordered_set<uint64_t> keys_set;
+        std::vector<uint64_t> keys(N);
+        for (int i = 0; i < N; i++) {
+            int key = rand() % 10000000;
+            while (keys_set.find(key) != keys_set.end()) {
+                key = rand() % 10000000;
+            }
+            keys[i] = (key);
+        }
+
+        for (auto key: keys) {
+            // std::cout << "Inserting key = " << key << "\n" << std::flush;
+            KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(key, key * 2 + 5);
+            EXPECT_TRUE(bli.insert(kv));
+            EXPECT_TRUE(bli.lookup(key, value));
+            EXPECT_EQ(key * 2 + 5, value);
+            if (value != key * 2 + 5) break;
+            // std::cout << std::endl << std::flush;
+        }
+
+        // for (auto key: keys) {
+        //     EXPECT_TRUE(bli.lookup(key, value));
+        //     EXPECT_EQ(key * 2 + 5, value);
+        // }
+
+        EXPECT_FALSE(bli.lookup(1000000000, value));
+    }
 }

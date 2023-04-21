@@ -14,6 +14,15 @@
 
 #include "keyvalue.h"
 
+#ifdef UNITTEST
+// Parameters used by the unit test
+#define MAX_DATA_BUCKET_SIZE 4
+#define MAX_SEGMENT_BUCKET_SIZE 2
+#else
+#define MAX_DATA_BUCKET_SIZE 128
+#define MAX_SEGMENT_BUCKET_SIZE 8
+#endif
+
 namespace buckindex {
 
 const unsigned int BITS_UINT64_T = 64;
@@ -73,20 +82,33 @@ public:
         // create a new bucket
         BucketType *new_bucket1 = new BucketType();
         BucketType *new_bucket2 = new BucketType();
+        bool success;
         // move all keys that are > median_key to the new bucket
         for (int i = 0; i < SIZE; i++) {
             if (valid(i)) {
-                if (list_.at(i).key_ <= median_key)  new_bucket1->insert(list_.at(i), true);
-                else new_bucket2->insert(list_.at(i), true);
+                if (list_.at(i).key_ <= median_key)  {
+                    success = new_bucket1->insert(list_.at(i), true);
+                    assert(success);
+                }
+                else {
+                    success = new_bucket2->insert(list_.at(i), true);
+                    assert(success);
+                }
             }
         }
 
-        if (kv.key_ <= median_key) new_bucket1->insert(kv, true);
-        else new_bucket2->insert(kv, true);
+        if (kv.key_ <= median_key) {
+            success = new_bucket1->insert(kv, true);
+            assert(success);
+        }
+        else {
+            success = new_bucket2->insert(kv, true);
+            assert(success);
+        }
 
-         std::pair<KeyValuePtrType, KeyValuePtrType> ret;
-         ret.first = KeyValuePtrType(new_bucket1->get_pivot(), reinterpret_cast<uintptr_t>(new_bucket1));
-            ret.second = KeyValuePtrType(new_bucket2->get_pivot(), reinterpret_cast<uintptr_t>(new_bucket2));
+        std::pair<KeyValuePtrType, KeyValuePtrType> ret;
+        ret.first = KeyValuePtrType(new_bucket1->get_pivot(), reinterpret_cast<uintptr_t>(new_bucket1));
+        ret.second = KeyValuePtrType(new_bucket2->get_pivot(), reinterpret_cast<uintptr_t>(new_bucket2));
 
         return ret;
     }
@@ -266,6 +288,7 @@ template<class LISTTYPE, typename T, typename V, size_t SIZE>
 KeyValue<T, V> Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) const {
     int n = num_keys();
     k--;
+    if (k < 0 || k >= n) std::cout << "k = " << k << ", n = " << n << std::endl << std::flush;
     assert(k >= 0 && k < n);
 
     std::vector<KeyValueType> valid_kvs;

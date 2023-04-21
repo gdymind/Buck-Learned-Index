@@ -9,16 +9,8 @@ namespace buckindex {
 /**
  * Index configurations
  */
-#ifdef UNITTEST
-// Parameters used by the unit test
-#define MAX_DATA_BUCKET_SIZE 4
-#define MAX_SEGMENT_BUCKET_SIZE 2
 #define FILLED_RATIO 0.5
-#else
-#define MAX_DATA_BUCKET_SIZE 128
-#define MAX_SEGMENT_BUCKET_SIZE 8
-#define FILLED_RATIO 0.5
-#endif
+
 
 #ifndef DEBUG
 #define DEBUG
@@ -88,21 +80,19 @@ public:
     * @return true if kv in inserted, false else
     */
     bool insert(KeyValueType& kv) {
-        // std::cout << "inserting key: " << kv.key_ << std::endl << std::flush;
         if (root_ == nullptr) { 
-            std::vector<KeyValueType> kvs(1, kv);
-            // kvs[0] = KeyValueType(std::numeric_limits<KeyType>::min(), 0);
-            // kvs[1] = kv;
+            std::vector<KeyValueType> kvs;
+            KeyValueType kv1(std::numeric_limits<KeyType>::min(), 0);
+            kvs.push_back(kv1);
+            kvs.push_back(kv);
             bulk_load(kvs);
             return true;
         }
 
         // traverse to the leaf D-Bucket, and record the path
-        std::vector<uintptr_t> seg_ptrs(num_levels_, (uintptr_t)nullptr);//root-to-leaf path, including the  data bucket
+        std::vector<uintptr_t> seg_ptrs(num_levels_);//root-to-leaf path, including the  data bucket
         bool success = lookup(kv.key_, seg_ptrs);
         assert(success);
-
-        // std::cout << "lookup done" << std::endl;
 
         DataBucketType* d_bucket = (DataBucketType *)seg_ptrs[num_levels_-1];
         success = d_bucket->insert(kv, true);
@@ -112,80 +102,62 @@ public:
 
         // if fail to insert, split the bucket, and add new kvptr on parent segment
         if (!success) {
-            // split the bucket, and insert the new kv
-            KeyType median_key;
-            DataBucketType* new_bucket = d_bucket->split(median_key);
-            if (kv.get_key() <= median_key) d_bucket->insert(kv, true);
-            else new_bucket->insert(kv, true);
-            KeyValuePtrType new_entry = KeyValuePtrType(new_bucket->get_pivot(), (uintptr_t)new_bucket);
+            std::vector<KeyValuePtrType> pivot_list[2]; // ping-pong list
+            int ping = 0, pong = 1;
 
-            // std::cout << "split done: " << "median_key = " << median_key << std::endl;
-            // std::cout << "new_entry: " << new_entry.key_ << ", " << new_entry.value_ << std::endl;
-            // std::cout << "old bucket size: " << d_bucket->num_keys() << std::endl;
-            // std::cout << "new bucket size: " << new_bucket->num_keys() << std::endl;
+            // split d_bucket
+            auto new_d_buckets = d_bucket->split_and_insert(kv);
+            pivot_list[ping].push_back(new_d_buckets.first);
+            pivot_list[ping].push_back(new_d_buckets.second);
+            uintptr_t old_ptr = reinterpret_cast<uintptr_t>(d_bucket);
 
-            // insert into leaf segment
-            assert(num_levels_ >= 2);
-            // std::cout << "num_levels_: " << num_levels_ << std::endl;
-            SegmentType* leaf_segment = (SegmentType*)seg_ptrs[num_levels_-2];
-            success = leaf_segment->insert(new_entry);
-            if (!success) {
-                std::vector<KeyValuePtrType> pivot_list[2]; // ping-pong list
-                int ping = 0, pong = 1;
-                pivot_list[ping].push_back(new_entry);
-
-                SegmentType *old_segment = nullptr;
-                int cur_level = num_levels_ - 2; // leaf_segment level
-                while(cur_level >= 0) {
-                    // std::cout << "cur_level: " << cur_level << std::endl;
-                    SegmentType* cur_segment = (SegmentType*)seg_ptrs[cur_level];
-                    
-                    if ((cur_level != num_levels_ - 2)
-                        && cur_segment->batch_update(old_segment, pivot_list[ping])) {
-                        pivot_list[ping].clear();
-                        break;
-                    }
-
-                    // std::cout << "did not batch update" << std::endl;
-
-                    pivot_list[pong].clear();
-                    success = cur_segment->segment_and_batch_insert(FILLED_RATIO, pivot_list[ping], pivot_list[pong]);
-                    // std::cout << "segment_and_batch_insert done" << std::endl;
-                    old_segment = cur_segment;
-                    assert(success);
-
-                    GC_segs.push_back((uintptr_t)cur_segment);
-                    cur_level--;
-                    ping = 1 - ping;
-                    pong = 1 - pong;
+            // propagate the insertion to the parent segments
+            assert(num_levels_ >= 2); // insert into leaf segment
+            int cur_level = num_levels_ - 2; // leaf_segment level
+            while(cur_level >= 0) {
+                SegmentType* cur_segment = (SegmentType*)seg_ptrs[cur_level];
+                
+                bool is_segment = true;
+                if (cur_level == num_levels_ - 2) is_segment = false; // TODO: let seg.lookup() return key+value ptr instead of ptr only
+                if (cur_segment->batch_update(old_ptr, pivot_list[ping], is_segment)) {
+                    pivot_list[ping].clear();
+                    break;
                 }
 
-                // add one more level
-                assert(pivot_list[ping].size() == 0 || cur_level == -1);
-                if (pivot_list[ping].size() > 0) {
-                    // std::cout << "adding one more level" << std::endl;
-                    GC_segs.push_back((uintptr_t)root_);
-                    double start_key = pivot_list[ping].front().key_;
-                    double end_key = pivot_list[ping].back().key_;
-                    double slope = (double)(pivot_list[ping].size()- 1) / (end_key - start_key);
-                    double offset = -slope * start_key;
-                    LinearModel<KeyType> model(slope, offset);
-                    root_ = new SegmentType(pivot_list[ping].size(), FILLED_RATIO, model, 
-                                        pivot_list[ping].begin(), pivot_list[ping].end());
-                    num_levels_++;
-                    // std::cout << "added one more level" << std::endl;
+                pivot_list[pong].clear();
+                success = cur_segment->segment_and_batch_update(FILLED_RATIO, pivot_list[ping], pivot_list[pong]);
+                old_ptr = reinterpret_cast<uintptr_t>(cur_segment);
+                assert(success);
+
+                GC_segs.push_back((uintptr_t)cur_segment);
+                cur_level--;
+                ping = 1 - ping;
+                pong = 1 - pong;
+            }
+
+            // add one more level
+            assert(pivot_list[ping].size() == 0 || cur_level == -1);
+            if (pivot_list[ping].size() > 0) {
+                double start_key = pivot_list[ping].front().key_;
+                double end_key = pivot_list[ping].back().key_;
+                double slope = 0.0, offset = 0.0;
+                if (pivot_list[ping].size() > 1) {
+                    slope = (end_key - start_key) /(pivot_list[ping].size()- 1);
+                    offset = -slope * start_key;
                 }
+                LinearModel<KeyType> model(slope, offset);
+                root_ = new SegmentType(pivot_list[ping].size(), FILLED_RATIO, model, 
+                                    pivot_list[ping].begin(), pivot_list[ping].end());
+                num_levels_++;
             }
        
-            d_bucket->invalidate_keys_gr_median(median_key);
             num_data_buckets_++;
 
             // GC
-            // TODO: support MRSW
-            // for (auto seg_ptr : GC_segs) {
-            //     SegmentType* seg = (SegmentType*)seg_ptr;
-            //     delete seg;
-            // }
+            for (auto seg_ptr : GC_segs) { // TODO: support MRSW
+                SegmentType* seg = (SegmentType*)seg_ptr;
+                delete seg;
+            }
         }
 
         return success;
@@ -258,16 +230,11 @@ private:
      * @param seg_ptrs: the path from root to the leaf D-Bucket
     */
     bool lookup(KeyType key, std::vector<uintptr_t> &seg_ptrs) {
-        // std::cout << "Finding lookup path: key = " << key << endl;
-        // std::cout << "num_levels_ = " << num_levels_ << endl;
         // traverse the index to the leaf D-Bucket, and record the path
         bool success = true;
-        seg_ptrs.resize(num_levels_);
         seg_ptrs[0] = (uintptr_t)root_;
         for (int i = 1; i < num_levels_; i++) {
             SegmentType* segment = (SegmentType*)seg_ptrs[i-1];
-            // std::cout << "i = " << i << "; \t";
-            // std::cout << "looking up key = " << key << std::endl << std::flush;
             success &= segment->lookup(key, seg_ptrs[i]);
             assert((void *)seg_ptrs[i] != nullptr);
         }
