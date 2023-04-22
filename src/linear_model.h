@@ -5,7 +5,7 @@ namespace buckindex {
      * Linear model class
      * The linear model contains the slope and offset parameters
      */
-    template <typename KeyType>
+    template <typename T>
     class __attribute__((__packed__)) LinearModel {
     public:
         LinearModel()
@@ -17,13 +17,53 @@ namespace buckindex {
         LinearModel(double slope, double offset)
             :slope_(slope), offset_(offset)
             {}
+
+        static LinearModel<T> get_endpoints_model(const std::vector<T>& keys) {
+            assert(keys.size() > 0);
+            T start_key = keys[0];
+            T end_key = keys[keys.size() - 1];
+            assert(end_key >= start_key);
+            if (end_key > start_key) {
+                double slope = (long double)(keys.size() - 1) / (long double)(end_key - start_key);
+                double offset = -slope * start_key;
+                return LinearModel<T>(slope, offset);
+            }
+            return LinearModel<T>();
+        }
+
+        static LinearModel<T> get_regression_model(const std::vector<T>& keys) {
+            if (keys.size() < 2) {
+                return LinearModel<T>();
+            }
+            double sum_x = 0;
+            double sum_y = 0;
+            double sum_xy = 0;
+            double sum_xx = 0;
+            double sum_yy = 0;
+            for (int i = 0; i < keys.size(); i++) {
+                sum_x += keys[i];
+                sum_y += i;
+                sum_xy += keys[i]*i;
+                sum_xx += keys[i]*keys[i];
+                sum_yy += i*i;
+            }
+            double slope = ((long double)keys.size()*sum_xy - sum_x*sum_y) / ((long double)keys.size()*sum_xx - sum_x*sum_x);
+            double offset = ((long double)sum_y - slope*sum_x) / (long double)keys.size();
+
+            // If floating point precision errors, fit spline
+            if (slope <= 0) {
+                return get_endpoints_model(keys);
+            }
+            return LinearModel<T>(slope, offset);
+        }
+
         /**
          * Using the linear regression model, given a key, the function
          * returns the approximate location within the trained set.
          * @param key: user provided key
          * @return approximate location of the key within the trained set.
          */
-        uint64_t predict(KeyType key) const {
+        uint64_t predict(T key) const {
             double pos = slope_*key+offset_;
             if (pos < 0) {
                 return 0;
