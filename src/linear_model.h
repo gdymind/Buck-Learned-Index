@@ -32,7 +32,7 @@ namespace buckindex {
         }
 
         static LinearModel<T> get_regression_model(const std::vector<T>& keys) {
-            if (keys.size() < 2) {
+            if (keys.size() < 2 || keys[keys.size() - 1] == keys[0]) {
                 return LinearModel<T>();
             }
             double sum_x = 0;

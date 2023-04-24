@@ -74,6 +74,7 @@ namespace buckindex {
             while (start != end) {
                 if (alg.is_bounded(start->get_key())) {
                     c.add_sample(start->get_key());
+                    keys.push_back(start->get_key());
                 } else {
                     out_cuts.push_back(c);
                     if(G_USE_LINEAR_REGRESSION) {

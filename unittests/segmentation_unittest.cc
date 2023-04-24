@@ -32,9 +32,14 @@ namespace buckindex {
         EXPECT_EQ(1u, cuts.size());
         EXPECT_EQ(0u, cuts[0].start_);
         EXPECT_EQ(11u, cuts[0].size_);
-        LinearModel<uint64_t> m(cuts[0].get_model());
-        EXPECT_EQ(1u, m.get_slope());
-        EXPECT_EQ(0u, m.get_offset());
+
+        LinearModel<uint64_t> m;
+       
+        if (G_USE_LINEAR_REGRESSION) { m = models[0]; std::cout << "Using linear regression" << std::endl; }
+        else m = cuts[0].get_model();
+
+        EXPECT_NEAR(1.0, m.get_slope(), 1e-2);
+        EXPECT_NEAR(0.0, m.get_offset(), 1e-2);
     }
 
     TEST(Segmentation, multiple_segments) {
@@ -55,18 +60,23 @@ namespace buckindex {
         /*Expected cuts: 0,1,2|2,2|2,6,7|8,9,10*/
         EXPECT_EQ(0u, cuts[0].start_);
         EXPECT_EQ(3u, cuts[0].size_);
-        LinearModel<uint64_t> m(cuts[0].get_model());
-        EXPECT_EQ(1u, m.get_slope());
-        EXPECT_EQ(0u, m.get_offset());
+        EXPECT_NEAR(1.0, models[0].get_slope(), 1e-2);
+        EXPECT_NEAR(0.0, models[0].get_offset(), 1e-2);
+
         EXPECT_EQ(3u, cuts[1].start_);
         EXPECT_EQ(2u, cuts[1].size_);
-        LinearModel<uint64_t> m2(cuts[1].get_model());
-        EXPECT_EQ(0u, m2.get_slope());
-        EXPECT_EQ(0u, m2.get_offset());
+        EXPECT_NEAR(0.0, models[1].get_slope(), 1e-2);
+        EXPECT_NEAR(0.0, models[1].get_offset(), 1e-2);
+
         EXPECT_EQ(5u, cuts[2].start_);
         EXPECT_EQ(3u, cuts[2].size_);
+        EXPECT_NEAR(0.3571, models[2].get_slope(), 1e-2);
+        EXPECT_NEAR(-0.7857, models[2].get_offset(), 1e-2);
+
         EXPECT_EQ(8u, cuts[3].start_);
         EXPECT_EQ(3u, cuts[3].size_);
+        EXPECT_NEAR(1.0, models[3].get_slope(), 1e-2);
+        EXPECT_NEAR(-8.0, models[3].get_offset(), 1e-2);
     }
 
     TEST(Segmentation, fixed_segmentation) {
