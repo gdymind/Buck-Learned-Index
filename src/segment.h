@@ -448,10 +448,10 @@ bool Segment<T, SBUCKET_SIZE>::lookup(T key, KeyValuePtrType &kvptr) const {
     
     bool success = sbucket_list_[buckID].lb_lookup(key, kvptr);
     
-    if (!success && buckID == 0) { // TODO: assert this segment is the first one of the whole level
-        kvptr = sbucket_list_[0].find_kth_smallest(1);
-        return true;
-    }
+    // if (!success && buckID == 0) {
+    //     kvptr = sbucket_list_[0].find_kth_smallest(1);
+    //     return true;
+    // }
 
     // TODO: predict -> search within bucket -> locate -> search (put a flag) (deferred)
     return success;

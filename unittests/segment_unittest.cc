@@ -121,9 +121,6 @@ namespace buckindex {
         EXPECT_EQ(1, kv.key_);
         EXPECT_EQ(1, kv.value_);
 
-        success = seg.lookup(0,kv);
-        EXPECT_EQ(true, success); // seg.lookup always return true
-
         success = seg.lookup(5,kv); // find the lower bound
         EXPECT_EQ(true, success);
         EXPECT_EQ(4, kv.key_);
