@@ -11,7 +11,8 @@
 
 namespace buckindex {
 
-template<typename T, size_t SBUCKET_SIZE>
+// T is the key type, SBUCKET_SIZE is the size of S-Bucket; value type is uintptr_t
+template<typename T, size_t SBUCKET_SIZE> 
 class Segment {
 public:
     using SegmentType = Segment<T, SBUCKET_SIZE>;
