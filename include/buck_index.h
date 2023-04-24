@@ -140,14 +140,23 @@ public:
             // add one more level
             assert(pivot_list[ping].size() == 0 || cur_level == -1);
             if (pivot_list[ping].size() > 0) {
-                double start_key = pivot_list[ping].front().key_;
-                double end_key = pivot_list[ping].back().key_;
-                double slope = 0.0, offset = 0.0;
-                if (pivot_list[ping].size() > 1) {
-                    slope = (end_key - start_key) /(pivot_list[ping].size()- 1);
-                    offset = -slope * start_key;
+                LinearModel<KeyType> model;
+                if (G_USE_LINEAR_REGRESSION) {
+                    std::vector<KeyType> keys;
+                    for (auto kv_ptr : pivot_list[ping]) {
+                        keys.push_back(kv_ptr.key_);
+                    }
+                    model = LinearModel<KeyType>::get_regression_model(keys);
+                } else {
+                    double start_key = pivot_list[ping].front().key_;
+                    double end_key = pivot_list[ping].back().key_;
+                    double slope = 0.0, offset = 0.0;
+                    if (pivot_list[ping].size() > 1) {
+                        slope = (end_key - start_key) /(pivot_list[ping].size()- 1);
+                        offset = -slope * start_key;
+                    }
+                    model = LinearModel<KeyType>(slope, offset);
                 }
-                LinearModel<KeyType> model(slope, offset);
                 root_ = new SegmentType(pivot_list[ping].size(), FILLED_RATIO, model, 
                                     pivot_list[ping].begin(), pivot_list[ping].end());
                 num_levels_++;
@@ -284,16 +293,16 @@ private:
     void run_model_layer_segmentation(vector<KeyValuePtrType>& in_kv_array,
                                       vector<KeyValuePtrType>& out_kv_array) {
         vector<Cut<KeyType>> out_cuts;
+        vector<LinearModel<KeyType>> out_models;
         uint64_t initial_sbucket_occupacy = MAX_SEGMENT_BUCKET_SIZE * FILLED_RATIO;
         Segmentation<vector<KeyValuePtrType>, KeyType>::compute_dynamic_segmentation(in_kv_array,
-                                                                                     out_cuts,
+                                                                                     out_cuts, out_models,
                                                                                      initial_sbucket_occupacy);
         for(auto i = 0; i < out_cuts.size(); i++) {
             uint64_t start_idx = out_cuts[i].start_;
             uint64_t length = out_cuts[i].size_;
-            LinearModel<KeyType> m(out_cuts[i].get_model());
 
-            SegmentType* segment = new SegmentType(length, FILLED_RATIO, m,
+            SegmentType* segment = new SegmentType(length, FILLED_RATIO, out_models[i],
                                                    in_kv_array.begin() + start_idx, in_kv_array.begin() + start_idx + length);
             out_kv_array.push_back(KeyValuePtrType(in_kv_array[start_idx].key_,
                                                    (uintptr_t)segment));

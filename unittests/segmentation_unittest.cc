@@ -9,9 +9,10 @@ namespace buckindex {
         uint64_t length = sizeof(keys)/sizeof(uint64_t);
         vector<KeyValue<uint64_t, uint64_t>> in_kv_array;
         vector<Cut<uint64_t>> cuts;
+        vector<LinearModel<uint64_t>> models;
 
         Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::compute_dynamic_segmentation(
-                in_kv_array, cuts, error_bound);
+                in_kv_array, cuts, models, error_bound);
         EXPECT_EQ(0u, cuts.size());
     }
 
@@ -21,12 +22,13 @@ namespace buckindex {
         uint64_t length = sizeof(keys)/sizeof(uint64_t);
         vector<KeyValue<uint64_t, uint64_t>> in_kv_array;
         vector<Cut<uint64_t>> cuts;
+        vector<LinearModel<uint64_t>> models;
 
         for (uint64_t i = 0; i < length; i++) {
             in_kv_array.push_back(KeyValue<uint64_t, uint64_t>(keys[i], keys[i]));
         }
         Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::compute_dynamic_segmentation(
-            in_kv_array, cuts, error_bound);
+            in_kv_array, cuts, models, error_bound);
         EXPECT_EQ(1u, cuts.size());
         EXPECT_EQ(0u, cuts[0].start_);
         EXPECT_EQ(11u, cuts[0].size_);
@@ -41,12 +43,13 @@ namespace buckindex {
         uint64_t length = sizeof(keys)/sizeof(uint64_t);
         vector<KeyValue<uint64_t, uint64_t>> in_kv_array;
         vector<Cut<uint64_t>> cuts;
+        vector<LinearModel<uint64_t>> models;
 
         for (uint64_t i = 0; i < length; i++) {
             in_kv_array.push_back(KeyValue<uint64_t, uint64_t>(keys[i], keys[i]));
         }
         Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::compute_dynamic_segmentation(
-            in_kv_array, cuts, error_bound);
+            in_kv_array, cuts, models, error_bound);
 
         EXPECT_EQ(4u, cuts.size());
         /*Expected cuts: 0,1,2|2,2|2,6,7|8,9,10*/

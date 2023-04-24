@@ -345,13 +345,15 @@ bool Segment<T, SBUCKET_SIZE>::segment_and_batch_update(
     std::vector<Cut<T>> out_cuts;
     out_cuts.clear();
 
-    Segmentation<std::vector<KeyValue<T,uintptr_t>>, T>::compute_dynamic_segmentation(list, out_cuts, error_bound);
+    vector<LinearModel<T>> out_models;
+    Segmentation<std::vector<KeyValue<T,uintptr_t>>, T>::compute_dynamic_segmentation(list, out_cuts, out_models, error_bound);
 
     // put result of segmentation into multiple segments
     size_t start_pos = 0;
     for(size_t i = 0;i<out_cuts.size();i++){
         // using dynamic allocation in case the segment is destroyed after the loop
-        SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), list.begin() + start_pos, list.begin() + start_pos+out_cuts[i].size_);
+        // SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), list.begin() + start_pos, list.begin() + start_pos+out_cuts[i].size_);
+        SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_models[i], list.begin() + start_pos, list.begin() + start_pos+out_cuts[i].size_);
         T key = out_cuts[i].start_key_;
         KeyValue<T,uintptr_t> kv(key, (uintptr_t)seg);
         new_segs.push_back(kv);
