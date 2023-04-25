@@ -115,6 +115,38 @@ namespace buckindex {
         EXPECT_FALSE(bucket.insert(list.at(0), true));
     }
 
+    TEST(Bucket, lookup_insert_large_bucket) {
+        Bucket<KeyListValueList<key_t, value_t, 256>, key_t, value_t, 256> bucket;
+        KeyListValueList<key_t, value_t, 256> list;
+        key_t key;
+        value_t value;
+    
+        for (int i = 0; i < 200; i++) list.put(i, i, i * 2 + 1);
+
+        // initial size == 0
+        EXPECT_EQ(0, bucket.num_keys());
+        
+        // lookup non-existing key
+        EXPECT_FALSE(bucket.lookup(0, value));
+        
+        // lookup existing/non-existing keys after single insertion
+        EXPECT_TRUE(bucket.insert(list.at(0), true));
+        EXPECT_TRUE(bucket.lookup(0, value));
+        EXPECT_FALSE(bucket.lookup(1, value));
+
+        // check "lookup return values" and "num_keys" after insertion
+        for (int i = 1; i < 65; i++) {
+            EXPECT_TRUE(bucket.insert(list.at(i), true));
+            EXPECT_TRUE(bucket.lookup(i, value));
+            EXPECT_EQ(i * 2 + 1, value);
+            EXPECT_EQ(i+1, bucket.num_keys());
+            
+        }
+
+        bucket.invalidate(101);
+        EXPECT_FALSE(bucket.lookup(101, value));
+    }
+
     TEST(Bucket, insert_pivot_update) {
         Bucket<KVList8, key_t, value_t, 8> bucket;
 

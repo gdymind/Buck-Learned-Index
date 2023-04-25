@@ -33,21 +33,23 @@ const unsigned int BITS_UINT64_T = 64;
  * Note that the template parameter SIZE must matches the SIZE of the LISTTYPE
  */
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-class Bucket { // can be an S-Bucket or a D-Bucket. S-Bucket and D-Bucket and different size
+class Bucket { // can be an S-Bucket or a D-Bucket. S-Bucket and D-Bucket have different sizes
 public:
     using KeyValueType = KeyValue<T, V>;
     using KeyValuePtrType = KeyValue<T, uintptr_t>;
     using BucketType = Bucket<LISTTYPE, T, V, SIZE>;
+
     Bucket() {
-        pivot_ = std::numeric_limits<T>::max();
+        pivot_ = std::numeric_limits<T>::max(); // std::numeric_limits<T>::max() means invalid
         memset(bitmap_, 0, sizeof(bitmap_));
     }
 
     bool lookup(const T &key, V& value) const;
-    // Find the largest key that is <= the lookup key
     bool lb_lookup(const T &key, KeyValueType& kv) const; // find the largest key that is <= the lookup key
-    bool lookup_SIMD(const T &key, KeyValueType& value) const; // TODO: LISTTYPE do the lookup
+
+    bool lookup_SIMD(const T &key, KeyValueType& value) const;
     bool lb_lookup_SIMD(const T &key, KeyValueType& value) const; // lower-bound lookup
+
     bool insert(const KeyValueType &kv, bool update_pivot); // Return false if insert() fails
     bool update(const KeyValueType &kv); // Return false if update() fails
 
@@ -148,13 +150,12 @@ public:
     //bitmap operations
     inline int find_empty_slot() const { // return the offset of the first bit=0
         for (int i = 0; i < BITMAP_SIZE; i++) {
+            if (bitmap_[i] == UINT64_MAX) continue; // all bits are 1 (occupied
             int pos = __builtin_clzll(~bitmap_[i]);
-            if (pos != BITS_UINT64_T) { // found one empty slot
-                pos = i * BITS_UINT64_T + pos;
-                if (pos < SIZE) return pos;
-                else return -1; // there are some redundant bits
-                                // when SIZE % BITS_UINT64_T != 0
-            }
+            pos = i * BITS_UINT64_T + pos;
+            if (pos < SIZE) return pos;
+            else return -1; // there are some redundant bits
+                            // when SIZE % BITS_UINT64_T != 0
         }
         return -1; // No zero bit found
     }
