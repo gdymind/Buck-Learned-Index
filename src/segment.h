@@ -232,9 +232,7 @@ public:
 private:
     LinearModel<T> model_;
 
-    // void train_model(); // based on the pivot of each bucket
-
-    // TBD: do we explicitly store x_sum, y_sum, xx_sum and xy_sum
+    // TODO: TBD-do we explicitly store x_sum, y_sum, xx_sum and xy_sum
 
     inline unsigned int predict_buck(T key) const { // get the predicted S-Bucket ID based on the model computing
         unsigned int buckID = (unsigned int)(model_.predict(key) / SBUCKET_SIZE);
@@ -348,13 +346,15 @@ bool Segment<T, SBUCKET_SIZE>::segment_and_batch_update(
     std::vector<Cut<T>> out_cuts;
     out_cuts.clear();
 
-    Segmentation<std::vector<KeyValue<T,uintptr_t>>, T>::compute_dynamic_segmentation(list, out_cuts, error_bound);
+    vector<LinearModel<T>> out_models;
+    Segmentation<std::vector<KeyValue<T,uintptr_t>>, T>::compute_dynamic_segmentation(list, out_cuts, out_models, error_bound);
 
     // put result of segmentation into multiple segments
     size_t start_pos = 0;
     for(size_t i = 0;i<out_cuts.size();i++){
         // using dynamic allocation in case the segment is destroyed after the loop
-        SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), list.begin() + start_pos, list.begin() + start_pos+out_cuts[i].size_);
+        // SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), list.begin() + start_pos, list.begin() + start_pos+out_cuts[i].size_);
+        SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_models[i], list.begin() + start_pos, list.begin() + start_pos+out_cuts[i].size_);
         T key = out_cuts[i].start_key_;
         KeyValue<T,uintptr_t> kv(key, (uintptr_t)seg);
         new_segs.push_back(kv);
@@ -512,54 +512,6 @@ typename Segment<T, SBUCKET_SIZE>::const_iterator Segment<T, SBUCKET_SIZE>::uppe
     return const_iterator(this, 0, key, false);
 }
 
-/*
-// template<class T, size_t SBUCKET_SIZE>
-// void Segment<T, SBUCKET_SIZE>::train_model() {
-//     // input: pivot key of each bucket
-//     // output: model's slope and intercept
-
-//     long double x_sum_ = 0;
-//     long double y_sum_ = 0;
-//     long double xx_sum_ = 0;
-//     long double xy_sum_ = 0;
-//     for(size_t i = 0;i<num_bucket_;i++){
-//         T key = sbucket_list_[i].pivot_;
-//         x_sum_ += static_cast<long double>(key);
-//         y_sum_ += static_cast<long double>(i);
-//         xx_sum_ += static_cast<long double>(key) * key;
-//         xy_sum_ += static_cast<long double>(key) * i;
-//     }
-
-
-//     if (num_bucket_ <= 1) {
-//         model_->a_ = 0;
-//         model_->b_ = static_cast<double>(y_sum_);
-//         return;
-//     }
-
-//     if (static_cast<long double>(num_bucket_) * xx_sum_ - x_sum_ * x_sum_ == 0) {
-//         // all values in a bucket have the same key.
-//         model_->a_ = 0;
-//         model_->b_ = static_cast<double>(y_sum_) / num_bucket_;
-//         return;
-//     }
-
-//     auto slope = static_cast<double>(
-//         (static_cast<long double>(num_bucket_) * xy_sum_ - x_sum_ * y_sum_) /
-//         (static_cast<long double>(num_bucket_) * xx_sum_ - x_sum_ * x_sum_));
-//     auto intercept = static_cast<double>(
-//         (y_sum_ - static_cast<long double>(slope) * x_sum_) / num_bucket_);
-//     model_->a_ = slope;
-//     model_->b_ = intercept;
-
-//     // If floating point precision errors, fit spline
-//     if (model_->a_ <= 0) {
-//         model_->a_ = (num_bucket_ - 1) / (sbucket_list_[num_bucket_-1].pivot_ - sbucket_list_[0].pivot_);
-//         model_->b_ = -static_cast<double>(sbucket_list_[0].pivot_) * model_->a_;
-//     }
-
-// }
-*/
 
 /*
 //TODO: unit test
