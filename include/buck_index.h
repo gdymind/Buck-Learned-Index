@@ -13,16 +13,15 @@
 namespace buckindex {
 
 
-template<typename KeyType, typename ValueType>
+template<typename KeyType, typename ValueType, size_t SEGMENT_BUCKET_SIZE = 8, size_t DATA_BUCKET_SIZE = 256>
 class BuckIndex {
 public:
     //List of template aliasing
-    using DataBucketType = Bucket<KeyListValueList<KeyType, ValueType, MAX_DATA_BUCKET_SIZE>,
-                                  KeyType, ValueType, MAX_DATA_BUCKET_SIZE>;
-    using SegBucketType = Bucket<KeyValueList<KeyType, ValueType, MAX_SEGMENT_BUCKET_SIZE>,
-                                  KeyType, ValueType, MAX_SEGMENT_BUCKET_SIZE>;
-    using SegmentType = Segment<KeyType,
-                                MAX_SEGMENT_BUCKET_SIZE>;
+    using DataBucketType = Bucket<KeyListValueList<KeyType, ValueType, DATA_BUCKET_SIZE>,
+                                  KeyType, ValueType, DATA_BUCKET_SIZE>;
+    using SegBucketType = Bucket<KeyValueList<KeyType, ValueType, SEGMENT_BUCKET_SIZE>,
+                                  KeyType, ValueType, SEGMENT_BUCKET_SIZE>;
+    using SegmentType = Segment<KeyType, SEGMENT_BUCKET_SIZE>;
     using KeyValueType = KeyValue<KeyType, ValueType>;
     using KeyValuePtrType = KeyValue<KeyType, uintptr_t>;
 
@@ -260,7 +259,7 @@ private:
     void run_data_layer_segmentation(vector<KeyValueType>& in_kv_array,
                                      vector<KeyValuePtrType>& out_kv_array) {
         vector<Cut<KeyType>> out_cuts;
-        uint64_t initial_bucket_occupacy = MAX_DATA_BUCKET_SIZE * filled_ratio_;
+        uint64_t initial_bucket_occupacy = DATA_BUCKET_SIZE * filled_ratio_;
 
         Segmentation<vector<KeyValueType>, KeyType>::compute_fixed_segmentation(in_kv_array,
                                                                                 out_cuts,
@@ -292,7 +291,7 @@ private:
                                       vector<KeyValuePtrType>& out_kv_array) {
         vector<Cut<KeyType>> out_cuts;
         vector<LinearModel<KeyType>> out_models;
-        uint64_t initial_sbucket_occupacy = MAX_SEGMENT_BUCKET_SIZE * filled_ratio_;
+        uint64_t initial_sbucket_occupacy = SEGMENT_BUCKET_SIZE * filled_ratio_;
         Segmentation<vector<KeyValuePtrType>, KeyType>::compute_dynamic_segmentation(in_kv_array,
                                                                                      out_cuts, out_models,
                                                                                      initial_sbucket_occupacy);

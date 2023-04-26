@@ -694,8 +694,8 @@ namespace buckindex {
     }
 */
         TEST(Segment, batch_update_d_bucket_entry) {
-        using DataBucketType = Bucket<KeyListValueList<key_t, value_t, MAX_DATA_BUCKET_SIZE>,
-                                  key_t, value_t, MAX_DATA_BUCKET_SIZE>;
+        using DataBucketType = Bucket<KeyListValueList<key_t, value_t, 4>,
+                                  key_t, value_t, 4>;
         using SegmentType = Segment<key_t,  8>;
 
         key_t keys[] = {0,20,40,60,80,100,120,140};

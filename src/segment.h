@@ -11,8 +11,9 @@
 
 namespace buckindex {
 
+
 // T is the key type, SBUCKET_SIZE is the size of S-Bucket; value type is uintptr_t
-template<typename T, size_t SBUCKET_SIZE> 
+template<typename T, size_t SBUCKET_SIZE>
 class Segment {
 public:
     using SegmentType = Segment<T, SBUCKET_SIZE>;
@@ -304,7 +305,7 @@ bool Segment<T, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std::ve
 */
 
 
-template<typename T,  size_t SBUCKET_SIZE>
+template<typename T, size_t SBUCKET_SIZE>
 bool Segment<T, SBUCKET_SIZE>::segment_and_batch_update(
     double fill_ratio, 
     const std::vector<KeyValue<T,uintptr_t>> &input_pivots,
