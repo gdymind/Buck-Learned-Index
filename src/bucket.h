@@ -197,14 +197,7 @@ private:
     __m256i SIMD_load_valid_bits(int pos) const;
     // assume T and V are the same type, so we can perform masked load
     __m256i SIMD_load_keys(const KeyListValueList<T, V, SIZE>& list, int pos) const; 
-    __m256i SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const;
-    static constexpr size_t get_simd_increment(){
-        if constexpr (std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>::value) {
-            return 256 / (8 * sizeof(T));
-        } else {
-            return (256 / (8 * sizeof(T))) / 2;
-        }
-    }
+    // __m256i SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const;
 };
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
