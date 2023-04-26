@@ -14,8 +14,8 @@ namespace buckindex {
     typedef unsigned long long key_t;
     typedef unsigned long long value_t;
 
-    TEST(Segment, default_constructor) {
-        Segment<key_t, 8> seg;
+    TEST(Segment, basic_constructor) {
+        Segment<key_t, 8> seg(true);
         EXPECT_EQ(0, seg.num_bucket_);
         EXPECT_EQ(nullptr, seg.sbucket_list_);
     }
@@ -30,7 +30,7 @@ namespace buckindex {
         // model is y=x
         LinearModel<key_t> model(1,0);
         double fill_ratio = 0.5;
-        Segment<key_t, 8> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        Segment<key_t, 8> seg(length, fill_ratio, model, in_array.begin(), in_array.end(), true);
         
         // // put 11 elements into 3*8 = 24 empty slots 
         // // expanded model is y = 2x
@@ -53,7 +53,7 @@ namespace buckindex {
 
         LinearModel<key_t> model(0.5,5);
         double fill_ratio = 0.8;
-        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end(), true);
         
 
         // put 20 elements into 7*4 = 28 empty slots 
@@ -84,7 +84,7 @@ namespace buckindex {
 
         LinearModel<key_t> model(0.5,5);
         double fill_ratio = 1;
-        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end(), true);
         
 
         // put 20 elements into 5*4 = 20 empty slots 
@@ -111,7 +111,7 @@ namespace buckindex {
         // model is y=0.5x
         LinearModel<key_t> model(0.5,0);
         double fill_ratio = 0.5;
-        Segment<key_t, 8> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        Segment<key_t, 8> seg(length, fill_ratio, model, in_array.begin(), in_array.end(), true);
     
         KeyValue<key_t, uintptr_t> kv;
         uintptr_t value = 0;
@@ -137,7 +137,7 @@ namespace buckindex {
         // model is y=0.5x
         LinearModel<key_t> model(0.5,0);
         double fill_ratio = 0.5;
-        Segment<key_t, 8> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        Segment<key_t, 8> seg(length, fill_ratio, model, in_array.begin(), in_array.end(), true);
     
         KeyValue<key_t, uintptr_t> kv;
         uintptr_t value = 0;
@@ -173,7 +173,7 @@ namespace buckindex {
         // model is y=0.05x
         LinearModel<key_t> model(0.05,0);
         double fill_ratio = 0.5;
-        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end(), true);
         
         EXPECT_EQ(4, seg.num_bucket_);
         EXPECT_EQ(2, seg.sbucket_list_[0].num_keys());
@@ -226,7 +226,7 @@ namespace buckindex {
         // model is y=0.05x
         LinearModel<key_t> model(0.05,0);
         double fill_ratio = 0.5;
-        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end(), true);
         
         EXPECT_EQ(4, seg.num_bucket_);
 
@@ -279,7 +279,7 @@ namespace buckindex {
         // model is y=0.05x
         LinearModel<key_t> model(0.05,0);
         double fill_ratio = 0.5;
-        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end(), true);
         EXPECT_EQ(8, seg.size());
         
         bool success = false;
@@ -311,7 +311,7 @@ namespace buckindex {
         // model is y=0.05x
         LinearModel<key_t> model(0.05,-0.05);
         double fill_ratio = 1;
-        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end(), true);
         
         EXPECT_EQ(2, seg.num_bucket_);
 
@@ -437,7 +437,7 @@ namespace buckindex {
         // model is y=0.05x
         LinearModel<key_t> model(0.05,0);
         double fill_ratio = 1;
-        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end(), true);
         
         // test begin(), end(), opreator* and it++
         int i = 0;
@@ -483,13 +483,13 @@ namespace buckindex {
         SegmentType *segs[length];
         for (size_t i = 0; i < length; i++) {
             std::vector<KeyValue<key_t, uintptr_t>> pivot_list(1, KeyValue<key_t, uintptr_t>(keys[i], keys[i]));
-            segs[i] = new SegmentType(1, 1, LinearModel<key_t>(0, 0), pivot_list.begin(), pivot_list.end());
+            segs[i] = new SegmentType(1, 1, LinearModel<key_t>(0, 0), pivot_list.begin(), pivot_list.end(), true);
             in_array.push_back(KeyValue<key_t, uintptr_t>(keys[i], reinterpret_cast<uintptr_t>(segs[i])));
         }
         // model is y=0.05x
         LinearModel<key_t> model(0.05,0);
         double fill_ratio = 0.25;
-        Segment<key_t,  8> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        Segment<key_t,  8> seg(length, fill_ratio, model, in_array.begin(), in_array.end(), true);
         
         // 4 buckets, each bucket has 2 keys and 2 empty slots
         // Each bucket has 6 empty slots
@@ -557,13 +557,13 @@ namespace buckindex {
         SegmentType *segs[length];
         for (size_t i = 0; i < length; i++) {
             std::vector<KeyValue<key_t, uintptr_t>> pivot_list(1, KeyValue<key_t, uintptr_t>(keys[i], keys[i]));
-            segs[i] = new SegmentType(1, 1, LinearModel<key_t>(0, 0), pivot_list.begin(), pivot_list.end());
+            segs[i] = new SegmentType(1, 1, LinearModel<key_t>(0, 0), pivot_list.begin(), pivot_list.end(), true);
             in_array.push_back(KeyValue<key_t, uintptr_t>(keys[i], reinterpret_cast<uintptr_t>(segs[i])));
         }
         // model is y=0.05x
         LinearModel<key_t> model(0.05,0);
         double fill_ratio = 0.25;
-        Segment<key_t,  8> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        Segment<key_t,  8> seg(length, fill_ratio, model, in_array.begin(), in_array.end(), true);
         
         // 4 buckets, each bucket has 2 keys and 2 empty slots
         // Each bucket has 6 empty slots
@@ -631,13 +631,13 @@ namespace buckindex {
         SegmentType *segs[length];
         for (size_t i = 0; i < length; i++) {
             std::vector<KeyValue<key_t, uintptr_t>> pivot_list(1, KeyValue<key_t, uintptr_t>(keys[i], keys[i]));
-            segs[i] = new SegmentType(1, 1, LinearModel<key_t>(0, 0), pivot_list.begin(), pivot_list.end());
+            segs[i] = new SegmentType(1, 1, LinearModel<key_t>(0, 0), pivot_list.begin(), pivot_list.end(), true);
             in_array.push_back(KeyValue<key_t, uintptr_t>(keys[i], reinterpret_cast<uintptr_t>(segs[i])));
         }
         // model is y=0.05x
         LinearModel<key_t> model(0.05,0);
         double fill_ratio = 0.25;
-        Segment<key_t,  8> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        Segment<key_t,  8> seg(length, fill_ratio, model, in_array.begin(), in_array.end(), true);
         
         // 4 buckets, each bucket has 2 keys and 2 empty slots
         // Each bucket has 6 empty slots
@@ -710,7 +710,7 @@ namespace buckindex {
         // model is y=0.05x
         LinearModel<key_t> model(0.05,0);
         double fill_ratio = 0.25;
-        SegmentType seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        SegmentType seg(length, fill_ratio, model, in_array.begin(), in_array.end(), true);
         
         // 4 buckets, each bucket has 2 keys and 2 empty slots
         // Each bucket has 6 empty slots
@@ -782,7 +782,7 @@ namespace buckindex {
         // model is y=0.05x
         LinearModel<key_t> model(0.05,0);
         double fill_ratio = 1;
-        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end(), true);
 
         // test lower_bound
         auto it = seg.lower_bound(0);
@@ -868,7 +868,7 @@ namespace buckindex {
         // model is y=0.05x
         LinearModel<key_t> model(0.05,0);
         double fill_ratio = 1;
-        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end(), true);
 
         std::vector<KeyValue<key_t,uintptr_t>> insert_anchors;
         key_t keys2[] = {30,40,50,60,70,190,191,192,193,194,195,196,197,400,410,420,430};

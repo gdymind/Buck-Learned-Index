@@ -17,7 +17,7 @@ int main(int argc, char** argv) {
 
     buckindex::BuckIndex<key_type, value_type> index;
 
-    buckindex::Segment<unsigned long long, 8> segment;
+    buckindex::Segment<unsigned long long, 8> segment(true);
 
     buckindex::Bucket<buckindex::KeyValueList<key_type, value_type, 64>, key_type, value_type, 64> bucket;
 

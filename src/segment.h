@@ -26,7 +26,7 @@ public:
     BucketType* sbucket_list_; // a list of S-Buckets
 
     // default constructors
-    Segment(){
+    Segment(bool use_linear_regression): use_linear_regression_(use_linear_regression_){
         num_bucket_ = 0; // indicating it is empty now
         sbucket_list_ = nullptr;
     }
@@ -38,8 +38,9 @@ public:
     // a constructor that recevices the number of entries, fill ratio, and the model(before expansion)
     // also pass a start iterator and an end iterator; iterate over the list and insert into the sbucket_list_
     template<typename IterType>
-    Segment(size_t num_kv, double fill_ratio, const LinearModel<T> &model, IterType it, IterType end)
-    :model_(model){
+    Segment(size_t num_kv, double fill_ratio, const LinearModel<T> &model, 
+            IterType it, IterType end, bool use_linear_regression)
+    :model_(model), use_linear_regression_(use_linear_regression){
         //assert(it+num_kv == end); // + operator may not be supported 
 
         //create_bucket_and_load(num_kv,fill_ratio,model,it,end);
@@ -232,6 +233,7 @@ public:
 
 private:
     LinearModel<T> model_;
+    const bool use_linear_regression_;
 
     // TODO: TBD-do we explicitly store x_sum, y_sum, xx_sum and xy_sum
 
@@ -287,13 +289,13 @@ bool Segment<T, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std::ve
     std::vector<Cut<T>> out_cuts;
     out_cuts.clear();
 
-    Segmentation<SegmentType, T>::compute_dynamic_segmentation(*this, out_cuts, error_bound);
+    Segmentation<SegmentType, T>::compute_dynamic_segmentation(*this, out_cuts, error_bound, use_linear_regression_);
 
     // put result of segmentation into multiple segments
     size_t start_pos = 0;
     for(size_t i = 0;i<out_cuts.size();i++){
         // using dynamic allocation in case the segment is destroyed after the loop
-        SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), const_iterator(this, start_pos), const_iterator(this, start_pos+out_cuts[i].size_));
+        SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), const_iterator(this, start_pos), const_iterator(this, start_pos+out_cuts[i].size_), use_linear_regression_);
         T key = out_cuts[i].start_key_;
         KeyValue<T,uintptr_t> kv(key, (uintptr_t)seg);
         new_segs.push_back(kv);
@@ -348,14 +350,14 @@ bool Segment<T, SBUCKET_SIZE>::segment_and_batch_update(
     out_cuts.clear();
 
     vector<LinearModel<T>> out_models;
-    Segmentation<std::vector<KeyValue<T,uintptr_t>>, T>::compute_dynamic_segmentation(list, out_cuts, out_models, error_bound);
+    Segmentation<std::vector<KeyValue<T,uintptr_t>>, T>::compute_dynamic_segmentation(list, out_cuts, out_models, error_bound, use_linear_regression_);
 
     // put result of segmentation into multiple segments
     size_t start_pos = 0;
     for(size_t i = 0;i<out_cuts.size();i++){
         // using dynamic allocation in case the segment is destroyed after the loop
         // SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), list.begin() + start_pos, list.begin() + start_pos+out_cuts[i].size_);
-        SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_models[i], list.begin() + start_pos, list.begin() + start_pos+out_cuts[i].size_);
+        SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_models[i], list.begin() + start_pos, list.begin() + start_pos+out_cuts[i].size_, use_linear_regression_);
         T key = out_cuts[i].start_key_;
         KeyValue<T,uintptr_t> kv(key, (uintptr_t)seg);
         new_segs.push_back(kv);

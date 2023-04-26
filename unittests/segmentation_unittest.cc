@@ -12,7 +12,7 @@ namespace buckindex {
         vector<LinearModel<uint64_t>> models;
 
         Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::compute_dynamic_segmentation(
-                in_kv_array, cuts, models, error_bound);
+                in_kv_array, cuts, models, error_bound, false);
         EXPECT_EQ(0u, cuts.size());
     }
 
@@ -28,15 +28,14 @@ namespace buckindex {
             in_kv_array.push_back(KeyValue<uint64_t, uint64_t>(keys[i], keys[i]));
         }
         Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::compute_dynamic_segmentation(
-            in_kv_array, cuts, models, error_bound);
+            in_kv_array, cuts, models, error_bound, false);
         EXPECT_EQ(1u, cuts.size());
         EXPECT_EQ(0u, cuts[0].start_);
         EXPECT_EQ(11u, cuts[0].size_);
 
         LinearModel<uint64_t> m;
        
-        if (G_USE_LINEAR_REGRESSION) { m = models[0]; std::cout << "Using linear regression" << std::endl; }
-        else m = cuts[0].get_model();
+        m = models[0];
 
         EXPECT_NEAR(1.0, m.get_slope(), 1e-2);
         EXPECT_NEAR(0.0, m.get_offset(), 1e-2);
@@ -54,7 +53,7 @@ namespace buckindex {
             in_kv_array.push_back(KeyValue<uint64_t, uint64_t>(keys[i], keys[i]));
         }
         Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::compute_dynamic_segmentation(
-            in_kv_array, cuts, models, error_bound);
+            in_kv_array, cuts, models, error_bound, true);
 
         EXPECT_EQ(4u, cuts.size());
         /*Expected cuts: 0,1,2|2,2|2,6,7|8,9,10*/
