@@ -43,6 +43,8 @@ public:
     Bucket() {
         // assume T and V has the same size, so we can perform masked load
         assert(sizeof(T) == sizeof(V));
+        assert(sizeof(T) == 4 || sizeof(T) == 8);
+
         pivot_ = std::numeric_limits<T>::max(); // std::numeric_limits<T>::max() means invalid
         memset(bitmap_, 0, sizeof(bitmap_));
     }
@@ -336,50 +338,36 @@ inline unsigned char reverseBits(unsigned char n) {
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value) const {
-    // we only support D-bucket; S-Bucket always calls SIMD_lb_lookup instead of SIMD_lookup
-    // TODO: support S-Bucket, where key and vlue are in the same array
-    // TODO: support other key types besides 32-bit integer
+    // We only support D-bucket; S-Bucket always calls SIMD_lb_lookup instead of SIMD_lookup
+    // TODO: support S-Bucket, where key and value are in the same array
     assert((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>::value));
 
-    constexpr size_t SIMD_WIDTH = 256 / 32; // the number of keys in a SIMD register
-    // std::cout << "simd_width = " << simd_width << std::endl << std::flush;
-    //TODO: we assumes that the key is 32-bit integer for now; need to support other key types
-    __m256i key_vector = _mm256_set1_epi32(key); // broadcast the key to all 8 lanes
-    // std::cout << "key_vector = " << std::endl;
-    // print_m256i_bits(key_vector);
+    constexpr size_t SIMD_WIDTH = 256 / sizeof(T) / 8; // the number of keys in a SIMD register
+    __m256i key_vector;
+    if constexpr (sizeof(T) == 4) key_vector = _mm256_set1_epi32(key); // 32-bit integer, repeat 8 times
+    else if constexpr(sizeof(T) == 8) key_vector = _mm256_set1_epi64x(key); // 64-bit integer, repeat 4 times
 
     for (int i = 0; i < SIZE; i += SIMD_WIDTH) {
-        __m256i keys = SIMD_load_keys(list_, i);
-        // std::cout << "keys = " << std::endl;
-        // print_m256i_bits(keys);
-        __m256i cmp = _mm256_cmpeq_epi32(keys, key_vector);
-        // std::cout << "cmp = " << std::endl;
-        // print_m256i_bits(cmp);
+        __m256i keys = SIMD_load_keys(list_, i); // load 4 or 8 keys at one shot
+        __m256i cmp;
+        if constexpr (sizeof(T) == 4) cmp = _mm256_cmpeq_epi32(keys, key_vector); // compare every 32 bits
+        else if constexpr (sizeof(T) == 8) cmp = _mm256_cmpeq_epi64(keys, key_vector); // compare every 64 bits
 
-        uint64_t mask = _mm256_movemask_ps((__m256)cmp);
+        unsigned char mask; // there are either 4 or 8 bits in the mask
+        mask = _mm256_movemask_ps((__m256)cmp);
+        if constexpr(sizeof(T) == 4) mask = _mm256_movemask_ps((__m256)cmp);
+        else if constexpr(sizeof(T) == 8) mask = _mm256_movemask_pd((__m256d)cmp);
         
-
-        // std::cout << "mask = " << std::endl;
-        // std::cout << std::bitset<32>(mask) << std::endl;
-
         int bitmap_pos = i / BITS_UINT64_T; // use bitmap_[bitmap_pos]
-        int bit_pos = i % BITS_UINT64_T; // pos from the most significant bit
-        // std::cout << "i = " << i << std::endl; // i = 0
-        // std::cout << "SIMD_WIDTH = " << SIMD_WIDTH << std::endl; // SIMD_WIDTH = 8
-        // std::cout << "pos = " << pos << std::endl;
-        // std::cout << "bitmap_pos = " << bitmap_pos << std::endl;
-        // std::cout << "bit_pos = " << bit_pos << std::endl;
-        // get 8 bits from bitmap_[bitmap_pos] starting from bit_pos
-        unsigned char valid_bits = (unsigned char)((bitmap_[bitmap_pos] << bit_pos) >> 56); // the most significant bit is the first position
-        valid_bits = reverseBits(valid_bits);
-        // std::cout << "valid_bits = " << std::endl;
-        // std::cout << std::bitset<8>(valid_bits) << std::endl;
+        int bit_pos = i % BITS_UINT64_T; // pos from MSB
+        // get 8 bits from (bitmap_[bitmap_pos], bit_pos)
+        unsigned char valid_bits = (unsigned char)((bitmap_[bitmap_pos] << bit_pos) >> (64 - 8));
+        valid_bits = reverseBits(valid_bits); // reverse the bits, so that the first valid bit is the LSB
 
         mask &= valid_bits; // only keep the valid bits
         if (mask == 0) continue; // no match in this SIMD register
 
         int idx = i + __builtin_ctz(mask);
-        // std::cout << "idx = " << idx << std::endl;
         value = list_.at(idx).value_;
         return true;
     }
