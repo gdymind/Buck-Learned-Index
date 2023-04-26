@@ -5,16 +5,12 @@
 #include "segmentation.h"
 #include "util.h"
 
-namespace buckindex {
 /**
  * Index configurations
  */
-#define FILLED_RATIO 0.5
+#define DEFAULT_FILLED_RATIO 0.6
 
-
-#ifndef DEBUG
-#define DEBUG
-#endif
+namespace buckindex {
 
 
 template<typename KeyType, typename ValueType>
@@ -33,13 +29,15 @@ public:
     BuckIndex() {
         root_ = NULL;
         num_levels_ = 0;
+        filled_ratio_ = DEFAULT_FILLED_RATIO;
     }
 
     /**
      * Constructor which can specify the bucket sizes
      */
-    BuckIndex(uint64_t dbucket_size, uint64_t sbucket_size) {
+    BuckIndex(uint64_t dbucket_size, uint64_t sbucket_size, double filled_ratio = DEFAULT_FILLED_RATIO) {
         root_ = NULL;
+        filled_ratio_ = filled_ratio;
         //TODO: Need to figure out how to pass the parameter in the template aliasing
         exit(1);
     }
@@ -127,7 +125,7 @@ public:
                 }
 
                 pivot_list[pong].clear();
-                success = cur_segment->segment_and_batch_update(FILLED_RATIO, pivot_list[ping], pivot_list[pong]);
+                success = cur_segment->segment_and_batch_update(filled_ratio_, pivot_list[ping], pivot_list[pong]);
                 old_pivot = path[cur_level];
                 assert(success);
 
@@ -157,7 +155,7 @@ public:
                     }
                     model = LinearModel<KeyType>(slope, offset);
                 }
-                root_ = new SegmentType(pivot_list[ping].size(), FILLED_RATIO, model, 
+                root_ = new SegmentType(pivot_list[ping].size(), filled_ratio_, model, 
                                     pivot_list[ping].begin(), pivot_list[ping].end());
                 num_levels_++;
             }
@@ -262,7 +260,7 @@ private:
     void run_data_layer_segmentation(vector<KeyValueType>& in_kv_array,
                                      vector<KeyValuePtrType>& out_kv_array) {
         vector<Cut<KeyType>> out_cuts;
-        uint64_t initial_bucket_occupacy = MAX_DATA_BUCKET_SIZE * FILLED_RATIO;
+        uint64_t initial_bucket_occupacy = MAX_DATA_BUCKET_SIZE * filled_ratio_;
 
         Segmentation<vector<KeyValueType>, KeyType>::compute_fixed_segmentation(in_kv_array,
                                                                                 out_cuts,
@@ -294,7 +292,7 @@ private:
                                       vector<KeyValuePtrType>& out_kv_array) {
         vector<Cut<KeyType>> out_cuts;
         vector<LinearModel<KeyType>> out_models;
-        uint64_t initial_sbucket_occupacy = MAX_SEGMENT_BUCKET_SIZE * FILLED_RATIO;
+        uint64_t initial_sbucket_occupacy = MAX_SEGMENT_BUCKET_SIZE * filled_ratio_;
         Segmentation<vector<KeyValuePtrType>, KeyType>::compute_dynamic_segmentation(in_kv_array,
                                                                                      out_cuts, out_models,
                                                                                      initial_sbucket_occupacy);
@@ -302,7 +300,7 @@ private:
             uint64_t start_idx = out_cuts[i].start_;
             uint64_t length = out_cuts[i].size_;
 
-            SegmentType* segment = new SegmentType(length, FILLED_RATIO, out_models[i],
+            SegmentType* segment = new SegmentType(length, filled_ratio_, out_models[i],
                                                    in_kv_array.begin() + start_idx, in_kv_array.begin() + start_idx + length);
             out_kv_array.push_back(KeyValuePtrType(in_kv_array[start_idx].key_,
                                                    (uintptr_t)segment));
@@ -313,7 +311,7 @@ private:
     void* root_;
     //Learned index constants
     static const uint8_t max_levels_ = 16;
-    //const double filled_ratio_ = 0.50;
+    double filled_ratio_ = 0.50;
     //Statistics
     uint64_t num_levels_; // the number of layers including model layers and the data layer
     uint64_t num_data_buckets_; //TODO: update num_data_buckets_ during bulk_load and insert
