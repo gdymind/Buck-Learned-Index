@@ -13,7 +13,7 @@
 namespace buckindex {
 
 
-template<typename KeyType, typename ValueType, size_t SEGMENT_BUCKET_SIZE = 8, size_t DATA_BUCKET_SIZE = 256>
+template<typename KeyType, typename ValueType, size_t SEGMENT_BUCKET_SIZE, size_t DATA_BUCKET_SIZE>
 class BuckIndex {
 public:
     //List of template aliasing
