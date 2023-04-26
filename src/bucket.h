@@ -42,7 +42,9 @@ public:
 
     Bucket() {
         // assume T and V has the same size, so we can perform masked load
-        assert(sizeof(T) == sizeof(V));
+        // assert(sizeof(T) == sizeof(V));
+
+        // support only 32-bit and 64-bit keys for SIMD_lookup
         assert(sizeof(T) == 4 || sizeof(T) == 8);
 
         pivot_ = std::numeric_limits<T>::max(); // std::numeric_limits<T>::max() means invalid
@@ -50,13 +52,13 @@ public:
     }
 
     bool lookup(const T &key, V& value) const; // D-Bucket lookup
-    bool lb_lookup(const T &key, KeyValueType& kv) const; // S-Bucket low_bound lookup; find the largest key that is <= the lookup key
+    bool lb_lookup(const T &key, KeyValueType& kv) const; // S-Bucket lower_bound lookup; find the largest key that is <= the lookup key
 
     bool SIMD_lookup(const T &key, V& value) const; // D-Bucket lookup
-    bool SIMD_lb_lookup(const T &key, KeyValueType& value) const; // S-Bucket low_bound lookup;
+    bool SIMD_lb_lookup(const T &key, KeyValueType& value) const; // S-Bucket lower_bound lookup;
 
     bool insert(const KeyValueType &kv, bool update_pivot); // Return false if insert() fails
-    bool update(const KeyValueType &kv); // Return false if update() fails
+    bool update(const KeyValueType &kv); // find kv.key_ and update its value; return false if not found
 
     /**
      * Split the bucket into two buckets by the median key, and insert a new key-value pair
@@ -155,14 +157,14 @@ public:
     //bitmap operations
     inline int find_empty_slot() const { // return the offset of the first bit=0
         for (int i = 0; i < BITMAP_SIZE; i++) {
-            if (bitmap_[i] == UINT64_MAX) continue; // all bits are 1 (occupied
+            if (bitmap_[i] == UINT64_MAX) continue; // all bits are 1 (occupied)
             int pos = __builtin_clzll(~bitmap_[i]);
             pos = i * BITS_UINT64_T + pos;
             if (pos < SIZE) return pos;
             else return -1; // there are some redundant bits
                             // when SIZE % BITS_UINT64_T != 0
         }
-        return -1; // No zero bit found
+        return -1; // no empty slot
     }
 
     inline void validate(int pos) {
@@ -194,7 +196,6 @@ private:
     LISTTYPE list_;
 
     // Helper functions for SIMD
-    __m256i SIMD_load_valid_bits(int pos) const;
     // assume T and V are the same type, so we can perform masked load
     __m256i SIMD_load_keys(const KeyListValueList<T, V, SIZE>& list, int pos) const; 
     // __m256i SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const;
@@ -271,16 +272,6 @@ KeyValue<T, V> Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) const {
 }
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-__m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_valid_bits(int pos) const {
-    int bitmap_pos = pos / BITS_UINT64_T;
-    int bit_pos = pos % BITS_UINT64_T;
-    uint64_t valid_bits = bitmap_[bitmap_pos] << bit_pos; // the most significant bit is the first position
-    if (bitmap_pos + 1 < BITMAP_SIZE) 
-        valid_bits |= bitmap_[bitmap_pos + 1] >> (BITS_UINT64_T - bit_pos);
-    return _mm256_set1_epi64x(valid_bits);
-}
-
-template<class LISTTYPE, typename T, typename V, size_t SIZE>
 __m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyListValueList<T, V, SIZE>& list, int pos) const {
     return _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&list.keys_[pos]));
 }
@@ -292,6 +283,7 @@ __m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyListValueList<T, V
 //     return _mm256_maskload_epi32(ptr, key_mask); // only load keys, the values bits are set to 0
 // }
 
+// print the bits of a __m256i
 inline void print_m256i_bits(const __m256i &key_vector) {
     int element0 = _mm256_extract_epi32(key_vector, 0);
     int element1 = _mm256_extract_epi32(key_vector, 1);
@@ -328,28 +320,28 @@ inline unsigned char reverseBits(unsigned char n) {
     return n;
 }
 
-
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value) const {
     // We only support D-bucket; S-Bucket always calls SIMD_lb_lookup instead of SIMD_lookup
     // TODO: support S-Bucket, where key and value are in the same array
     assert((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>::value));
 
-    constexpr size_t SIMD_WIDTH = 256 / sizeof(T) / 8; // the number of keys in a SIMD register
+    constexpr size_t SIMD_WIDTH = 256 / sizeof(T) / 8; // the number of keys in a 256-bit SIMD register
     __m256i key_vector;
-    if constexpr (sizeof(T) == 4) key_vector = _mm256_set1_epi32(key); // 32-bit integer, repeat 8 times
-    else if constexpr(sizeof(T) == 8) key_vector = _mm256_set1_epi64x(key); // 64-bit integer, repeat 4 times
+    if constexpr (sizeof(T) == 4) key_vector = _mm256_set1_epi32(key); // 32-bit integer, repeat key 8 times
+    else if constexpr(sizeof(T) == 8) key_vector = _mm256_set1_epi64x(key); // 64-bit integer, repeat key 4 times
 
     for (int i = 0; i < SIZE; i += SIMD_WIDTH) {
-        __m256i keys = SIMD_load_keys(list_, i); // load 4 or 8 keys at one shot
+        __m256i keys = SIMD_load_keys(list_, i); // load 4 or 8 keys into a SIMD register
         __m256i cmp;
-        if constexpr (sizeof(T) == 4) cmp = _mm256_cmpeq_epi32(keys, key_vector); // compare every 32 bits
-        else if constexpr (sizeof(T) == 8) cmp = _mm256_cmpeq_epi64(keys, key_vector); // compare every 64 bits
+        if constexpr (sizeof(T) == 4) cmp = _mm256_cmpeq_epi32(keys, key_vector); // compare every 32 bits;
+                                                                                  // result bits start from LSB
+        else if constexpr (sizeof(T) == 8) cmp = _mm256_cmpeq_epi64(keys, key_vector); // compare every 64 bits;
+                                                                                       // result bits start from LSB
 
-        unsigned char mask; // there are either 4 or 8 bits in the mask
-        mask = _mm256_movemask_ps((__m256)cmp);
-        if constexpr(sizeof(T) == 4) mask = _mm256_movemask_ps((__m256)cmp);
-        else if constexpr(sizeof(T) == 8) mask = _mm256_movemask_pd((__m256d)cmp);
+        unsigned char mask; // there are either 4 or 8 bits in the mask, so unsigned char is enough
+        if constexpr(sizeof(T) == 4) mask = _mm256_movemask_ps((__m256)cmp); // 8 bits in the mask, for 32-bit integer
+        else if constexpr(sizeof(T) == 8) mask = _mm256_movemask_pd((__m256d)cmp); // 4 bits in the mask, for 64-bit integer
         
         int bitmap_pos = i / BITS_UINT64_T; // use bitmap_[bitmap_pos]
         int bit_pos = i % BITS_UINT64_T; // pos from MSB
