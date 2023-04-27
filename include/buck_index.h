@@ -25,9 +25,9 @@ public:
     using KeyValueType = KeyValue<KeyType, ValueType>;
     using KeyValuePtrType = KeyValue<KeyType, uintptr_t>;
 
-    BuckIndex(double filled_ratio = DEFAULT_FILLED_RATIO, bool use_linear_regression = true): use_linear_regression_(use_linear_regression) {
+    BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO, bool use_linear_regression = true): use_linear_regression_(use_linear_regression) {
         root_ = NULL;
-        filled_ratio_ = filled_ratio;
+        initial_filled_ratio_ = initial_filled_ratio;
         num_levels_ = 0;
     }
     ~BuckIndex() {
@@ -114,7 +114,7 @@ public:
                 }
 
                 pivot_list[pong].clear();
-                success = cur_segment->segment_and_batch_update(filled_ratio_, pivot_list[ping], pivot_list[pong]);
+                success = cur_segment->segment_and_batch_update(initial_filled_ratio_, pivot_list[ping], pivot_list[pong]);
                 old_pivot = path[cur_level];
                 assert(success);
 
@@ -144,7 +144,7 @@ public:
                     }
                     model = LinearModel<KeyType>(slope, offset);
                 }
-                root_ = new SegmentType(pivot_list[ping].size(), filled_ratio_, model, 
+                root_ = new SegmentType(pivot_list[ping].size(), initial_filled_ratio_, model, 
                                     pivot_list[ping].begin(), pivot_list[ping].end(), use_linear_regression_);
                 num_levels_++;
             }
@@ -249,7 +249,7 @@ private:
     void run_data_layer_segmentation(vector<KeyValueType>& in_kv_array,
                                      vector<KeyValuePtrType>& out_kv_array) {
         vector<Cut<KeyType>> out_cuts;
-        uint64_t initial_bucket_occupacy = DATA_BUCKET_SIZE * filled_ratio_;
+        uint64_t initial_bucket_occupacy = DATA_BUCKET_SIZE * initial_filled_ratio_;
 
         Segmentation<vector<KeyValueType>, KeyType>::compute_fixed_segmentation(in_kv_array,
                                                                                 out_cuts,
@@ -281,7 +281,7 @@ private:
                                       vector<KeyValuePtrType>& out_kv_array) {
         vector<Cut<KeyType>> out_cuts;
         vector<LinearModel<KeyType>> out_models;
-        uint64_t initial_sbucket_occupacy = SEGMENT_BUCKET_SIZE * filled_ratio_;
+        uint64_t initial_sbucket_occupacy = SEGMENT_BUCKET_SIZE * initial_filled_ratio_;
         Segmentation<vector<KeyValuePtrType>, KeyType>::compute_dynamic_segmentation(in_kv_array,
                                                                                      out_cuts, out_models,
                                                                                      initial_sbucket_occupacy, use_linear_regression_);
@@ -289,7 +289,7 @@ private:
             uint64_t start_idx = out_cuts[i].start_;
             uint64_t length = out_cuts[i].size_;
 
-            SegmentType* segment = new SegmentType(length, filled_ratio_, out_models[i],
+            SegmentType* segment = new SegmentType(length, initial_filled_ratio_, out_models[i],
                                                    in_kv_array.begin() + start_idx, in_kv_array.begin() + start_idx + length,
                                                    use_linear_regression_);
             out_kv_array.push_back(KeyValuePtrType(in_kv_array[start_idx].key_,
@@ -301,7 +301,7 @@ private:
     void* root_;
     //Learned index constants
     static const uint8_t max_levels_ = 16;
-    const double filled_ratio_;
+    double initial_filled_ratio_;
     const bool use_linear_regression_;
     //Statistics
     uint64_t num_levels_; // the number of layers including model layers and the data layer
