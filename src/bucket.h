@@ -158,7 +158,7 @@ public:
     inline int find_empty_slot() const { // return the offset of the first bit=0
         for (int i = 0; i < BITMAP_SIZE; i++) {
             if (bitmap_[i] == UINT64_MAX) continue; // all bits are 1 (occupied)
-            int pos = __builtin_clzll(~bitmap_[i]);
+            int pos = __builtin_ctzll(~bitmap_[i]);
             pos = i * BITS_UINT64_T + pos;
             if (pos < SIZE) return pos;
             else return -1; // there are some redundant bits
@@ -170,21 +170,21 @@ public:
     inline void validate(int pos) {
         assert(pos >= 0 && pos < SIZE);
         int bitmap_pos = pos / BITS_UINT64_T;
-        int bit_pos = BITS_UINT64_T - 1 - pos % BITS_UINT64_T; // pos from the most significant bit
+        int bit_pos = pos % BITS_UINT64_T; // pos from LSB
         bitmap_[bitmap_pos] |= (1ULL << bit_pos);
     }
 
     inline void invalidate(int pos) {
         assert(pos >= 0 && pos < SIZE);
         int bitmap_pos = pos / BITS_UINT64_T;
-        int bit_pos = BITS_UINT64_T - 1 - pos % BITS_UINT64_T;
+        int bit_pos = pos % BITS_UINT64_T;
         bitmap_[bitmap_pos] &= ~(1ULL << bit_pos);
     } 
 
     inline bool valid(int pos) const {
         assert(pos >= 0 && pos < SIZE);
         int bitmap_pos = pos / BITS_UINT64_T;
-        int bit_pos = BITS_UINT64_T - 1 - pos % BITS_UINT64_T;
+        int bit_pos = pos % BITS_UINT64_T;
         return (bitmap_[bitmap_pos]  & (1ULL << bit_pos)) != 0;
     }
 
@@ -260,7 +260,6 @@ template<class LISTTYPE, typename T, typename V, size_t SIZE>
 KeyValue<T, V> Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) const {
     int n = num_keys();
     k--;
-    if (k < 0 || k >= n) std::cout << "k = " << k << ", n = " << n << std::endl << std::flush;
     assert(k >= 0 && k < n);
 
     std::vector<KeyValueType> valid_kvs;
@@ -313,12 +312,6 @@ inline void print_m256i_bits(const __m256i &key_vector) {
     std::cout << bits7 << std::endl;
 }
 
-inline unsigned char reverseBits(unsigned char n) {
-    n = ((n & 0xF0) >> 4) | ((n & 0x0F) << 4);
-    n = ((n & 0xCC) >> 2) | ((n & 0x33) << 2);
-    n = ((n & 0xAA) >> 1) | ((n & 0x55) << 1);
-    return n;
-}
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value) const {
@@ -346,8 +339,7 @@ bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value) const {
         int bitmap_pos = i / BITS_UINT64_T; // use bitmap_[bitmap_pos]
         int bit_pos = i % BITS_UINT64_T; // pos from MSB
         // get 8 bits from (bitmap_[bitmap_pos], bit_pos)
-        unsigned char valid_bits = (unsigned char)((bitmap_[bitmap_pos] << bit_pos) >> (64 - 8));
-        valid_bits = reverseBits(valid_bits); // reverse the bits, so that the first valid bit is the LSB
+        unsigned char valid_bits = (unsigned char)((bitmap_[bitmap_pos] >> bit_pos) & 0xFF);
 
         mask &= valid_bits; // only keep the valid bits
         if (mask == 0) continue; // no match in this SIMD register
