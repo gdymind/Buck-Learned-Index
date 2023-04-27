@@ -25,9 +25,9 @@ public:
     using KeyValueType = KeyValue<KeyType, ValueType>;
     using KeyValuePtrType = KeyValue<KeyType, uintptr_t>;
 
-    BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO, bool use_linear_regression = true): use_linear_regression_(use_linear_regression) {
+    BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO, bool use_linear_regression = true): 
+              use_linear_regression_(use_linear_regression), initial_filled_ratio_(initial_filled_ratio) {
         root_ = NULL;
-        initial_filled_ratio_ = initial_filled_ratio;
         num_levels_ = 0;
     }
     ~BuckIndex() {
@@ -301,7 +301,7 @@ private:
     void* root_;
     //Learned index constants
     static const uint8_t max_levels_ = 16;
-    double initial_filled_ratio_;
+    const double initial_filled_ratio_;
     const bool use_linear_regression_;
     //Statistics
     uint64_t num_levels_; // the number of layers including model layers and the data layer
