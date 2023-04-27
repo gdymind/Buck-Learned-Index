@@ -301,7 +301,7 @@ private:
     void* root_;
     //Learned index constants
     static const uint8_t max_levels_ = 16;
-    double filled_ratio_ = 0.50;
+    const double filled_ratio_;
     const bool use_linear_regression_;
     //Statistics
     uint64_t num_levels_; // the number of layers including model layers and the data layer
