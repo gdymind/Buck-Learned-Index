@@ -14,14 +14,6 @@
 
 #include "keyvalue.h"
 
-#ifdef UNITTEST
-// Parameters used by the unit test
-#define MAX_DATA_BUCKET_SIZE 4
-#define MAX_SEGMENT_BUCKET_SIZE 2
-#else
-#define MAX_DATA_BUCKET_SIZE 128
-#define MAX_SEGMENT_BUCKET_SIZE 8
-#endif
 
 namespace buckindex {
 
