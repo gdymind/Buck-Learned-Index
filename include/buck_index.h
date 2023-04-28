@@ -4,6 +4,7 @@
 #include "segment.h"
 #include "segmentation.h"
 #include "util.h"
+#include <chrono>
 
 /**
  * Index configurations
@@ -43,6 +44,8 @@ public:
     bool lookup(KeyType key, ValueType &value) {
         if (!root_) return false;
 
+        auto start = std::chrono::high_resolution_clock::now();
+
         uint64_t layer_idx = num_levels_ - 1;
         uintptr_t seg_ptr = (uintptr_t)root_;
         bool result = false;
@@ -58,8 +61,16 @@ public:
             }
             layer_idx--;
         }
+
+        auto traverse_end = std::chrono::high_resolution_clock::now();
+        // Calculate elapsed time (in seconds)
+        lookup_stats_.time_traverse_to_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(traverse_end - start).count();
+
         DataBucketType* d_bucket = (DataBucketType *)seg_ptr;
         result = d_bucket->lookup(key, value);
+
+        auto end = std::chrono::high_resolution_clock::now();
+        lookup_stats_.time_lookup_in_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(end - traverse_end).count();
         return result;
     }
 
@@ -115,6 +126,7 @@ public:
 
                 pivot_list[pong].clear();
                 success = cur_segment->segment_and_batch_update(initial_filled_ratio_, pivot_list[ping], pivot_list[pong]);
+                level_stats_[num_levels_ - 1 - cur_level] += (pivot_list[pong].size()-1);
                 old_pivot = path[cur_level];
                 assert(success);
 
@@ -146,10 +158,12 @@ public:
                 }
                 root_ = new SegmentType(pivot_list[ping].size(), initial_filled_ratio_, model, 
                                     pivot_list[ping].begin(), pivot_list[ping].end(), use_linear_regression_);
+                level_stats_[num_levels_] = 1;
                 num_levels_++;
             }
        
             num_data_buckets_++;
+            level_stats_[0]++;
 
             // GC
             for (auto seg_ptr : GC_segs) { // TODO: support MRSW
@@ -157,7 +171,7 @@ public:
                 delete seg;
             }
         }
-
+        num_keys_++;
         return success;
     }
 
@@ -171,7 +185,10 @@ public:
         num_levels_ = 0;
         run_data_layer_segmentation(kvs,
                                     kvptr_array[ping]);
+        
+        num_keys_ = kvs.size();
         num_data_buckets_ = kvptr_array[ping].size();
+        level_stats_[num_levels_] = num_data_buckets_;
         num_levels_++;
 
         assert(kvptr_array[ping].size() > 0);
@@ -219,6 +236,15 @@ public:
      */
     uint64_t get_num_data_buckets() {
         return num_data_buckets_;
+    }
+
+    /**
+     * Helper function to get the number of keys in the index
+     *
+     * @return the number of keys in the index
+     */
+    uint64_t get_num_keys() {
+        return num_keys_;
     }
 private:
 
@@ -268,7 +294,7 @@ private:
             }
             //segment->dump();
         }
-        level_stats_[0] = out_cuts.size();
+        //level_stats_[0] = out_cuts.size();
     }
 
     /**
@@ -306,38 +332,32 @@ private:
     
     
     //Statistics
+    uint64_t num_keys_; // the number of keys in the index // NOTE: may include the dummy key // TODO: add unit test
     uint64_t num_levels_; // the number of layers including model layers and the data layer
-    uint64_t num_data_buckets_; //TODO: update num_data_buckets_ during bulk_load and insert
-    uint64_t level_stats_[max_levels_]; // TODO: update level_stats_ during bulk_load and insert
+    uint64_t num_data_buckets_; // TODO:  add unit test for update num_data_buckets_ during bulk_load and insert
+    uint64_t level_stats_[max_levels_]; // TODO:  add unit test for update level_stats_ during bulk_load and insert
 
     
-    struct Stats {
-        uint64_t num_keys; // num of keys
-        uint64_t num_levels; // the number of layers including model layers and the data layer. Level 0 is the data layer
-        uint64_t num_data_buckets; // num of data buckets
-        //TODO: update num_data_buckets_ during bulk_load and insert
+    struct lookupStats {
+        double time_traverse_to_leaf = 0; // total time to traverse to leaf; 
+        // need to divide by num of lookup to get average
 
-        uint64_t level_stats[max_levels]; // num of segments/buckets in each level
-        // TODO: update level_stats_ during bulk_load and insert
-
-
-        int num_expand_and_scales = 0;
-        int num_expand_and_retrains = 0;
-        int num_downward_splits = 0;
-        int num_sideways_splits = 0;
-        int num_model_node_expansions = 0;
-        int num_model_node_splits = 0;
-        long long num_downward_split_keys = 0;
-        long long num_sideways_split_keys = 0;
-        long long num_model_node_expansion_pointers = 0;
-        long long num_model_node_split_pointers = 0;
-        mutable long long num_node_lookups = 0;
-        mutable long long num_lookups = 0;
-        long long num_inserts = 0;
-        double splitting_time = 0;
-        double cost_computation_time = 0;
+        double time_lookup_in_leaf = 0; // total time to lookup in leaf;
     };
-    Stats stats_;
+    lookupStats lookup_stats_;
+
+    struct insertStats { // TODO
+        double time_traverse_to_leaf = 0; // total time to traverse to leaf; 
+        // need to divide by num of lookup to get average
+
+        double time_lookup_in_leaf = 0; // total time to lookup in leaf;
+
+        double time_SMO = 0; // total time to perform SMO;
+    };
+    insertStats insert_stats_;
+
+
+
 
     // public:
     // // Number of elements
