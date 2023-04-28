@@ -693,7 +693,7 @@ namespace buckindex {
         }
     }
 */
-        TEST(Segment, batch_update_d_bucket_entry) {
+    TEST(Segment, batch_update_d_bucket_entry) {
         using DataBucketType = Bucket<KeyListValueList<key_t, value_t, 4>,
                                   key_t, value_t, 4>;
         using SegmentType = Segment<key_t,  8>;
@@ -817,7 +817,10 @@ namespace buckindex {
         int idx = 0;
         auto lower = seg.lower_bound(0); // shallow copy is enough
         auto upper = seg.upper_bound(120);
+        
         // query key range [0,120] using lower_bound and upper_bound
+
+        // for (it = lower; *it <= 120; ++it) {
         for (it = lower; it != upper; ++it) {
             EXPECT_TRUE(it->key_ >= 0 && it->key_ <= 120);
             EXPECT_EQ(it->key_, keys[idx]);
@@ -825,7 +828,6 @@ namespace buckindex {
             idx++;
         }
         EXPECT_EQ(7, idx);
-
     
         // alternative:
         // store the upper_bound(99) iterator to avoid calling upper_bound(99) multiple times
