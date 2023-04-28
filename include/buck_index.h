@@ -5,47 +5,30 @@
 #include "segmentation.h"
 #include "util.h"
 
-namespace buckindex {
 /**
  * Index configurations
  */
-#ifdef UNITTEST
-// Parameters used by the unit test
-#define MAX_DATA_BUCKET_SIZE 2
-#define MAX_SEGMENT_BUCKET_SIZE 2
-#define FILLED_RATIO 0.5
-#else
-#define MAX_DATA_BUCKET_SIZE 128
-#define MAX_SEGMENT_BUCKET_SIZE 8
-#define FILLED_RATIO 0.5
-#endif
+#define DEFAULT_FILLED_RATIO 0.6
+
+namespace buckindex {
 
 
-template<typename KeyType, typename ValueType>
+template<typename KeyType, typename ValueType, size_t SEGMENT_BUCKET_SIZE, size_t DATA_BUCKET_SIZE>
 class BuckIndex {
 public:
     //List of template aliasing
-    using DataBucketType = Bucket<KeyListValueList<KeyType, ValueType, MAX_DATA_BUCKET_SIZE>,
-                                  KeyType, ValueType, MAX_DATA_BUCKET_SIZE>;
-    using SegBucketType = Bucket<KeyValueList<KeyType, ValueType, MAX_SEGMENT_BUCKET_SIZE>,
-                                  KeyType, ValueType, MAX_SEGMENT_BUCKET_SIZE>;
-    using SegmentType = Segment<KeyType, ValueType,
-                                MAX_SEGMENT_BUCKET_SIZE>;
+    using DataBucketType = Bucket<KeyListValueList<KeyType, ValueType, DATA_BUCKET_SIZE>,
+                                  KeyType, ValueType, DATA_BUCKET_SIZE>;
+    using SegBucketType = Bucket<KeyValueList<KeyType, ValueType, SEGMENT_BUCKET_SIZE>,
+                                  KeyType, ValueType, SEGMENT_BUCKET_SIZE>;
+    using SegmentType = Segment<KeyType, SEGMENT_BUCKET_SIZE>;
     using KeyValueType = KeyValue<KeyType, ValueType>;
     using KeyValuePtrType = KeyValue<KeyType, uintptr_t>;
 
-    BuckIndex() {
+    BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO, bool use_linear_regression = true): 
+              use_linear_regression_(use_linear_regression), initial_filled_ratio_(initial_filled_ratio) {
         root_ = NULL;
         num_levels_ = 0;
-    }
-
-    /**
-     * Constructor which can specify the bucket sizes
-     */
-    BuckIndex(uint64_t dbucket_size, uint64_t sbucket_size) {
-        root_ = NULL;
-        //TODO: Need to figure out how to pass the parameter in the template aliasing
-        exit(1);
     }
     ~BuckIndex() {
         //TODO
@@ -64,9 +47,11 @@ public:
         uintptr_t seg_ptr = (uintptr_t)root_;
         bool result = false;
         value = 0;
+        KeyValuePtrType kv_ptr;
         while (layer_idx > 0) {
             SegmentType* segment = (SegmentType*)seg_ptr;
-            result = segment->lookup(key, seg_ptr);
+            result = segment->lookup(key, kv_ptr);
+            seg_ptr = kv_ptr.value_;
             if (!seg_ptr) {
                 std::cerr << " failed to perform segment lookup for key: " << key << std::endl;
                 return false;
@@ -84,40 +69,96 @@ public:
     * @return true if kv in inserted, false else
     */
     bool insert(KeyValueType& kv) {
-        /*
-        if (!root_) {
-            root_ = new DataBucketType();
-            num_levels_ = 1;
+        if (root_ == nullptr) { 
+            std::vector<KeyValueType> kvs;
+            KeyValueType kv1(std::numeric_limits<KeyType>::min(), 0);
+            kvs.push_back(kv1);
+            kvs.push_back(kv);
+            bulk_load(kvs);
+            return true;
         }
 
-        bool success = true;
+        // traverse to the leaf D-Bucket, and record the path
+        std::vector<KeyValuePtrType> path(num_levels_);//root-to-leaf path, including the  data bucket
+        bool success = lookup(kv.key_, path);
+        assert(success);
 
-        uint64_t layer_idx = num_levels_ - 1;
-        std::vector<uintptr_t> seg_ptrs(num_levels_, (uintptr_t)nullptr);
-        seg_ptrs[layer_idx] = (uintptr_t)root_;
+        DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1].value_);
+        success = d_bucket->insert(kv, true);
 
-        while (layer_idx > 0) {
-            SegmentType* segment = (SegmentType*)seg_ptrs[layer_idx];
-            success &= segment->lookup(kv.key_, seg_ptrs[layer_idx-1]);
-            assert((void *)seg_ptrs[layer_idx-1] != nullptr);
-            layer_idx--; 
-        }
-        
-        // propagate the new pivot
-        if (!success) propagate_level_pivot(kv.key_,seg_ptrs);
-        
-        DataBucketType* d_bucket = (DataBucketType *)seg_ptrs[0];
-        if (!d_bucket->insert(kv, true)) { // if fail to insert, call scale_and_segmentation //TODO: if no segment yet, create one //TODO: change if to while
-            SegmentType* old_seg = (SegmentType*)seg_ptrs[1];
-            //std::vector<std::pair<KeyType,SegmentType*>> new_segs = old_seg->scale_and_segmentation(); // TODO: return a vector of (pivot, segment) pairs
-            //success = update_segments(seg_ptrs, 1, old_seg, new_segs);
-            // TODO: insert again
-            delete old_seg;
+        // TODO: need to implement the GC
+        std::vector<uintptr_t> GC_segs;
+
+        // if fail to insert, split the bucket, and add new kvptr on parent segment
+        if (!success) {
+            std::vector<KeyValuePtrType> pivot_list[2]; // ping-pong list
+            int ping = 0, pong = 1;
+
+            // split d_bucket
+            auto new_d_buckets = d_bucket->split_and_insert(kv);
+            pivot_list[ping].push_back(new_d_buckets.first);
+            pivot_list[ping].push_back(new_d_buckets.second);
+            KeyValuePtrType old_pivot = path[num_levels_-1];
+
+            // propagate the insertion to the parent segments
+            assert(num_levels_ >= 2); // insert into leaf segment
+            int cur_level = num_levels_ - 2; // leaf_segment level
+            while(cur_level >= 0) {
+                SegmentType* cur_segment = (SegmentType*)(path[cur_level].value_);
+                
+                bool is_segment = true;
+                if (cur_level == num_levels_ - 2) is_segment = false; // TODO: let seg.lookup() return key+value ptr instead of ptr only
+                if (cur_segment->batch_update(old_pivot, pivot_list[ping], is_segment)) {
+                    pivot_list[ping].clear();
+                    break;
+                }
+
+                pivot_list[pong].clear();
+                success = cur_segment->segment_and_batch_update(initial_filled_ratio_, pivot_list[ping], pivot_list[pong]);
+                old_pivot = path[cur_level];
+                assert(success);
+
+                GC_segs.push_back((uintptr_t)cur_segment);
+                cur_level--;
+                ping = 1 - ping;
+                pong = 1 - pong;
+            }
+
+            // add one more level
+            assert(pivot_list[ping].size() == 0 || cur_level == -1);
+            if (pivot_list[ping].size() > 0) {
+                LinearModel<KeyType> model;
+                if (use_linear_regression_) {
+                    std::vector<KeyType> keys;
+                    for (auto kv_ptr : pivot_list[ping]) {
+                        keys.push_back(kv_ptr.key_);
+                    }
+                    model = LinearModel<KeyType>::get_regression_model(keys);
+                } else {
+                    double start_key = pivot_list[ping].front().key_;
+                    double end_key = pivot_list[ping].back().key_;
+                    double slope = 0.0, offset = 0.0;
+                    if (pivot_list[ping].size() > 1) {
+                        slope = (end_key - start_key) /(pivot_list[ping].size()- 1);
+                        offset = -slope * start_key;
+                    }
+                    model = LinearModel<KeyType>(slope, offset);
+                }
+                root_ = new SegmentType(pivot_list[ping].size(), initial_filled_ratio_, model, 
+                                    pivot_list[ping].begin(), pivot_list[ping].end(), use_linear_regression_);
+                num_levels_++;
+            }
+       
+            num_data_buckets_++;
+
+            // GC
+            for (auto seg_ptr : GC_segs) { // TODO: support MRSW
+                SegmentType* seg = (SegmentType*)seg_ptr;
+                delete seg;
+            }
         }
 
         return success;
-        */
-       return true;
     }
 
     /**
@@ -130,24 +171,26 @@ public:
         num_levels_ = 0;
         run_data_layer_segmentation(kvs,
                                     kvptr_array[ping]);
-        if (kvptr_array[ping].size() > 0) {
+        num_data_buckets_ = kvptr_array[ping].size();
+        num_levels_++;
+
+        assert(kvptr_array[ping].size() > 0);
+
+        do { // at least one model layer
+            run_model_layer_segmentation(kvptr_array[ping],
+                                            kvptr_array[pong]);
+            ping = (ping +1) % 2;
+            pong = (pong +1) % 2;
+            kvptr_array[pong].clear();
+            level_stats_[num_levels_] = kvptr_array[ping].size();
             num_levels_++;
-            while (kvptr_array[ping].size() > 1) {
-                run_model_layer_segmentation(kvptr_array[ping],
-                                             kvptr_array[pong]);
-                ping = (ping +1) % 2;
-                pong = (pong +1) % 2;
-                kvptr_array[pong].clear();
-                level_stats_[num_levels_] = kvptr_array[ping].size();
-                num_levels_++;
-            }
-            /*
-             * Build the root
-             */
-            KeyValuePtrType& kv_ptr = kvptr_array[ping][0];
-            root_ = (void *)kv_ptr.value_;
-            dump();
-        }
+        } while (kvptr_array[ping].size() > 1);
+        
+        // Build the root
+        KeyValuePtrType& kv_ptr = kvptr_array[ping][0];
+        root_ = (void *)kv_ptr.value_;
+        dump();
+
     }
     /**
      * Helper function to dump the index structure
@@ -159,7 +202,44 @@ public:
             std::cout << "    Layer " << i << " size: " << level_stats_[i] << std::endl;
         }
     }
+
+    /**
+     * Helper function to get the number of levels in the index
+     *
+     * @return the number of levels in the index
+     */
+    uint64_t get_num_levels() {
+        return num_levels_;
+    }
+
+    /**
+     * Helper function to get the number of levels in the index
+     *
+     * @return the number of data buckets in the index
+     */
+    uint64_t get_num_data_buckets() {
+        return num_data_buckets_;
+    }
 private:
+
+    /**
+     * Lookup function, traverse the index to the leaf D-Bucket, and record the path
+     * @param key: lookup key
+     * @param path: the path from root to the leaf D-Bucket
+    */
+    bool lookup(KeyType key, std::vector<KeyValuePtrType> &path) {
+        // traverse the index to the leaf D-Bucket, and record the path
+        bool success = true;
+        path[0] = KeyValuePtrType(std::numeric_limits<KeyType>::min(), (uintptr_t)root_);
+        for (int i = 1; i < num_levels_; i++) {
+            SegmentType* segment = (SegmentType*)path[i-1].value_;
+            success &= segment->lookup(key, path[i]);
+            assert((void *)path[i].value_ != nullptr);
+        }
+        assert(success);
+        return success;
+    }
+
     /**
      * Helper function to perform bucketizaion on the data layer
      *
@@ -169,7 +249,7 @@ private:
     void run_data_layer_segmentation(vector<KeyValueType>& in_kv_array,
                                      vector<KeyValuePtrType>& out_kv_array) {
         vector<Cut<KeyType>> out_cuts;
-        uint64_t initial_bucket_occupacy = MAX_DATA_BUCKET_SIZE * FILLED_RATIO;
+        uint64_t initial_bucket_occupacy = DATA_BUCKET_SIZE * initial_filled_ratio_;
 
         Segmentation<vector<KeyValueType>, KeyType>::compute_fixed_segmentation(in_kv_array,
                                                                                 out_cuts,
@@ -200,85 +280,33 @@ private:
     void run_model_layer_segmentation(vector<KeyValuePtrType>& in_kv_array,
                                       vector<KeyValuePtrType>& out_kv_array) {
         vector<Cut<KeyType>> out_cuts;
-        uint64_t initial_sbucket_occupacy = MAX_SEGMENT_BUCKET_SIZE * FILLED_RATIO;
+        vector<LinearModel<KeyType>> out_models;
+        uint64_t initial_sbucket_occupacy = SEGMENT_BUCKET_SIZE * initial_filled_ratio_;
         Segmentation<vector<KeyValuePtrType>, KeyType>::compute_dynamic_segmentation(in_kv_array,
-                                                                                     out_cuts,
-                                                                                     initial_sbucket_occupacy);
+                                                                                     out_cuts, out_models,
+                                                                                     initial_sbucket_occupacy, use_linear_regression_);
         for(auto i = 0; i < out_cuts.size(); i++) {
             uint64_t start_idx = out_cuts[i].start_;
             uint64_t length = out_cuts[i].size_;
-            LinearModel<KeyType> m(out_cuts[i].get_model());
 
-            SegmentType* segment = new SegmentType(length, FILLED_RATIO, m,
-                                                   in_kv_array.begin() + start_idx, in_kv_array.begin() + start_idx + length);
+            SegmentType* segment = new SegmentType(length, initial_filled_ratio_, out_models[i],
+                                                   in_kv_array.begin() + start_idx, in_kv_array.begin() + start_idx + length,
+                                                   use_linear_regression_);
             out_kv_array.push_back(KeyValuePtrType(in_kv_array[start_idx].key_,
                                                    (uintptr_t)segment));
         }
     }
 
-    /**
-     * Helper function for insert() to update from a single segment to multiple new segments
-     * @param seg_ptrs: segment pointers path of every level for this insert()
-     * @param pos: the position of old_seg, whose parent seg is at pos+1
-     * @param old_seg: the old segment to be removed
-     * @param new_seg: new segments to be inserted
-    */
-    bool update_segments(std::vector<uintptr_t> &seg_ptrs, size_t pos, SegmentType *old_seg, std::vector<std::pair<KeyType,SegmentType*>> new_segs) {
-        /*
-        if (pos > 0) { 
-            SegmentType *par_seg  = (SegmentType*)seg_ptrs[pos+1];
-            for(std::pair<KeyType, SegmentType *> seg: new_segs) {
-                KeyValuePtrType kvptr = KeyValuePtrType(seg.first, (uintptr_t)seg.second);
-                par_seg->insert(kvptr);
-            }
-            par_seg->del_value((uintptr_t)old_seg); //TODO: add seg_delete
-        } else { // alreay at the root level, and we need to add one more level
-                DataBucketType* d_bucket = (DataBucketType *)seg_ptrs[0];
-                LinearModel<KeyType> m(0.0, 0.0);
-                std::vector<KeyValuePtrType> list;
-                list.push_back(KeyValuePtrType(d_bucket->get_pivot(), (uintptr_t)root_));
-                root_ = new SegmentType(1, 1.0/MAX_SEGMENT_BUCKET_SIZE, m, list.begin(), list.end());
-        }
-        */
-        return true;
-    }
-
-    /**
-     * Helper function to update pivot
-    */
-    bool propagate_level_pivot(KeyType new_pivot, std::vector<uintptr_t> &seg_ptrs) {
-        /*
-        int n = seg_ptrs.size();
-        for (int i = n - 1; i >= 0; i--) {
-                SegmentType *segment = (SegmentType *)seg_ptrs[i];
-                SegBucketType *first_bucket; // the first bucket has the smallest pivot
-                first_bucket = segment->get_bucket(0);
-                ValueType pivot = first_bucket->get_pivot();
-
-                int pos = first_bucket->get_pos(pivot); // get the position of the pivot entry
-                assert(pos != -1);
-
-                ValueType value; // get the child pointer of the pivot entry
-                assert(first_bucket->lookup(pivot, value) == true);
-
-                // note the order of the following three opreations to support concurency
-                first_bucket->insert(KeyValueType(new_pivot, value), true); 
-                first_bucket->set_pivot(new_pivot);
-                first_bucket->invalidate(pos);
-        }
-        */
-        return true;     
-    }
-    
-    //The root of the learned index. Root can be a segment or a bucket
+    //The root segment of the learned index.
     void* root_;
     //Learned index constants
     static const uint8_t max_levels_ = 16;
-    //const double filled_ratio_ = 0.50;
+    const double initial_filled_ratio_;
+    const bool use_linear_regression_;
     //Statistics
-    uint8_t num_levels_;
+    uint64_t num_levels_; // the number of layers including model layers and the data layer
     uint64_t num_data_buckets_; //TODO: update num_data_buckets_ during bulk_load and insert
-    uint64_t level_stats_[max_levels_];
+    uint64_t level_stats_[max_levels_]; // TODO: update level_stats_ during bulk_load and insert
 
 };
 

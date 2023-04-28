@@ -2,6 +2,7 @@
 #include "linear_model.h"
 #include "greedy_error_corridor.h"
 
+
 namespace buckindex {
     using namespace std;
     template<typename T>
@@ -53,8 +54,8 @@ namespace buckindex {
     class Segmentation {
     public:
         static void compute_dynamic_segmentation(Container &in_kv_array,
-                                                 vector<Cut<KeyType>>& out_cuts,
-                                                 uint64_t error_bound) {
+                                                 vector<Cut<KeyType>>& out_cuts, vector<LinearModel<KeyType>> &out_models,
+                                                 uint64_t error_bound, const bool use_linear_regression) {
             GreedyErrorCorridor<KeyType> alg;
             int idx = 0;
             Cut<KeyType> c;
@@ -62,16 +63,27 @@ namespace buckindex {
             typename Container::const_iterator start = in_kv_array.cbegin();
             typename Container::const_iterator end = in_kv_array.cend();
 
+            vector<KeyType> keys;
+
             alg.init(start->get_key(), error_bound);
             c.add_sample(start->get_key());
+            if(use_linear_regression) keys.push_back(start->get_key());
             idx = 1;
             start++;
             while (start != end) {
                 if (alg.is_bounded(start->get_key())) {
                     c.add_sample(start->get_key());
+                    keys.push_back(start->get_key());
                 } else {
                     out_cuts.push_back(c);
+                    if(use_linear_regression) {
+                        out_models.push_back(LinearModel<KeyType>::get_regression_model(keys));
+                        keys.clear();
+                    } else {
+                        out_models.push_back(c.get_model());
+                    }
                     alg.init(start->get_key(), error_bound);
+                    if (use_linear_regression) keys.push_back(start->get_key());
                     c = Cut<KeyType>(idx);
                     c.add_sample(start->get_key());
                 }
@@ -79,6 +91,12 @@ namespace buckindex {
                 start++;
             };
             out_cuts.push_back(c);
+            if(use_linear_regression) {
+                out_models.push_back(LinearModel<KeyType>::get_regression_model(keys));
+                keys.clear();
+            } else {
+                out_models.push_back(c.get_model());
+            }
         }
 
         static void compute_fixed_segmentation(Container &in_kv_array,
