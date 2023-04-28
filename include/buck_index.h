@@ -71,6 +71,8 @@ public:
 
         auto end = std::chrono::high_resolution_clock::now();
         lookup_stats_.time_lookup_in_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(end - traverse_end).count();
+
+        lookup_stats_.num_of_lookup++;
         return result;
     }
 
@@ -246,6 +248,16 @@ public:
     uint64_t get_num_keys() {
         return num_keys_;
     }
+
+    /**
+     * Helper function to dump the look up statistics
+     */
+    void print_lookup_stat(){
+        cout << "lookup stat: " << endl;
+        cout<<"num lookups: "<<lookup_stats_.num_lookup<<endl;
+        cout<<"avg time traverse to leaf: "<<lookup_stats_.time_traverse_to_leaf/lookup_stats_.num_lookup<<endl;
+        cout<<"avg time lookup in leaf: "<<lookup_stats_.time_lookup_in_leaf/lookup_stats_.num_lookup<<endl;
+    }
 private:
 
     /**
@@ -339,6 +351,8 @@ private:
 
     
     struct lookupStats {
+        size_t num_of_lookup = 0; // total number of lookup
+
         double time_traverse_to_leaf = 0; // total time to traverse to leaf; 
         // need to divide by num of lookup to get average
 
