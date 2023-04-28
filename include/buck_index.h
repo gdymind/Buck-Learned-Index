@@ -25,11 +25,12 @@ public:
     using KeyValueType = KeyValue<KeyType, ValueType>;
     using KeyValuePtrType = KeyValue<KeyType, uintptr_t>;
 
-    BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO, bool use_linear_regression = true, bool use_SIMD = false): 
+    BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO, bool use_linear_regression = true, bool use_SIMD = true): 
               use_linear_regression_(use_linear_regression), initial_filled_ratio_(initial_filled_ratio), use_SIMD_(use_SIMD) {
         root_ = NULL;
         SegmentType::use_linear_regression_ = use_linear_regression_;
         Segmentation<vector<KeyValueType>, KeyType>::use_linear_regression_ = use_linear_regression_;
+        DataBucketType::use_SIMD_ = use_SIMD_;
         num_levels_ = 0;
     }
     ~BuckIndex() {

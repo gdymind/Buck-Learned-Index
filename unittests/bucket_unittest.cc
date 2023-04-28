@@ -89,6 +89,9 @@ namespace buckindex {
         key_t key;
         value_t value;
 
+        Bucket<KVList8, key_t, value_t, 8>::use_SIMD_ = false;
+        EXPECT_FALSE((Bucket<KVList8, key_t, value_t, 8>::use_SIMD_));
+
         // keys =   {0, 1, 2, 3, 4, 5,  6,  7}
         // values = {1, 3, 5, 7, 9, 11, 13, 15}
         for (int i = 0; i < 8; i++) list.put(i, i, i * 2 + 1);
@@ -122,6 +125,9 @@ namespace buckindex {
         int key;
         int value;
 
+        Bucket<KVList8, key_t, value_t, 8>::use_SIMD_ = true;
+        EXPECT_TRUE((Bucket<KVList8, key_t, value_t, 8>::use_SIMD_));
+
         // keys =   {0, 1, 2, 3, 4, 5,  6,  7}
         // values = {1, 3, 5, 7, 9, 11, 13, 15}
         for (int i = 0; i < 8; i++) list.put(i, i, i * 2 + 1);
@@ -130,12 +136,14 @@ namespace buckindex {
         EXPECT_EQ(0, bucket.num_keys());
         
         // lookup non-existing key
+        EXPECT_FALSE(bucket.lookup(0, value));
         EXPECT_FALSE(bucket.SIMD_lookup(0, value));
         
 
         // check "lookup return values" and "num_keys after insertion"
         for (int i = 0; i < 8; i++) {
             EXPECT_TRUE(bucket.insert(list.at(i), true));
+            EXPECT_TRUE(bucket.lookup(i, value));
             EXPECT_TRUE(bucket.SIMD_lookup(i, value));
             EXPECT_EQ(i * 2 + 1, value);
             EXPECT_EQ(i+1, bucket.num_keys());
@@ -151,6 +159,9 @@ namespace buckindex {
         key_t key;
         value_t value;
 
+        Bucket<KVList8, key_t, value_t, 8>::use_SIMD_ = true;
+        EXPECT_TRUE((Bucket<KVList8, key_t, value_t, 8>::use_SIMD_));
+
         // keys =   {0, 1, 2, 3, 4, 5,  6,  7}
         // values = {1, 3, 5, 7, 9, 11, 13, 15}
         for (int i = 0; i < 8; i++) list.put(i, i, i * 2 + 1);
@@ -159,12 +170,14 @@ namespace buckindex {
         EXPECT_EQ(0, bucket.num_keys());
         
         // lookup non-existing key
+        EXPECT_FALSE(bucket.lookup(0, value));
         EXPECT_FALSE(bucket.SIMD_lookup(0, value));
         
 
         // check "lookup return values" and "num_keys after insertion"
         for (int i = 0; i < 8; i++) {
             EXPECT_TRUE(bucket.insert(list.at(i), true));
+            EXPECT_TRUE(bucket.lookup(i, value));
             EXPECT_TRUE(bucket.SIMD_lookup(i, value));
             EXPECT_EQ(i * 2 + 1, value);
             EXPECT_EQ(i+1, bucket.num_keys());
@@ -179,6 +192,9 @@ namespace buckindex {
         KeyListValueList<key_t, value_t, 256> list;
         key_t key;
         value_t value;
+
+        Bucket<KeyListValueList<key_t, value_t, 256>, key_t, value_t, 256>::use_SIMD_ = false;
+        EXPECT_FALSE((Bucket<KeyListValueList<key_t, value_t, 256>, key_t, value_t, 256>::use_SIMD_));
     
         for (int i = 0; i < 200; i++) list.put(i, i, i * 2 + 1);
 
@@ -211,6 +227,9 @@ namespace buckindex {
         KeyListValueList<int, int, 256> list;
         int key;
         int value;
+
+         Bucket<KeyListValueList<int, int, 256>, int, int, 256>::use_SIMD_ = true;
+        EXPECT_TRUE((Bucket<KeyListValueList<int, int, 256>, int, int, 256>::use_SIMD_));
     
         for (int i = 0; i < 200; i++) list.put(i, i, i * 2 + 1);
 
@@ -218,16 +237,20 @@ namespace buckindex {
         EXPECT_EQ(0, bucket.num_keys());
         
         // lookup non-existing key
+        EXPECT_FALSE(bucket.lookup(0, value));
         EXPECT_FALSE(bucket.SIMD_lookup(0, value));
         
         // lookup existing/non-existing keys after single insertion
         EXPECT_TRUE(bucket.insert(list.at(0), true));
+        EXPECT_TRUE(bucket.lookup(0, value));
         EXPECT_TRUE(bucket.SIMD_lookup(0, value));
+        EXPECT_FALSE(bucket.lookup(1, value));
         EXPECT_FALSE(bucket.SIMD_lookup(1, value));
 
         // check "lookup return values" and "num_keys" after insertion
         for (int i = 1; i < 65; i++) {
             EXPECT_TRUE(bucket.insert(list.at(i), true));
+            EXPECT_TRUE(bucket.lookup(i, value));
             EXPECT_TRUE(bucket.SIMD_lookup(i, value));
             EXPECT_EQ(i * 2 + 1, value);
             EXPECT_EQ(i+1, bucket.num_keys());
@@ -235,6 +258,7 @@ namespace buckindex {
         }
 
         bucket.invalidate(101);
+        EXPECT_FALSE(bucket.lookup(101, value));
         EXPECT_FALSE(bucket.SIMD_lookup(101, value));
     }
 
@@ -243,6 +267,9 @@ namespace buckindex {
         KeyListValueList<key_t, value_t, 256> list;
         key_t key;
         value_t value;
+
+        Bucket<KeyListValueList<key_t, value_t, 256>, key_t, value_t, 256>::use_SIMD_ = true;
+        EXPECT_TRUE((Bucket<KeyListValueList<key_t, value_t, 256>, key_t, value_t, 256>::use_SIMD_));
     
         for (int i = 0; i < 200; i++) list.put(i, i, i * 2 + 1);
 
@@ -250,16 +277,20 @@ namespace buckindex {
         EXPECT_EQ(0, bucket.num_keys());
         
         // lookup non-existing key
+        EXPECT_FALSE(bucket.lookup(0, value));
         EXPECT_FALSE(bucket.SIMD_lookup(0, value));
         
         // lookup existing/non-existing keys after single insertion
         EXPECT_TRUE(bucket.insert(list.at(0), true));
+        EXPECT_TRUE(bucket.lookup(0, value));
         EXPECT_TRUE(bucket.SIMD_lookup(0, value));
+        EXPECT_FALSE(bucket.lookup(1, value));
         EXPECT_FALSE(bucket.SIMD_lookup(1, value));
 
         // check "lookup return values" and "num_keys" after insertion
         for (int i = 1; i < 2; i++) {
             EXPECT_TRUE(bucket.insert(list.at(i), true));
+            EXPECT_TRUE(bucket.lookup(i, value));
             EXPECT_TRUE(bucket.SIMD_lookup(i, value));
             EXPECT_EQ(i * 2 + 1, value);
             EXPECT_EQ(i+1, bucket.num_keys());
@@ -267,6 +298,7 @@ namespace buckindex {
         }
 
         bucket.invalidate(101);
+        EXPECT_FALSE(bucket.lookup(101, value));
         EXPECT_FALSE(bucket.SIMD_lookup(101, value));
     }
 

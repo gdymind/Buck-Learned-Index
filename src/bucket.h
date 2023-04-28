@@ -32,6 +32,8 @@ public:
     using KeyValuePtrType = KeyValue<T, uintptr_t>;
     using BucketType = Bucket<LISTTYPE, T, V, SIZE>;
 
+    static bool use_SIMD_;
+
     Bucket() {
         // assume T and V has the same size, so we can perform masked load
         // assert(sizeof(T) == sizeof(V));
@@ -189,12 +191,18 @@ private:
 
     // Helper functions for SIMD
     // assume T and V are the same type, so we can perform masked load
-    __m256i SIMD_load_keys(const KeyListValueList<T, V, SIZE>& list, int pos) const; 
-    // __m256i SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const;
+    __m256i SIMD_load_keys(const KeyListValueList<T, V, SIZE>& list, int pos) const;
+    __m256i SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const;
 };
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value) const {
+    // if it's D-Bucket and use SIMD, call SIMD_lookup
+    if (use_SIMD_ &&
+        std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>::value) {
+        return SIMD_lookup(key, value);
+    }
+
     for (int i = 0; i < SIZE; i++) {
         if (valid(i) && list_.at(i).key_ == key) {
             value = list_.at(i).value_;
@@ -267,12 +275,14 @@ __m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyListValueList<T, V
     return _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&list.keys_[pos]));
 }
 
-// template<class LISTTYPE, typename T, typename V, size_t SIZE>
-// __m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const {
-//     __m256i key_mask = _mm256_setr_epi32(-1, 0, -1, 0, -1, 0, -1, 0);
-//     const int* ptr = reinterpret_cast<const int*>(&list.kvs_[pos]);
-//     return _mm256_maskload_epi32(ptr, key_mask); // only load keys, the values bits are set to 0
-// }
+template<class LISTTYPE, typename T, typename V, size_t SIZE>
+__m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const {
+    assert(false); // KeyValueList does not support SIMD_lookup
+
+    // __m256i key_mask = _mm256_setr_epi32(-1, 0, -1, 0, -1, 0, -1, 0);
+    // const int* ptr = reinterpret_cast<const int*>(&list.kvs_[pos]);
+    // return _mm256_maskload_epi32(ptr, key_mask); // only load keys, the values bits are set to 0
+}
 
 // print the bits of a __m256i
 inline void print_m256i_bits(const __m256i &key_vector) {
@@ -437,5 +447,7 @@ private:
     int cur_pos_ = 0;  // current position in the bucket list, cur_pos_ == SIZE if at end
   };
 
+template<class LISTTYPE, typename T, typename V, size_t SIZE>
+bool Bucket<LISTTYPE, T, V, SIZE>::use_SIMD_ = true;
 
 } // end namespace buckindex
