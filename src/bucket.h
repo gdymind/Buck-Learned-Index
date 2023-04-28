@@ -10,6 +10,7 @@
 #include<utility>
 #include<limits>
 #include <algorithm> 
+#include <bitset>
 #include <immintrin.h> //SIMD
 
 #include "keyvalue.h"
@@ -17,7 +18,7 @@
 
 namespace buckindex {
 
-const unsigned int BITS_UINT64_T = 64;
+constexpr unsigned int BITS_UINT64_T = sizeof(uint64_t) * 8;;
 
 /**
  * Bucket is a list of unsorted KeyValue
@@ -25,23 +26,33 @@ const unsigned int BITS_UINT64_T = 64;
  * Note that the template parameter SIZE must matches the SIZE of the LISTTYPE
  */
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-class Bucket { // can be an S-Bucket or a D-Bucket. S-Bucket and D-Bucket and different size
+class Bucket { // can be an S-Bucket or a D-Bucket. S-Bucket and D-Bucket have different sizes
 public:
     using KeyValueType = KeyValue<T, V>;
     using KeyValuePtrType = KeyValue<T, uintptr_t>;
     using BucketType = Bucket<LISTTYPE, T, V, SIZE>;
+
+    static bool use_SIMD_;
+
     Bucket() {
-        pivot_ = std::numeric_limits<T>::max();
+        // assume T and V has the same size, so we can perform masked load
+        // assert(sizeof(T) == sizeof(V));
+
+        // support only 32-bit and 64-bit keys for SIMD_lookup
+        assert(sizeof(T) == 4 || sizeof(T) == 8);
+
+        pivot_ = std::numeric_limits<T>::max(); // std::numeric_limits<T>::max() means invalid
         memset(bitmap_, 0, sizeof(bitmap_));
     }
 
-    bool lookup(const T &key, V& value) const;
-    // Find the largest key that is <= the lookup key
-    bool lb_lookup(const T &key, KeyValueType& kv) const; // find the largest key that is <= the lookup key
-    bool lookup_SIMD(const T &key, KeyValueType& value) const; // TODO: LISTTYPE do the lookup
-    bool lb_lookup_SIMD(const T &key, KeyValueType& value) const; // lower-bound lookup
+    bool lookup(const T &key, V& value) const; // D-Bucket lookup
+    bool lb_lookup(const T &key, KeyValueType& kv) const; // S-Bucket lower_bound lookup; find the largest key that is <= the lookup key
+
+    bool SIMD_lookup(const T &key, V& value) const; // D-Bucket lookup
+    bool SIMD_lb_lookup(const T &key, KeyValueType& value) const; // S-Bucket lower_bound lookup;
+
     bool insert(const KeyValueType &kv, bool update_pivot); // Return false if insert() fails
-    bool update(const KeyValueType &kv); // Return false if update() fails
+    bool update(const KeyValueType &kv); // find kv.key_ and update its value; return false if not found
 
     /**
      * Split the bucket into two buckets by the median key, and insert a new key-value pair
@@ -140,35 +151,34 @@ public:
     //bitmap operations
     inline int find_empty_slot() const { // return the offset of the first bit=0
         for (int i = 0; i < BITMAP_SIZE; i++) {
-            int pos = __builtin_clzll(~bitmap_[i]);
-            if (pos != BITS_UINT64_T) { // found one empty slot
-                pos = i * BITS_UINT64_T + pos;
-                if (pos < SIZE) return pos;
-                else return -1; // there are some redundant bits
-                                // when SIZE % BITS_UINT64_T != 0
-            }
+            if (bitmap_[i] == UINT64_MAX) continue; // all bits are 1 (occupied)
+            int pos = __builtin_ctzll(~bitmap_[i]);
+            pos = i * BITS_UINT64_T + pos;
+            if (pos < SIZE) return pos;
+            else return -1; // there are some redundant bits
+                            // when SIZE % BITS_UINT64_T != 0
         }
-        return -1; // No zero bit found
+        return -1; // no empty slot
     }
 
     inline void validate(int pos) {
         assert(pos >= 0 && pos < SIZE);
         int bitmap_pos = pos / BITS_UINT64_T;
-        int bit_pos = BITS_UINT64_T - 1 - pos % BITS_UINT64_T; // pos from the most significant bit
+        int bit_pos = pos % BITS_UINT64_T; // pos from LSB
         bitmap_[bitmap_pos] |= (1ULL << bit_pos);
     }
 
     inline void invalidate(int pos) {
         assert(pos >= 0 && pos < SIZE);
         int bitmap_pos = pos / BITS_UINT64_T;
-        int bit_pos = BITS_UINT64_T - 1 - pos % BITS_UINT64_T;
+        int bit_pos = pos % BITS_UINT64_T;
         bitmap_[bitmap_pos] &= ~(1ULL << bit_pos);
     } 
 
     inline bool valid(int pos) const {
         assert(pos >= 0 && pos < SIZE);
         int bitmap_pos = pos / BITS_UINT64_T;
-        int bit_pos = BITS_UINT64_T - 1 - pos % BITS_UINT64_T;
+        int bit_pos = pos % BITS_UINT64_T;
         return (bitmap_[bitmap_pos]  & (1ULL << bit_pos)) != 0;
     }
 
@@ -178,10 +188,21 @@ private:
    
     T pivot_;
     LISTTYPE list_;
+
+    // Helper functions for SIMD
+    // assume T and V are the same type, so we can perform masked load
+    __m256i SIMD_load_keys(const KeyListValueList<T, V, SIZE>& list, int pos) const;
+    __m256i SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const;
 };
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value) const {
+    // if it's D-Bucket and use SIMD, call SIMD_lookup
+    if (use_SIMD_ &&
+        std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>::value) {
+        return SIMD_lookup(key, value);
+    }
+
     for (int i = 0; i < SIZE; i++) {
         if (valid(i) && list_.at(i).key_ == key) {
             value = list_.at(i).value_;
@@ -209,18 +230,6 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(const T &key, KeyValueType &kv) con
     return true;
 }
 
-
-template<class LISTTYPE, typename T, typename V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::lookup_SIMD(const T &key, KeyValueType &value) const {
-    // TODO
-    return false;
-}
-
-template<class LISTTYPE, typename T, typename V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup_SIMD(const T &key, KeyValueType &value) const {
-    // TODO
-    return false;
-}
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::insert(const KeyValueType &kv, bool update_pivot) {
@@ -251,7 +260,6 @@ template<class LISTTYPE, typename T, typename V, size_t SIZE>
 KeyValue<T, V> Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) const {
     int n = num_keys();
     k--;
-    if (k < 0 || k >= n) std::cout << "k = " << k << ", n = " << n << std::endl << std::flush;
     assert(k >= 0 && k < n);
 
     std::vector<KeyValueType> valid_kvs;
@@ -260,6 +268,90 @@ KeyValue<T, V> Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) const {
     
     std::nth_element(valid_kvs.begin(), valid_kvs.begin() + k, valid_kvs.end());
     return valid_kvs[k];
+}
+
+template<class LISTTYPE, typename T, typename V, size_t SIZE>
+__m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyListValueList<T, V, SIZE>& list, int pos) const {
+    return _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&list.keys_[pos]));
+}
+
+template<class LISTTYPE, typename T, typename V, size_t SIZE>
+__m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const {
+    assert(false); // KeyValueList does not support SIMD_lookup
+
+    // __m256i key_mask = _mm256_setr_epi32(-1, 0, -1, 0, -1, 0, -1, 0);
+    // const int* ptr = reinterpret_cast<const int*>(&list.kvs_[pos]);
+    // return _mm256_maskload_epi32(ptr, key_mask); // only load keys, the values bits are set to 0
+}
+
+// print the bits of a __m256i
+inline void print_m256i_bits(const __m256i &key_vector) {
+    int element0 = _mm256_extract_epi32(key_vector, 0);
+    int element1 = _mm256_extract_epi32(key_vector, 1);
+    int element2 = _mm256_extract_epi32(key_vector, 2);
+    int element3 = _mm256_extract_epi32(key_vector, 3);
+    int element4 = _mm256_extract_epi32(key_vector, 4);
+    int element5 = _mm256_extract_epi32(key_vector, 5);
+    int element6 = _mm256_extract_epi32(key_vector, 6);
+    int element7 = _mm256_extract_epi32(key_vector, 7);
+
+    std::bitset<32> bits0(element0);
+    std::bitset<32> bits1(element1);
+    std::bitset<32> bits2(element2);
+    std::bitset<32> bits3(element3);
+    std::bitset<32> bits4(element4);
+    std::bitset<32> bits5(element5);
+    std::bitset<32> bits6(element6);
+    std::bitset<32> bits7(element7);
+
+    std::cout << bits0 << std::endl;
+    std::cout << bits1 << std::endl;
+    std::cout << bits2 << std::endl;
+    std::cout << bits3 << std::endl;
+    std::cout << bits4 << std::endl;
+    std::cout << bits5 << std::endl;
+    std::cout << bits6 << std::endl;
+    std::cout << bits7 << std::endl;
+}
+
+
+template<class LISTTYPE, typename T, typename V, size_t SIZE>
+bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value) const {
+    // We only support D-bucket; S-Bucket always calls SIMD_lb_lookup instead of SIMD_lookup
+    // TODO: support S-Bucket, where key and value are in the same array
+    assert((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>::value));
+
+    constexpr size_t SIMD_WIDTH = 256 / sizeof(T) / 8; // the number of keys in a 256-bit SIMD register
+    __m256i key_vector;
+    if constexpr (sizeof(T) == 4) key_vector = _mm256_set1_epi32(key); // 32-bit integer, repeat key 8 times
+    else if constexpr(sizeof(T) == 8) key_vector = _mm256_set1_epi64x(key); // 64-bit integer, repeat key 4 times
+
+    for (int i = 0; i < SIZE; i += SIMD_WIDTH) {
+        __m256i keys = SIMD_load_keys(list_, i); // load 4 or 8 keys into a SIMD register
+        __m256i cmp;
+        if constexpr (sizeof(T) == 4) cmp = _mm256_cmpeq_epi32(keys, key_vector); // compare every 32 bits;
+                                                                                  // result bits start from LSB
+        else if constexpr (sizeof(T) == 8) cmp = _mm256_cmpeq_epi64(keys, key_vector); // compare every 64 bits;
+                                                                                       // result bits start from LSB
+
+        unsigned char mask; // there are either 4 or 8 bits in the mask, so unsigned char is enough
+        if constexpr(sizeof(T) == 4) mask = _mm256_movemask_ps((__m256)cmp); // 8 bits in the mask, for 32-bit integer
+        else if constexpr(sizeof(T) == 8) mask = _mm256_movemask_pd((__m256d)cmp); // 4 bits in the mask, for 64-bit integer
+        
+        int bitmap_pos = i / BITS_UINT64_T; // use bitmap_[bitmap_pos]
+        int bit_pos = i % BITS_UINT64_T; // pos from MSB
+        // get 8 bits from (bitmap_[bitmap_pos], bit_pos)
+        unsigned char valid_bits = (unsigned char)((bitmap_[bitmap_pos] >> bit_pos) & 0xFF);
+
+        mask &= valid_bits; // only keep the valid bits
+        if (mask == 0) continue; // no match in this SIMD register
+
+        int idx = i + __builtin_ctz(mask);
+        value = list_.at(idx).value_;
+        return true;
+    }
+
+    return false;
 }
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
@@ -355,5 +447,7 @@ private:
     int cur_pos_ = 0;  // current position in the bucket list, cur_pos_ == SIZE if at end
   };
 
+template<class LISTTYPE, typename T, typename V, size_t SIZE>
+bool Bucket<LISTTYPE, T, V, SIZE>::use_SIMD_ = true;
 
 } // end namespace buckindex
