@@ -647,7 +647,7 @@ public:
             cur_index_ = std::lower_bound(sorted_list_.begin(), sorted_list_.end(), kv) - sorted_list_.begin();
         }
         else{
-            kv.value_ = std::numeric_limits<V>::max(); // make sure no matter what the value is, it will be the first key > key
+            kv.value_ = std::numeric_limits<uintptr_t>::max(); // make sure no matter what the value is, it will be the first key > key
             cur_index_ = std::upper_bound(sorted_list_.begin(), sorted_list_.end(), kv) - sorted_list_.begin();
         }
         if(cur_index_ == sorted_list_.size()) {
@@ -703,7 +703,7 @@ private:
 
     T upper_bound = std::numeric_limits<T>::max();
 
-    std::vector<KeyValue<T, uintptr_t>> sorted_list; // initialized when cbegin() is called or move to another bucket
+    std::vector<KeyValue<T, uintptr_t>> sorted_list_; // initialized when cbegin() is called or move to another bucket
 
     // find the next entry in the sorted list (Can cross boundary of bucket)
     inline void find_next() {
