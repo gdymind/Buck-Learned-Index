@@ -254,9 +254,9 @@ public:
      */
     void print_lookup_stat(){
         cout << "lookup stat: " << endl;
-        cout<<"num lookups: "<<lookup_stats_.num_lookup<<endl;
-        cout<<"avg time traverse to leaf: "<<lookup_stats_.time_traverse_to_leaf/lookup_stats_.num_lookup<<endl;
-        cout<<"avg time lookup in leaf: "<<lookup_stats_.time_lookup_in_leaf/lookup_stats_.num_lookup<<endl;
+        cout<<"num lookups: "<<lookup_stats_.num_of_lookup<<endl;
+        cout<<"avg time traverse to leaf: "<<lookup_stats_.time_traverse_to_leaf/lookup_stats_.num_of_lookup<<endl;
+        cout<<"avg time lookup in leaf: "<<lookup_stats_.time_lookup_in_leaf/lookup_stats_.num_of_lookup<<endl;
     }
 private:
 
