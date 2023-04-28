@@ -535,18 +535,18 @@ public:
     /*
     // explicit const_iterator(SegmentType *segment) : segment_(segment) {
     //     assert(segment_ != nullptr);
-    //     cur_buckID = 0;
-    //     cur_index = 0;
-    //     sorted_list.clear();
+    //     cur_buckID_ = 0;
+    //     cur_index_ = 0;
+    //     sorted_list_.clear();
 
     //     // find the first valid bucket
     //     while(!reach_to_end()){
-    //         if(segment_->sbucket_list_[cur_buckID].num_keys() == 0){
-    //             cur_buckID++;
+    //         if(segment_->sbucket_list_[cur_buckID_].num_keys() == 0){
+    //             cur_buckID_++;
     //         }
     //         else{
-    //             segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list); 
-    //             sort(sorted_list.begin(), sorted_list.end());
+    //             segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_); 
+    //             sort(sorted_list_.begin(), sorted_list_.end());
     //             break;
     //         }
     //     }       
@@ -556,59 +556,59 @@ public:
     // num of bucket to indicate the end
     const_iterator(SegmentType *segment, int pos) : segment_(segment) {
         assert(pos >= 0 && pos <= segment_->size());
-        cur_buckID = 0;
-        cur_index = 0;
+        cur_buckID_ = 0;
+        cur_index_ = 0;
         if(pos == segment_->size()){
-            cur_buckID = segment_->num_bucket_;
+            cur_buckID_ = segment_->num_bucket_;
             return;
         }
 
         // locate the bucket
-        while(pos >= segment_->sbucket_list_[cur_buckID].num_keys()){
-            cur_buckID++;
-            pos -= segment_->sbucket_list_[cur_buckID].num_keys();
+        while(pos >= segment_->sbucket_list_[cur_buckID_].num_keys()){
+            cur_buckID_++;
+            pos -= segment_->sbucket_list_[cur_buckID_].num_keys();
         }
 
         // inside the bucket, locate the index
-        segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list); 
-        sort(sorted_list.begin(), sorted_list.end());
-        cur_index = pos;
+        segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_); 
+        sort(sorted_list_.begin(), sorted_list_.end());
+        cur_index_ = pos;
     }
 
     // find the first key >= key or the first key > key
     // allow_qual -> upper_bound
     const_iterator(SegmentType *segment, int buckID, T key, bool allow_equal) : segment_(segment) {
         assert(buckID >= 0 && buckID <= segment_->num_bucket_);
-        cur_buckID = buckID;
-        cur_index = 0;
+        cur_buckID_ = buckID;
+        cur_index_ = 0;
 
         if(!allow_equal){ // indicating this is an upper bound iterator
             upper_bound = key;
-            cur_buckID = segment_->num_bucket_;
+            cur_buckID_ = segment_->num_bucket_;
             return;
         }
 
         // locate the bucket
-        while(segment_->sbucket_list_[cur_buckID].num_keys() == 0){
-            cur_buckID++;
-            if(cur_buckID == segment_->num_bucket_) return;
+        while(segment_->sbucket_list_[cur_buckID_].num_keys() == 0){
+            cur_buckID_++;
+            if(cur_buckID_ == segment_->num_bucket_) return;
         }
         
-        segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list);
-        sort(sorted_list.begin(), sorted_list.end());
+        segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_);
+        sort(sorted_list_.begin(), sorted_list_.end());
         KeyValue<T, V> kv;
         kv.key_ = key;
         if(allow_equal){ // make sure no matter what the value is, it will be the first key >= key
             kv.value_ = 0;
-            cur_index = std::lower_bound(sorted_list.begin(), sorted_list.end(), kv) - sorted_list.begin();
+            cur_index_ = std::lower_bound(sorted_list_.begin(), sorted_list_.end(), kv) - sorted_list_.begin();
         }
         else{
             kv.value_ = std::numeric_limits<V>::max(); // make sure no matter what the value is, it will be the first key > key
-            cur_index = std::upper_bound(sorted_list.begin(), sorted_list.end(), kv) - sorted_list.begin();
+            cur_index_ = std::upper_bound(sorted_list_.begin(), sorted_list_.end(), kv) - sorted_list_.begin();
         }
-        if(cur_index == sorted_list.size()) {
-            assert(cur_index > 0);
-            cur_index--;
+        if(cur_index_ == sorted_list_.size()) {
+            assert(cur_index_ > 0);
+            cur_index_--;
             find_next();
         }
     }
@@ -630,21 +630,21 @@ public:
     // *it
     const KeyValue<T, V> operator*() const {
         assert(upper_bound == std::numeric_limits<T>::max());
-        return sorted_list[cur_index];
+        return sorted_list_[cur_index_];
     }
 
     // it->
     const KeyValue<T, V>* operator->() const {
         assert(upper_bound == std::numeric_limits<T>::max());
-        return &(sorted_list[cur_index]);
+        return &(sorted_list_[cur_index_]);
     }
 
     // if rhs is an upper bound iterator, then it will return true, if cur_key > upper bound
     bool operator==(const const_iterator& rhs) const {
-        if (sorted_list.size() != 0 && cur_index < sorted_list.size() && sorted_list[cur_index].key_ > rhs.upper_bound) {
+        if (sorted_list_.size() != 0 && cur_index_ < sorted_list_.size() && sorted_list_[cur_index_].key_ > rhs.upper_bound) {
             return true;
         }
-        return segment_ == rhs.segment_ && cur_buckID == rhs.cur_buckID && cur_index == rhs.cur_index;
+        return segment_ == rhs.segment_ && cur_buckID_ == rhs.cur_buckID_ && cur_index_ == rhs.cur_index_;
     }
 
     bool operator!=(const const_iterator& rhs) const { 
@@ -654,30 +654,31 @@ public:
 private:
     SegmentType *segment_;
     //int cur_pos_ = 0;  // current position in the sbucket list, 
-    size_t cur_buckID = 0;
-    size_t cur_index = 0;
+    size_t cur_buckID_ = 0;
+    size_t cur_index_ = 0;
 
     T upper_bound = std::numeric_limits<T>::max();
 
-    std::vector<KeyValue<T, V>> sorted_list; // initialized when cbegin() is called or move to another bucket
+    // TODO: sorted_list__
+    std::vector<KeyValue<T, V>> sorted_list_; // initialized when cbegin() is called or move to another bucket
 
     // find the next entry in the sorted list (Can cross boundary of bucket)
     inline void find_next() {
         if (reach_to_end()) return;
-        cur_index++;
-        if(cur_index == sorted_list.size()){
-            cur_buckID++;
-            sorted_list.clear();
-            cur_index = 0;
+        cur_index_++;
+        if(cur_index_ == sorted_list_.size()){
+            cur_buckID_++;
+            sorted_list_.clear();
+            cur_index_ = 0;
             
             // find the next valid bucket
             while(!reach_to_end()){
-                if(segment_->sbucket_list_[cur_buckID].num_keys() == 0){
-                    cur_buckID++;
+                if(segment_->sbucket_list_[cur_buckID_].num_keys() == 0){
+                    cur_buckID_++;
                 }
                 else{
-                    segment_->sbucket_list_[cur_buckID].get_valid_kvs(sorted_list); 
-                    sort(sorted_list.begin(), sorted_list.end());
+                    segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_); 
+                    sort(sorted_list_.begin(), sorted_list_.end());
                     break;
                 }
             }
@@ -685,7 +686,7 @@ private:
     }
 
     bool reach_to_end(){
-        return (cur_buckID == segment_->num_bucket_);
+        return (cur_buckID_ == segment_->num_bucket_);
     }
 };
 
