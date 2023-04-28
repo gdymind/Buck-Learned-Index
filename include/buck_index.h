@@ -25,9 +25,11 @@ public:
     using KeyValueType = KeyValue<KeyType, ValueType>;
     using KeyValuePtrType = KeyValue<KeyType, uintptr_t>;
 
-    BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO, bool use_linear_regression = true): 
-              use_linear_regression_(use_linear_regression), initial_filled_ratio_(initial_filled_ratio) {
+    BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO, bool use_linear_regression = true, bool use_SIMD = false): 
+              use_linear_regression_(use_linear_regression), initial_filled_ratio_(initial_filled_ratio), use_SIMD_(use_SIMD) {
         root_ = NULL;
+        SegmentType::use_linear_regression_ = use_linear_regression_;
+        Segmentation<vector<KeyValueType>, KeyType>::use_linear_regression_ = use_linear_regression_;
         num_levels_ = 0;
     }
     ~BuckIndex() {
@@ -145,7 +147,7 @@ public:
                     model = LinearModel<KeyType>(slope, offset);
                 }
                 root_ = new SegmentType(pivot_list[ping].size(), initial_filled_ratio_, model, 
-                                    pivot_list[ping].begin(), pivot_list[ping].end(), use_linear_regression_);
+                                    pivot_list[ping].begin(), pivot_list[ping].end());
                 num_levels_++;
             }
        
@@ -284,14 +286,13 @@ private:
         uint64_t initial_sbucket_occupacy = SEGMENT_BUCKET_SIZE * initial_filled_ratio_;
         Segmentation<vector<KeyValuePtrType>, KeyType>::compute_dynamic_segmentation(in_kv_array,
                                                                                      out_cuts, out_models,
-                                                                                     initial_sbucket_occupacy, use_linear_regression_);
+                                                                                     initial_sbucket_occupacy);
         for(auto i = 0; i < out_cuts.size(); i++) {
             uint64_t start_idx = out_cuts[i].start_;
             uint64_t length = out_cuts[i].size_;
 
             SegmentType* segment = new SegmentType(length, initial_filled_ratio_, out_models[i],
-                                                   in_kv_array.begin() + start_idx, in_kv_array.begin() + start_idx + length,
-                                                   use_linear_regression_);
+                                                   in_kv_array.begin() + start_idx, in_kv_array.begin() + start_idx + length);
             out_kv_array.push_back(KeyValuePtrType(in_kv_array[start_idx].key_,
                                                    (uintptr_t)segment));
         }
@@ -303,6 +304,7 @@ private:
     static const uint8_t max_levels_ = 16;
     const double initial_filled_ratio_;
     const bool use_linear_regression_;
+    const bool use_SIMD_;
     //Statistics
     uint64_t num_levels_; // the number of layers including model layers and the data layer
     uint64_t num_data_buckets_; //TODO: update num_data_buckets_ during bulk_load and insert
