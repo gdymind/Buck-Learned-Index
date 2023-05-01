@@ -30,12 +30,16 @@ public:
         init(initial_filled_ratio, use_linear_regression, use_SIMD);
     }
 
-    void init(double initial_filled_ratio, bool use_linear_regression, bool use_SIMD) {
+    void init(double initial_filled_ratio, bool use_linear_regression, bool use_SIMD){
         root_ = NULL;
+        num_levels_ = 0;
+
+        use_linear_regression_ = use_linear_regression;
+        initial_filled_ratio_ = initial_filled_ratio;
+        use_SIMD_ = use_SIMD;
         SegmentType::use_linear_regression_ = use_linear_regression;
         Segmentation<vector<KeyValueType>, KeyType>::use_linear_regression_ = use_linear_regression;
         DataBucketType::use_SIMD_ = use_SIMD;
-        num_levels_ = 0;
     }
 
     ~BuckIndex() {
@@ -307,9 +311,9 @@ private:
     void* root_;
     //Learned index constants
     static const uint8_t max_levels_ = 16;
-    const double initial_filled_ratio_;
-    const bool use_linear_regression_;
-    const bool use_SIMD_;
+    double initial_filled_ratio_;
+    bool use_linear_regression_;
+    bool use_SIMD_;
     //Statistics
     uint64_t num_levels_; // the number of layers including model layers and the data layer
     uint64_t num_data_buckets_; //TODO: update num_data_buckets_ during bulk_load and insert
