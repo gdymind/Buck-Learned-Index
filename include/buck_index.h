@@ -34,7 +34,7 @@ public:
         num_levels_ = 0;
     }
     ~BuckIndex() {
-        //TODO
+
     }
 
     /**
@@ -74,8 +74,8 @@ public:
         kvs.reserve(num_keys);
 
         // traverse to leaf and record the path
-        std::vector<KeyValuePtrType> path(num_levels_);//root-to-leaf path, including the  data bucket
-        bool success = lookup(key_lower_bound, path); // TODO: optimize to eliminate multiple lookups
+        std::vector<KeyValuePtrType> path(num_levels_);//root-to-leaf path, including the data bucket
+        bool success = lookup(key_lower_bound, path);
 
         // get the d-bucket iterator
         DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
@@ -296,6 +296,8 @@ private:
         while(cur_level >= 0) {
             SegmentType* cur_segment = (SegmentType*)(path[cur_level].value_);
             auto seg_iter = cur_segment->lower_bound(path[cur_level+1].key_); // find the one after path[cur_level+1]
+                                                                              // TODO optimization: store the seg_iter,
+                                                                              // and use it as the start point for the next call
             if (seg_iter != cur_segment->cend() && (*seg_iter).key_ == path[cur_level+1].key_) {
                 seg_iter++;
             }
