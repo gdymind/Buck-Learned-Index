@@ -199,4 +199,110 @@ namespace buckindex {
 
         EXPECT_FALSE(bli.lookup(1000000000, value));
     }
+
+
+    TEST(BuckIndex, scan_one_segment) {
+        BuckIndex<uint64_t, uint64_t, 8, 64> bli(0.5, true, true);
+
+        uint64_t key;
+        uint64_t value;
+
+        for (int i = 3; i < 1000; i += 3) {
+            KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(i, i * 2 + 5);
+            EXPECT_TRUE(bli.insert(kv));
+            EXPECT_TRUE(bli.lookup(i, value));
+            EXPECT_EQ(i * 2 + 5, value);
+            EXPECT_FALSE(bli.lookup(i+1, value));
+        }
+
+        uint64_t start_key = 122;
+        size_t num_keys = 234;
+        std::vector<KeyValue<uint64_t, uint64_t>> result;
+        EXPECT_TRUE(bli.scan(start_key, num_keys, result));
+        EXPECT_EQ(234, result.size());
+        int i = 123;
+        for (auto kv: result) {
+            EXPECT_EQ(i, kv.key_);
+            EXPECT_EQ(i * 2 + 5, kv.value_);
+            i += 3;
+        }
+
+        start_key = 1;
+        num_keys = 234;
+        result.clear();
+        EXPECT_TRUE(bli.scan(start_key, num_keys, result));
+        EXPECT_EQ(234, result.size());
+        i = 3;
+        for (auto kv: result) {
+            EXPECT_EQ(i, kv.key_);
+            EXPECT_EQ(i * 2 + 5, kv.value_);
+            i += 3;
+        }
+
+        start_key = 10000;
+        num_keys = 234;
+        EXPECT_FALSE(bli.scan(start_key, num_keys, result));
+    }
+
+    TEST(BuckIndex, scan_multi_segment) {
+        BuckIndex<uint64_t, uint64_t, 8, 16> bli(0.5, true, true);
+
+        uint64_t key;
+        uint64_t value;
+
+        for (int i = 3; i < 1000; i += 3) {
+            KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(i, i * 2 + 5);
+            EXPECT_TRUE(bli.insert(kv));
+            EXPECT_TRUE(bli.lookup(i, value));
+            EXPECT_EQ(i * 2 + 5, value);
+            EXPECT_FALSE(bli.lookup(i+1, value));
+        }
+
+        for (int i = 100002; i < 100100; i += 3) {
+            KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(i, i * 2 + 5);
+            EXPECT_TRUE(bli.insert(kv));
+            EXPECT_TRUE(bli.lookup(i, value));
+            EXPECT_EQ(i * 2 + 5, value);
+            EXPECT_FALSE(bli.lookup(i+1, value));
+        }
+
+        uint64_t start_key = 122;
+        size_t num_keys = 234;
+        std::vector<KeyValue<uint64_t, uint64_t>> result;
+        EXPECT_TRUE(bli.scan(start_key, num_keys, result));
+        EXPECT_EQ(234, result.size());
+        int i = 123;
+        for (auto kv: result) {
+            EXPECT_EQ(i, kv.key_);
+            EXPECT_EQ(i * 2 + 5, kv.value_);
+            i += 3;
+        }
+
+        start_key = 1;
+        num_keys = 234;
+        result.clear();
+        EXPECT_TRUE(bli.scan(start_key, num_keys, result));
+        EXPECT_EQ(234, result.size());
+        i = 3;
+        for (auto kv: result) {
+            EXPECT_EQ(i, kv.key_);
+            EXPECT_EQ(i * 2 + 5, kv.value_);
+            i += 3;
+        }
+
+        start_key = 990;
+        num_keys = 10;
+        EXPECT_TRUE(bli.scan(start_key, num_keys, result));
+        EXPECT_EQ(10, result.size());
+        EXPECT_EQ(990, result[0].key_);
+        EXPECT_EQ(993, result[1].key_);
+        EXPECT_EQ(996, result[2].key_);
+        EXPECT_EQ(999, result[3].key_);
+        EXPECT_EQ(100002, result[4].key_);
+        EXPECT_EQ(100005, result[5].key_);
+        EXPECT_EQ(100008, result[6].key_);
+        EXPECT_EQ(100011, result[7].key_);
+        EXPECT_EQ(100014, result[8].key_);
+        EXPECT_EQ(100017, result[9].key_);
+    }
 }

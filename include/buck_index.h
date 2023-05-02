@@ -66,6 +66,44 @@ public:
         return result;
     }
 
+
+    bool scan(KeyType key_lower_bound, size_t num_keys, std::vector<KeyValueType> &kvs) {
+        if (!root_) return false;
+
+        kvs.clear();
+        kvs.reserve(num_keys);
+
+        // traverse to leaf and record the path
+        std::vector<KeyValuePtrType> path(num_levels_);//root-to-leaf path, including the  data bucket
+        bool success = lookup(key_lower_bound, path); // TODO: optimize to eliminate multiple lookups
+
+        // get the d-bucket iterator
+        DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
+        auto dbuck_iter = d_bucket->lower_bound(key_lower_bound);
+
+        SegmentType* segment = (SegmentType*)path[num_levels_-2].value_;
+        auto seg_iter = segment->cbegin();
+
+        while (kvs.size() < num_keys) {
+            // scan keys in the d-bucket
+            while(kvs.size() < num_keys && dbuck_iter != d_bucket->end()) {
+                kvs.push_back(*dbuck_iter);
+                dbuck_iter++;
+            }
+
+            // get the next d-bucket
+            if (kvs.size() < num_keys) {
+                do {
+                    if (!find_next_d_bucket(path)) { return false; }
+                    d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
+                    dbuck_iter = d_bucket->begin();
+                } while (dbuck_iter == d_bucket->end()); // empty d-bucket, visit the next one
+            }
+        }
+        
+        return true;
+    }
+
     /**
     * Insert function
     * @param kv: the Key-Value pair to be inserted
@@ -110,9 +148,10 @@ public:
                 SegmentType* cur_segment = (SegmentType*)(path[cur_level].value_);
                 
                 bool is_segment = true;
-                if (cur_level == num_levels_ - 2) is_segment = false; // TODO: let seg.lookup() return key+value ptr instead of ptr only
+                if (cur_level == num_levels_ - 2) is_segment = false;
                 if (cur_segment->batch_update(old_pivot, pivot_list[ping], is_segment)) {
                     pivot_list[ping].clear();
+                    success = true;
                     break;
                 }
 
@@ -241,6 +280,44 @@ private:
         }
         assert(success);
         return success;
+    }
+
+    /**
+     * Helper function for scan() to find the next D-Bucket
+     * @param path: the path from root to the leaf D-Bucket
+     * @return true if the next D-Bucket is found, else false
+    */
+    bool find_next_d_bucket(std::vector<KeyValuePtrType> &path) {
+        assert(path.size() == num_levels_);
+
+        int cur_level = num_levels_ - 2; // leaf_segment level
+        assert(cur_level >= 0);
+
+        while(cur_level >= 0) {
+            SegmentType* cur_segment = (SegmentType*)(path[cur_level].value_);
+            auto seg_iter = cur_segment->lower_bound(path[cur_level+1].key_); // find the one after path[cur_level+1]
+            if (seg_iter != cur_segment->cend() && (*seg_iter).key_ == path[cur_level+1].key_) {
+                seg_iter++;
+            }
+            if (seg_iter != cur_segment->cend()) { // found the next entry
+                path[cur_level+1] = *seg_iter; // update to the next entry
+
+                // update the lower-level path
+                int tranverse_down_level = cur_level + 1;
+                while(tranverse_down_level < num_levels_ - 1) {
+                    SegmentType* segment = (SegmentType*)path[tranverse_down_level].value_;
+                    seg_iter = segment->cbegin();
+                    path[tranverse_down_level+1] = *seg_iter;
+                    tranverse_down_level++;
+                }
+
+                return true;
+            } else { // not found, go to the upper level
+                cur_level--;
+            }
+        }
+
+        return false;
     }
 
     /**
