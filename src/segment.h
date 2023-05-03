@@ -664,6 +664,11 @@ public:
         find_next();
     }
 
+    // void operator--(int) {
+    //     assert(upper_bound == std::numeric_limits<T>::max());
+    //     find_previous();
+    // }
+
     // prefix ++it
     const_iterator &operator++() {
         assert(upper_bound == std::numeric_limits<T>::max());
@@ -727,6 +732,32 @@ private:
             }
         }
     }
+
+    // // find the previous entry in the sorted list (Can cross boundary of bucket)
+    // inline void find_previous() {
+    //     if (reach_to_begin()) return;
+    //     if (cur_index_ == 0) {
+    //         cur_buckID_--;
+    //         while(!reach_to_begin()){
+    //             if(segment_->sbucket_list_[cur_buckID_].num_keys() == 0){
+    //                 cur_buckID_--;
+    //             }
+    //             else{
+    //                 segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_); 
+    //                 sort(sorted_list_.begin(), sorted_list_.end());
+    //                 break;
+    //             }
+    //         }
+    //         cur_index_ = sorted_list_.size() - 1;
+    //     }
+    //     else {
+    //         cur_index_--;
+    //     }
+    // }
+
+    // bool reach_to_begin(){
+    //     return (cur_buckID_ == 0 && cur_index_ == 0);
+    // }
 
     bool reach_to_end(){
         return (cur_buckID_ == segment_->num_bucket_);
