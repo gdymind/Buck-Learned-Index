@@ -326,6 +326,19 @@ namespace buckindex {
         EXPECT_EQ(100017, result[9].first);
         EXPECT_EQ(100017 * 2 + 5, result[9].second);
 
+        // test scanning at the end, and the number of keys to be scan
+        // is larger than the number of remaining keys in the index
+        start_key = 100080;
+        num_keys = 100;
+        n_result = bli.scan(start_key, num_keys, result);
+        EXPECT_EQ(7, n_result); // 10080, 10083, 10086, 10089, 10092, 10095, 10098
+        idx = 100080;
+        for (int i = 0; i < n_result; i++) {
+            EXPECT_EQ(idx, result[i].first);
+            EXPECT_EQ(idx * 2 + 5, result[i].second);
+            idx += 3;
+        }
+
         delete[] result;
     }
 }

@@ -86,9 +86,6 @@ public:
         DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
         auto dbuck_iter = d_bucket->lower_bound(start_key);
 
-        SegmentType* segment = (SegmentType*)path[num_levels_-2].value_;
-        auto seg_iter = segment->cbegin();
-
         while (num_scanned < num_to_scan) {
             // scan keys in the d-bucket
             while(num_scanned < num_to_scan && dbuck_iter != d_bucket->end()) {
@@ -101,7 +98,7 @@ public:
             // get the next d-bucket
             if (num_scanned < num_to_scan) {
                 do {
-                    if (!find_next_d_bucket(path)) { return false; }
+                    if (!find_next_d_bucket(path)) return num_scanned;
                     d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
                     dbuck_iter = d_bucket->begin();
                 } while (dbuck_iter == d_bucket->end()); // empty d-bucket, visit the next one
