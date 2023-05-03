@@ -66,33 +66,40 @@ public:
         return result;
     }
 
+    /**
+     * Scan function
+     * @param start_key: scan from the first key that is >= start_key
+     * @param scan_num: the number of key-value pairs to be scanned
+     * @param kvs: the scanned key-value pairs
+     * @return the number of key-value pairs scanned(<= scan_num)
+    */
+    size_t scan(KeyType start_key, size_t num_to_scan, std::pair<KeyType, ValueType> *kvs) {
+        if (!root_) return 0;
 
-    bool scan(KeyType key_lower_bound, size_t num_keys, std::vector<KeyValueType> &kvs) {
-        if (!root_) return false;
-
-        kvs.clear();
-        kvs.reserve(num_keys);
+        int num_scanned = 0;
 
         // traverse to leaf and record the path
         std::vector<KeyValuePtrType> path(num_levels_);//root-to-leaf path, including the data bucket
-        bool success = lookup(key_lower_bound, path);
+        bool success = lookup(start_key, path);
 
         // get the d-bucket iterator
         DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
-        auto dbuck_iter = d_bucket->lower_bound(key_lower_bound);
+        auto dbuck_iter = d_bucket->lower_bound(start_key);
 
         SegmentType* segment = (SegmentType*)path[num_levels_-2].value_;
         auto seg_iter = segment->cbegin();
 
-        while (kvs.size() < num_keys) {
+        while (num_scanned < num_to_scan) {
             // scan keys in the d-bucket
-            while(kvs.size() < num_keys && dbuck_iter != d_bucket->end()) {
-                kvs.push_back(*dbuck_iter);
+            while(num_scanned < num_to_scan && dbuck_iter != d_bucket->end()) {
+                KeyValueType kv = (*dbuck_iter);
+                kvs[num_scanned] = std::make_pair(kv.key_, kv.value_);
+                num_scanned++;
                 dbuck_iter++;
             }
 
             // get the next d-bucket
-            if (kvs.size() < num_keys) {
+            if (num_scanned < num_to_scan) {
                 do {
                     if (!find_next_d_bucket(path)) { return false; }
                     d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
@@ -101,7 +108,7 @@ public:
             }
         }
         
-        return true;
+        return num_scanned;
     }
 
     /**
