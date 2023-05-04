@@ -26,14 +26,24 @@ public:
     using KeyValueType = KeyValue<KeyType, ValueType>;
     using KeyValuePtrType = KeyValue<KeyType, uintptr_t>;
 
-    BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO, bool use_linear_regression = true): 
-              use_linear_regression_(use_linear_regression), initial_filled_ratio_(initial_filled_ratio) {
+    BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO, bool use_linear_regression = true, bool use_SIMD = true): 
+              use_linear_regression_(use_linear_regression), initial_filled_ratio_(initial_filled_ratio), use_SIMD_(use_SIMD) {
+        init(initial_filled_ratio, use_linear_regression, use_SIMD);
+    }
+
+    void init(double initial_filled_ratio, bool use_linear_regression, bool use_SIMD){
         root_ = NULL;
         num_levels_ = 0;
+
+        use_linear_regression_ = use_linear_regression;
+        initial_filled_ratio_ = initial_filled_ratio;
+        use_SIMD_ = use_SIMD;
+        SegmentType::use_linear_regression_ = use_linear_regression;
+        Segmentation<vector<KeyValueType>, KeyType>::use_linear_regression_ = use_linear_regression;
+        DataBucketType::use_SIMD_ = use_SIMD;
     }
-    ~BuckIndex() {
-        //TODO
-    }
+
+    ~BuckIndex() { }
 
     /**
      * Lookup function
@@ -74,6 +84,48 @@ public:
 
         lookup_stats_.num_of_lookup++;
         return result;
+    }
+
+    /**
+     * Scan function
+     * @param start_key: scan from the first key that is >= start_key
+     * @param scan_num: the number of key-value pairs to be scanned
+     * @param kvs: the scanned key-value pairs
+     * @return the number of key-value pairs scanned(<= scan_num)
+    */
+    size_t scan(KeyType start_key, size_t num_to_scan, std::pair<KeyType, ValueType> *kvs) {
+        if (!root_) return 0;
+
+        int num_scanned = 0;
+
+        // traverse to leaf and record the path
+        std::vector<KeyValuePtrType> path(num_levels_);//root-to-leaf path, including the data bucket
+        bool success = lookup(start_key, path);
+
+        // get the d-bucket iterator
+        DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
+        auto dbuck_iter = d_bucket->lower_bound(start_key);
+
+        while (num_scanned < num_to_scan) {
+            // scan keys in the d-bucket
+            while(num_scanned < num_to_scan && dbuck_iter != d_bucket->end()) {
+                KeyValueType kv = (*dbuck_iter);
+                kvs[num_scanned] = std::make_pair(kv.key_, kv.value_);
+                num_scanned++;
+                dbuck_iter++;
+            }
+
+            // get the next d-bucket
+            if (num_scanned < num_to_scan) {
+                do {
+                    if (!find_next_d_bucket(path)) return num_scanned;
+                    d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
+                    dbuck_iter = d_bucket->begin();
+                } while (dbuck_iter == d_bucket->end()); // empty d-bucket, visit the next one
+            }
+        }
+        
+        return num_scanned;
     }
 
     /**
@@ -120,9 +172,10 @@ public:
                 SegmentType* cur_segment = (SegmentType*)(path[cur_level].value_);
                 
                 bool is_segment = true;
-                if (cur_level == num_levels_ - 2) is_segment = false; // TODO: let seg.lookup() return key+value ptr instead of ptr only
+                if (cur_level == num_levels_ - 2) is_segment = false;
                 if (cur_segment->batch_update(old_pivot, pivot_list[ping], is_segment)) {
                     pivot_list[ping].clear();
+                    success = true;
                     break;
                 }
 
@@ -159,8 +212,9 @@ public:
                     model = LinearModel<KeyType>(slope, offset);
                 }
                 root_ = new SegmentType(pivot_list[ping].size(), initial_filled_ratio_, model, 
-                                    pivot_list[ping].begin(), pivot_list[ping].end(), use_linear_regression_);
+                                    pivot_list[ping].begin(), pivot_list[ping].end());
                 level_stats_[num_levels_] = 1;
+                                    
                 num_levels_++;
             }
        
@@ -279,6 +333,46 @@ private:
     }
 
     /**
+     * Helper function for scan() to find the next D-Bucket
+     * @param path: the path from root to the leaf D-Bucket
+     * @return true if the next D-Bucket is found, else false
+    */
+    bool find_next_d_bucket(std::vector<KeyValuePtrType> &path) {
+        assert(path.size() == num_levels_);
+
+        int cur_level = num_levels_ - 2; // leaf_segment level
+        assert(cur_level >= 0);
+
+        while(cur_level >= 0) {
+            SegmentType* cur_segment = (SegmentType*)(path[cur_level].value_);
+            auto seg_iter = cur_segment->lower_bound(path[cur_level+1].key_); // find the one after path[cur_level+1]
+                                                                              // TODO optimization: store the seg_iter,
+                                                                              // and use it as the start point for the next call
+            if (seg_iter != cur_segment->cend() && (*seg_iter).key_ == path[cur_level+1].key_) {
+                seg_iter++;
+            }
+            if (seg_iter != cur_segment->cend()) { // found the next entry
+                path[cur_level+1] = *seg_iter; // update to the next entry
+
+                // update the lower-level path
+                int tranverse_down_level = cur_level + 1;
+                while(tranverse_down_level < num_levels_ - 1) {
+                    SegmentType* segment = (SegmentType*)path[tranverse_down_level].value_;
+                    seg_iter = segment->cbegin();
+                    path[tranverse_down_level+1] = *seg_iter;
+                    tranverse_down_level++;
+                }
+
+                return true;
+            } else { // not found, go to the upper level
+                cur_level--;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Helper function to perform bucketizaion on the data layer
      *
      * @param in_kv_array: list of key values from application
@@ -322,14 +416,13 @@ private:
         uint64_t initial_sbucket_occupacy = SEGMENT_BUCKET_SIZE * initial_filled_ratio_;
         Segmentation<vector<KeyValuePtrType>, KeyType>::compute_dynamic_segmentation(in_kv_array,
                                                                                      out_cuts, out_models,
-                                                                                     initial_sbucket_occupacy, use_linear_regression_);
+                                                                                     initial_sbucket_occupacy);
         for(auto i = 0; i < out_cuts.size(); i++) {
             uint64_t start_idx = out_cuts[i].start_;
             uint64_t length = out_cuts[i].size_;
 
             SegmentType* segment = new SegmentType(length, initial_filled_ratio_, out_models[i],
-                                                   in_kv_array.begin() + start_idx, in_kv_array.begin() + start_idx + length,
-                                                   use_linear_regression_);
+                                                   in_kv_array.begin() + start_idx, in_kv_array.begin() + start_idx + length);
             out_kv_array.push_back(KeyValuePtrType(in_kv_array[start_idx].key_,
                                                    (uintptr_t)segment));
         }
@@ -339,10 +432,9 @@ private:
     void* root_;
     //Learned index constants
     static const uint8_t max_levels_ = 16;
-    const double initial_filled_ratio_;
-    const bool use_linear_regression_;
-    
-    
+    double initial_filled_ratio_;
+    bool use_linear_regression_;
+    bool use_SIMD_;
     //Statistics
     uint64_t num_keys_; // the number of keys in the index // NOTE: may include the dummy key // TODO: add unit test
     uint64_t num_levels_; // the number of layers including model layers and the data layer

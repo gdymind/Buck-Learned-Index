@@ -199,4 +199,146 @@ namespace buckindex {
 
         EXPECT_FALSE(bli.lookup(1000000000, value));
     }
+
+
+    TEST(BuckIndex, scan_one_segment) {
+        BuckIndex<uint64_t, uint64_t, 8, 64> bli(0.5, true, true);
+
+        std::pair<uint64_t, uint64_t> *result;
+        result = new std::pair<uint64_t, uint64_t>[1000];
+        int n_result = 0;
+
+        uint64_t key;
+        uint64_t value;
+
+        for (int i = 3; i < 1000; i += 3) {
+            KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(i, i * 2 + 5);
+            EXPECT_TRUE(bli.insert(kv));
+            EXPECT_TRUE(bli.lookup(i, value));
+            EXPECT_EQ(i * 2 + 5, value);
+            EXPECT_FALSE(bli.lookup(i+1, value));
+        }
+
+        uint64_t start_key = 122;
+        size_t num_keys = 234;
+        n_result = bli.scan(start_key, num_keys, result);
+        EXPECT_EQ(234, n_result);
+        int idx = 123;
+        for (int i = 0; i < n_result; i++) {
+            auto &kv = result[i];
+            EXPECT_EQ(idx, kv.first);
+            EXPECT_EQ(idx * 2 + 5, kv.second);
+            idx += 3;
+        }
+
+        start_key = 1;
+        num_keys = 234;
+        n_result = bli.scan(start_key, num_keys, result);
+        EXPECT_EQ(234, n_result);
+        idx = 3;
+        for (int i = 0; i < n_result; i++) {
+            auto &kv = result[i];
+            EXPECT_EQ(idx, kv.first);
+            EXPECT_EQ(idx * 2 + 5, kv.second);
+            idx += 3;
+        }
+
+        start_key = 10000;
+        num_keys = 234;
+        n_result = bli.scan(start_key, num_keys, result);
+        EXPECT_EQ(0, n_result);
+
+        delete[] result;
+    }
+
+    TEST(BuckIndex, scan_multi_segment) {
+        BuckIndex<uint64_t, uint64_t, 8, 16> bli(0.5, true, true);
+
+        std::pair<uint64_t, uint64_t> *result;
+        result = new std::pair<uint64_t, uint64_t>[1000];
+        int n_result = 0;
+
+        uint64_t key;
+        uint64_t value;
+
+        for (int i = 3; i < 1000; i += 3) {
+            KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(i, i * 2 + 5);
+            EXPECT_TRUE(bli.insert(kv));
+            EXPECT_TRUE(bli.lookup(i, value));
+            EXPECT_EQ(i * 2 + 5, value);
+            EXPECT_FALSE(bli.lookup(i+1, value));
+        }
+
+        for (int i = 100002; i < 100100; i += 3) {
+            KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(i, i * 2 + 5);
+            EXPECT_TRUE(bli.insert(kv));
+            EXPECT_TRUE(bli.lookup(i, value));
+            EXPECT_EQ(i * 2 + 5, value);
+            EXPECT_FALSE(bli.lookup(i+1, value));
+        }
+
+        uint64_t start_key = 122;
+        size_t num_keys = 234;
+        n_result = bli.scan(start_key, num_keys, result);
+        EXPECT_EQ(234, n_result);
+        int idx = 123;
+       for (int i = 0; i < n_result; i++) {
+            auto &kv = result[i];
+            EXPECT_EQ(idx, kv.first);
+            EXPECT_EQ(idx * 2 + 5, kv.second);
+            idx += 3;
+        }
+
+        start_key = 1;
+        num_keys = 234;
+        n_result = bli.scan(start_key, num_keys, result);
+        EXPECT_EQ(234, n_result);
+        idx = 3;
+        for (int i = 0; i < n_result; i++) {
+            auto &kv = result[i];
+            EXPECT_EQ(idx, kv.first);
+            EXPECT_EQ(idx * 2 + 5, kv.second);
+            idx += 3;
+        }
+
+        start_key = 990;
+        num_keys = 10;
+        n_result = bli.scan(start_key, num_keys, result);
+        EXPECT_EQ(10, n_result);
+        EXPECT_EQ(990, result[0].first);
+        EXPECT_EQ(990 * 2 + 5, result[0].second);
+        EXPECT_EQ(993, result[1].first);
+        EXPECT_EQ(993 * 2 + 5, result[1].second);
+        EXPECT_EQ(996, result[2].first);
+        EXPECT_EQ(996 * 2 + 5, result[2].second);
+        EXPECT_EQ(999, result[3].first);
+        EXPECT_EQ(999 * 2 + 5, result[3].second);
+        EXPECT_EQ(100002, result[4].first);
+        EXPECT_EQ(100002 * 2 + 5, result[4].second);
+        EXPECT_EQ(100005, result[5].first);
+        EXPECT_EQ(100005 * 2 + 5, result[5].second);
+        EXPECT_EQ(100008, result[6].first);
+        EXPECT_EQ(100008 * 2 + 5, result[6].second);
+        EXPECT_EQ(100011, result[7].first);
+        EXPECT_EQ(100011 * 2 + 5, result[7].second);
+        EXPECT_EQ(100014, result[8].first);
+        EXPECT_EQ(100014 * 2 + 5, result[8].second);
+        EXPECT_EQ(100017, result[9].first);
+        EXPECT_EQ(100017 * 2 + 5, result[9].second);
+
+        // test scanning at the end, and the number of keys to be scan
+        // is larger than the number of remaining keys in the index
+        start_key = 100080;
+        num_keys = 100;
+        n_result = bli.scan(start_key, num_keys, result);
+        EXPECT_EQ(7, n_result); // 10080, 10083, 10086, 10089, 10092, 10095, 10098
+        idx = 100080;
+        for (int i = 0; i < n_result; i++) {
+            EXPECT_EQ(idx, result[i].first);
+            EXPECT_EQ(idx * 2 + 5, result[i].second);
+            idx += 3;
+        }
+
+        delete[] result;
+    }
 }

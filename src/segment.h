@@ -24,9 +24,10 @@ public:
 
     size_t num_bucket_; // total num of buckets
     BucketType* sbucket_list_; // a list of S-Buckets
+    static bool use_linear_regression_;
 
     // default constructors
-    Segment(bool use_linear_regression): use_linear_regression_(use_linear_regression_){
+    Segment(){
         num_bucket_ = 0; // indicating it is empty now
         sbucket_list_ = nullptr;
     }
@@ -39,8 +40,8 @@ public:
     // also pass a start iterator and an end iterator; iterate over the list and insert into the sbucket_list_
     template<typename IterType>
     Segment(size_t num_kv, double fill_ratio, const LinearModel<T> &model, 
-            IterType it, IterType end, bool use_linear_regression)
-    :model_(model), use_linear_regression_(use_linear_regression){
+            IterType it, IterType end)
+    :model_(model){
         //assert(it+num_kv == end); // + operator may not be supported 
 
         //create_bucket_and_load(num_kv,fill_ratio,model,it,end);
@@ -233,7 +234,6 @@ public:
 
 private:
     LinearModel<T> model_;
-    const bool use_linear_regression_;
 
     // TODO: TBD-do we explicitly store x_sum, y_sum, xx_sum and xy_sum
 
@@ -350,14 +350,14 @@ bool Segment<T, SBUCKET_SIZE>::segment_and_batch_update(
     out_cuts.clear();
 
     vector<LinearModel<T>> out_models;
-    Segmentation<std::vector<KeyValue<T,uintptr_t>>, T>::compute_dynamic_segmentation(list, out_cuts, out_models, error_bound, use_linear_regression_);
+    Segmentation<std::vector<KeyValue<T,uintptr_t>>, T>::compute_dynamic_segmentation(list, out_cuts, out_models, error_bound);
 
     // put result of segmentation into multiple segments
     size_t start_pos = 0;
     for(size_t i = 0;i<out_cuts.size();i++){
         // using dynamic allocation in case the segment is destroyed after the loop
         // SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), list.begin() + start_pos, list.begin() + start_pos+out_cuts[i].size_);
-        SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_models[i], list.begin() + start_pos, list.begin() + start_pos+out_cuts[i].size_, use_linear_regression_);
+        SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_models[i], list.begin() + start_pos, list.begin() + start_pos+out_cuts[i].size_);
         T key = out_cuts[i].start_key_;
         KeyValue<T,uintptr_t> kv(key, (uintptr_t)seg);
         new_segs.push_back(kv);
@@ -664,6 +664,11 @@ public:
         find_next();
     }
 
+    // void operator--(int) {
+    //     assert(upper_bound == std::numeric_limits<T>::max());
+    //     find_previous();
+    // }
+
     // prefix ++it
     const_iterator &operator++() {
         assert(upper_bound == std::numeric_limits<T>::max());
@@ -728,10 +733,39 @@ private:
         }
     }
 
+    // // find the previous entry in the sorted list (Can cross boundary of bucket)
+    // inline void find_previous() {
+    //     if (reach_to_begin()) return;
+    //     if (cur_index_ == 0) {
+    //         cur_buckID_--;
+    //         while(!reach_to_begin()){
+    //             if(segment_->sbucket_list_[cur_buckID_].num_keys() == 0){
+    //                 cur_buckID_--;
+    //             }
+    //             else{
+    //                 segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_); 
+    //                 sort(sorted_list_.begin(), sorted_list_.end());
+    //                 break;
+    //             }
+    //         }
+    //         cur_index_ = sorted_list_.size() - 1;
+    //     }
+    //     else {
+    //         cur_index_--;
+    //     }
+    // }
+
+    // bool reach_to_begin(){
+    //     return (cur_buckID_ == 0 && cur_index_ == 0);
+    // }
+
     bool reach_to_end(){
         return (cur_buckID_ == segment_->num_bucket_);
     }
 };
 
+// Define the static member variable
+template<typename T, size_t SBUCKET_SIZE>
+bool Segment<T, SBUCKET_SIZE>::use_linear_regression_ = true;
 
 } // end namespace buckindex
