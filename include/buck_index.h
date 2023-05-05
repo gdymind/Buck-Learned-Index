@@ -29,6 +29,8 @@ public:
     BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO, bool use_linear_regression = true, bool use_SIMD = true): 
               use_linear_regression_(use_linear_regression), initial_filled_ratio_(initial_filled_ratio), use_SIMD_(use_SIMD) {
         init(initial_filled_ratio, use_linear_regression, use_SIMD);
+        if(use_SIMD) printf("Using SIMD\n");
+        else printf("Not using SIMD\n");
     }
 
     void init(double initial_filled_ratio, bool use_linear_regression, bool use_SIMD){
