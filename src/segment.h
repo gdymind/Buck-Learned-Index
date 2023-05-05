@@ -239,6 +239,9 @@ private:
 
     inline unsigned int predict_buck(T key) const { // get the predicted S-Bucket ID based on the model computing
         unsigned int buckID = (unsigned int)(model_.predict(key) / SBUCKET_SIZE);
+        // assert(num_bucket_ > 0);
+        // buckID = std::min(buckID, 0);
+        // buckID = std::max(buckID, num_bucket_-1);
         buckID = std::min(buckID, (unsigned int)std::max(0,(int)(num_bucket_-1))); // ensure num_bucket>0
         return buckID;
     }
@@ -249,7 +252,7 @@ private:
         // Step2: search neighbors to find the exact match (linear search)
         unsigned int buckID = predict_buck(key); // ensure buckID is valid s
 
-
+        //std::cout << "buckID: " << buckID << std::endl;
         if(sbucket_list_[buckID].get_pivot() <= key){ // search forwards
             while(buckID+1<num_bucket_){
                 if(sbucket_list_[buckID+1].get_pivot() > key){
@@ -609,8 +612,10 @@ public:
 
         // locate the bucket
         while(pos >= segment_->sbucket_list_[cur_buckID_].num_keys()){
-            cur_buckID_++;
+            //if(pos<0) std::cout<<"pos: "<<pos<<", num_keys: "<<segment_->sbucket_list_[cur_buckID_].num_keys()<<std::endl;
+            
             pos -= segment_->sbucket_list_[cur_buckID_].num_keys();
+            cur_buckID_++;
         }
 
         // inside the bucket, locate the index
