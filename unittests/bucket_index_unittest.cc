@@ -376,4 +376,38 @@ namespace buckindex {
 
         delete[] result;
     }
+
+    TEST(BuckIndex, level_stat){
+        BuckIndex<uint64_t, uint64_t, 8, 16> bli(0.5, true, true);
+
+        std::pair<uint64_t, uint64_t> *result;
+        result = new std::pair<uint64_t, uint64_t>[1000];
+        int n_result = 0;
+
+        uint64_t key;
+        uint64_t value;
+
+        for (int i = 3; i < 1000; i += 3) {
+            KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(i, i * 2 + 5);
+            EXPECT_TRUE(bli.insert(kv));
+            EXPECT_TRUE(bli.lookup(i, value));
+            EXPECT_EQ(i * 2 + 5, value);
+            EXPECT_FALSE(bli.lookup(i+1, value));
+        }
+
+        for (int i = 100002; i < 100100; i += 3) {
+            KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(i, i * 2 + 5);
+            EXPECT_TRUE(bli.insert(kv));
+            EXPECT_TRUE(bli.lookup(i, value));
+            EXPECT_EQ(i * 2 + 5, value);
+            EXPECT_FALSE(bli.lookup(i+1, value));
+        }
+
+        
+        EXPECT_EQ(bli.get_num_levels(), 3);
+        EXPECT_EQ(bli.get_level_stat(1), 2);
+        EXPECT_EQ(bli.get_level_stat(2), 1);
+
+        delete[] result;
+    }
 }
