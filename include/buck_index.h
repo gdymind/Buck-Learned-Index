@@ -94,6 +94,7 @@ public:
         auto end_time = tn.rdtsc();
         auto diff = tn.tsc2ns(end_time) - tn.tsc2ns(start_time);
         lookup_stats_.time_lookup += (diff/(double) 1000000000);
+        lookup_stats_.num_of_lookup++;
 #endif
 
 
@@ -101,7 +102,7 @@ public:
         // lookup_stats_.time_lookup_in_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(end - traverse_end).count();
 
         
-        lookup_stats_.num_of_lookup++;
+        
         return result;
     }
 
