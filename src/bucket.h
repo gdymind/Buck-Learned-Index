@@ -201,8 +201,8 @@ private:
 
     // Helper functions for SIMD
     // assume T and V are the same type, so we can perform masked load
-    __m256i SIMD_load_keys(const KeyListValueList<T, V, SIZE>& list, int pos) const;
-    __m256i SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const;
+    inline __m256i SIMD_load_keys(const KeyListValueList<T, V, SIZE>& list, int pos) const;
+    inline __m256i SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const;
 };
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
@@ -281,12 +281,12 @@ KeyValue<T, V> Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) const {
 }
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-__m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyListValueList<T, V, SIZE>& list, int pos) const {
+inline __m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyListValueList<T, V, SIZE>& list, int pos) const {
     return _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&list.keys_[pos]));
 }
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-__m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const {
+inline __m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const {
     assert(false); // KeyValueList does not support SIMD_lookup
 
     // __m256i key_mask = _mm256_setr_epi32(-1, 0, -1, 0, -1, 0, -1, 0);
