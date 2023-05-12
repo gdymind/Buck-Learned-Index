@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../../../../tscns.h"
 #include "bucket.h"
 #include "segment.h"
 #include "segmentation.h"
@@ -43,6 +44,9 @@ public:
         SegmentType::use_linear_regression_ = use_linear_regression;
         Segmentation<vector<KeyValueType>, KeyType>::use_linear_regression_ = use_linear_regression;
         DataBucketType::use_SIMD_ = use_SIMD;
+#ifdef BUCKINDEX_DEBUG
+        tn.init();
+#endif
     }
 
     ~BuckIndex() { }
@@ -56,7 +60,12 @@ public:
     bool lookup(KeyType key, ValueType &value) {
         if (!root_) return false;
 
-        auto start = std::chrono::high_resolution_clock::now();
+        //auto start = std::chrono::high_resolution_clock::now();
+
+#ifdef BUCKINDEX_DEBUG
+        auto start_time = tn.rdtsc();
+#endif
+        
 
         uint64_t layer_idx = num_levels_ - 1;
         uintptr_t seg_ptr = (uintptr_t)root_;
@@ -74,16 +83,24 @@ public:
             layer_idx--;
         }
 
-        auto traverse_end = std::chrono::high_resolution_clock::now();
-        // Calculate elapsed time (in seconds)
-        lookup_stats_.time_traverse_to_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(traverse_end - start).count();
+        // auto traverse_end = std::chrono::high_resolution_clock::now();
+        // // Calculate elapsed time (in seconds)
+        // lookup_stats_.time_traverse_to_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(traverse_end - start).count();
 
         DataBucketType* d_bucket = (DataBucketType *)seg_ptr;
         result = d_bucket->lookup(key, value);
 
-        auto end = std::chrono::high_resolution_clock::now();
-        lookup_stats_.time_lookup_in_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(end - traverse_end).count();
+#ifdef BUCKINDEX_DEBUG
+        auto end_time = tn.rdtsc();
+        auto diff = tn.tsc2ns(end_time) - tn.tsc2ns(start_time);
+        lookup_stats_.time_lookup += (diff/(double) 1000000000);
+#endif
 
+
+        // auto end = std::chrono::high_resolution_clock::now();
+        // lookup_stats_.time_lookup_in_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(end - traverse_end).count();
+
+        
         lookup_stats_.num_of_lookup++;
         return result;
     }
@@ -309,10 +326,13 @@ public:
      * Helper function to dump the look up statistics
      */
     void print_lookup_stat(){
+#ifdef BUCKINDEX_DEBUG
         cout << "lookup stat: " << endl;
         cout<<"num lookups: "<<lookup_stats_.num_of_lookup<<endl;
+        cout<<"avg time lookup: "<<lookup_stats_.time_lookup/lookup_stats_.num_of_lookup<<endl;
         cout<<"avg time traverse to leaf: "<<lookup_stats_.time_traverse_to_leaf/lookup_stats_.num_of_lookup<<endl;
         cout<<"avg time lookup in leaf: "<<lookup_stats_.time_lookup_in_leaf/lookup_stats_.num_of_lookup<<endl;
+#endif
     }
 private:
 
@@ -442,10 +462,15 @@ private:
     uint64_t num_levels_; // the number of layers including model layers and the data layer
     uint64_t num_data_buckets_; // TODO:  add unit test for update num_data_buckets_ during bulk_load and insert
     uint64_t level_stats_[max_levels_]; // TODO:  add unit test for update level_stats_ during bulk_load and insert
+    
 
+    #ifdef BUCKINDEX_DEBUG
+    TSCNS tn;
     
     struct lookupStats {
         size_t num_of_lookup = 0; // total number of lookup
+
+        double time_lookup = 0; // total time to perform lookup;
 
         double time_traverse_to_leaf = 0; // total time to traverse to leaf; 
         // need to divide by num of lookup to get average
@@ -463,7 +488,7 @@ private:
         double time_SMO = 0; // total time to perform SMO;
     };
     insertStats insert_stats_;
-
+#endif
 
 
 
