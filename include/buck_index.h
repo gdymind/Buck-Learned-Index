@@ -1,9 +1,11 @@
 #pragma once
 
+#include "../tscns.h"
 #include "bucket.h"
 #include "segment.h"
 #include "segmentation.h"
 #include "util.h"
+#include <chrono>
 
 /**
  * Index configurations
@@ -28,6 +30,8 @@ public:
     BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO, bool use_linear_regression = true, bool use_SIMD = true): 
               use_linear_regression_(use_linear_regression), initial_filled_ratio_(initial_filled_ratio), use_SIMD_(use_SIMD) {
         init(initial_filled_ratio, use_linear_regression, use_SIMD);
+        if(use_SIMD) printf("Using SIMD\n");
+        else printf("Not using SIMD\n");
     }
 
     void init(double initial_filled_ratio, bool use_linear_regression, bool use_SIMD){
@@ -40,6 +44,9 @@ public:
         SegmentType::use_linear_regression_ = use_linear_regression;
         Segmentation<vector<KeyValueType>, KeyType>::use_linear_regression_ = use_linear_regression;
         DataBucketType::use_SIMD_ = use_SIMD;
+#ifdef BUCKINDEX_DEBUG
+        tn.init();
+#endif
     }
 
     ~BuckIndex() { }
@@ -52,6 +59,13 @@ public:
      */
     bool lookup(KeyType key, ValueType &value) {
         if (!root_) return false;
+
+        //auto start = std::chrono::high_resolution_clock::now();
+
+#ifdef BUCKINDEX_DEBUG
+        auto start_time = tn.rdtsc();
+#endif
+        
 
         uint64_t layer_idx = num_levels_ - 1;
         uintptr_t seg_ptr = (uintptr_t)root_;
@@ -68,8 +82,27 @@ public:
             }
             layer_idx--;
         }
+
+        // auto traverse_end = std::chrono::high_resolution_clock::now();
+        // // Calculate elapsed time (in seconds)
+        // lookup_stats_.time_traverse_to_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(traverse_end - start).count();
+
         DataBucketType* d_bucket = (DataBucketType *)seg_ptr;
         result = d_bucket->lookup(key, value);
+
+#ifdef BUCKINDEX_DEBUG
+        auto end_time = tn.rdtsc();
+        auto diff = tn.tsc2ns(end_time) - tn.tsc2ns(start_time);
+        lookup_stats_.time_lookup += (diff/(double) 1000000000);
+        lookup_stats_.num_of_lookup++;
+#endif
+
+
+        // auto end = std::chrono::high_resolution_clock::now();
+        // lookup_stats_.time_lookup_in_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(end - traverse_end).count();
+
+        
+        
         return result;
     }
 
@@ -168,6 +201,7 @@ public:
 
                 pivot_list[pong].clear();
                 success = cur_segment->segment_and_batch_update(initial_filled_ratio_, pivot_list[ping], pivot_list[pong]);
+                level_stats_[num_levels_ - 1 - cur_level] += (pivot_list[pong].size()-1);
                 old_pivot = path[cur_level];
                 assert(success);
 
@@ -199,10 +233,13 @@ public:
                 }
                 root_ = new SegmentType(pivot_list[ping].size(), initial_filled_ratio_, model, 
                                     pivot_list[ping].begin(), pivot_list[ping].end());
+                level_stats_[num_levels_] = 1;
+                                    
                 num_levels_++;
             }
        
             num_data_buckets_++;
+            level_stats_[0]++;
 
             // GC
             for (auto seg_ptr : GC_segs) { // TODO: support MRSW
@@ -210,7 +247,7 @@ public:
                 delete seg;
             }
         }
-
+        num_keys_++;
         return success;
     }
 
@@ -224,7 +261,10 @@ public:
         num_levels_ = 0;
         run_data_layer_segmentation(kvs,
                                     kvptr_array[ping]);
+        
+        num_keys_ = kvs.size();
         num_data_buckets_ = kvptr_array[ping].size();
+        level_stats_[num_levels_] = num_data_buckets_;
         num_levels_++;
 
         assert(kvptr_array[ping].size() > 0);
@@ -272,6 +312,40 @@ public:
      */
     uint64_t get_num_data_buckets() {
         return num_data_buckets_;
+    }
+
+    /**
+     * Helper function to get the number of keys in the index
+     *
+     * @return the number of keys in the index
+     */
+    uint64_t get_num_keys() {
+        return num_keys_;
+    }
+    
+    /**
+     * Helper function to get the stat of level in the index
+     *
+     * @return the number of keys in the index
+     */
+    uint64_t get_level_stat(int level) {
+        if(level >= num_levels_ || level < 0){
+            return 0;
+        }
+        return level_stats_[level];
+    }
+
+    /**
+     * Helper function to dump the look up statistics
+     */
+    void print_lookup_stat(){
+#ifdef BUCKINDEX_DEBUG
+        cout << "lookup stat: " << endl;
+        cout<<"num lookups: "<<lookup_stats_.num_of_lookup<<endl;
+        cout<<"avg time lookup: "<<lookup_stats_.time_lookup/lookup_stats_.num_of_lookup<<endl;
+        cout<<"avg time traverse to leaf: "<<lookup_stats_.time_traverse_to_leaf/lookup_stats_.num_of_lookup<<endl;
+        cout<<"avg time lookup in leaf: "<<lookup_stats_.time_lookup_in_leaf/lookup_stats_.num_of_lookup<<endl;
+#endif
     }
 private:
 
@@ -361,7 +435,7 @@ private:
             }
             //segment->dump();
         }
-        level_stats_[0] = out_cuts.size();
+        //level_stats_[0] = out_cuts.size();
     }
 
     /**
@@ -396,10 +470,90 @@ private:
     double initial_filled_ratio_;
     bool use_linear_regression_;
     bool use_SIMD_;
+    
     //Statistics
+    
+    uint64_t num_keys_; // the number of keys in the index 
+    // NOTE: may include the dummy key 
+
     uint64_t num_levels_; // the number of layers including model layers and the data layer
-    uint64_t num_data_buckets_; //TODO: update num_data_buckets_ during bulk_load and insert
-    uint64_t level_stats_[max_levels_]; // TODO: update level_stats_ during bulk_load and insert
+    uint64_t num_data_buckets_; // the number of data buckets in the data layer
+    uint64_t level_stats_[max_levels_]; // the number of buckets in each layer
+    // NOTE: level_stats_[0] is the number of data buckets in the data layer
+
+    #ifdef BUCKINDEX_DEBUG
+    TSCNS tn;
+    
+    struct lookupStats {
+        size_t num_of_lookup = 0; // total number of lookup
+
+        double time_lookup = 0; // total time to perform lookup;
+
+        double time_traverse_to_leaf = 0; // total time to traverse to leaf; 
+        // need to divide by num of lookup to get average
+
+        double time_lookup_in_leaf = 0; // total time to lookup in leaf;
+    };
+    lookupStats lookup_stats_;
+
+    struct insertStats { // TODO
+        double time_traverse_to_leaf = 0; // total time to traverse to leaf; 
+        // need to divide by num of lookup to get average
+
+        double time_lookup_in_leaf = 0; // total time to lookup in leaf;
+
+        double time_SMO = 0; // total time to perform SMO;
+    };
+    insertStats insert_stats_;
+#endif
+
+
+
+    // public:
+    // // Number of elements
+    // size_t size() const { return static_cast<size_t>(stats_.num_keys); }
+
+    // // True if there are no elements
+    // bool empty() const { return (size() == 0); }
+
+    // // This is just a function required by the STL standard. ALEX can hold more
+    // // items.
+    // size_t max_size() const { return size_t(-1); }
+
+    // // Size in bytes of all the keys, payloads, and bitmaps stored in this index
+    // long long data_size() const {
+    //     long long size = 0;
+    //     for (NodeIterator node_it = NodeIterator(this); !node_it.is_end();
+    //         node_it.next()) {
+    //     AlexNode<T, P>* cur = node_it.current();
+    //     if (cur->is_leaf_) {
+    //         size += static_cast<data_node_type*>(cur)->data_size();
+    //     }
+    //     }
+    //     return size;
+    // }
+
+    // // Size in bytes of all the model nodes (including pointers) and metadata in
+    // // data nodes
+    // long long model_size() const {
+    //     long long size = 0;
+    //     for (NodeIterator node_it = NodeIterator(this); !node_it.is_end();
+    //         node_it.next()) {
+    //     size += node_it.current()->node_size();
+    //     }
+    //     return size;
+    // }
+
+    // // Total number of nodes in the RMI
+    // int num_nodes() const {
+    //     return stats_.num_data_nodes + stats_.num_model_nodes;
+    // };
+
+    // // Number of data nodes in the RMI
+    // int num_leaves() const { return stats_.num_data_nodes; };
+
+    // // Return a const reference to the current statistics
+    // const struct Stats& get_stats() const { return stats_; }
 
 };
 
