@@ -721,4 +721,38 @@ namespace buckindex {
         EXPECT_EQ(5, bucket.num_keys());
         EXPECT_FALSE(bucket.lookup(128, value));
     }
+
+    TEST(Bucket, lower_bound){
+        // write unit test for segment::lower_bound and segment::upper_bound
+        // construct a segment
+        key_t keys[] = {0,20,40,60,80,100,120,140};
+        std::vector<KeyValue<key_t, value_t>> in_array;
+        size_t length = sizeof(keys)/sizeof(key_t);
+        for (size_t i = 0; i < length; i++) {
+            in_array.push_back(KeyValue<key_t, value_t>(keys[i], keys[i]));
+        }
+        
+        Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
+        // insert keys to the bucket
+        for (size_t i = 0; i < length; i++) {
+            EXPECT_TRUE(bucket.insert(in_array[i], true));
+        }
+
+
+        // test lower_bound
+        auto it = bucket.lower_bound(0);
+        EXPECT_EQ(0, (*it).key_);
+        it = bucket.lower_bound(1);
+        EXPECT_EQ(20, (*it).key_);
+        it = bucket.lower_bound(20);
+        EXPECT_EQ(20, (*it).key_);
+        it = bucket.lower_bound(21);
+        EXPECT_EQ(40, (*it).key_);
+        it = bucket.lower_bound(140);
+        EXPECT_EQ(140, (*it).key_);
+        it = bucket.lower_bound(141);
+        EXPECT_TRUE(it == bucket.end());
+
+        
+    }
 }

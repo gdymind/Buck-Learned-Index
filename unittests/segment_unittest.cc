@@ -859,6 +859,38 @@ namespace buckindex {
         EXPECT_EQ(8, idx);
     }
 
+    TEST(Segment, lower_bound_large_segment){
+        // construct a segment
+        key_t keys[256];
+        for (int i = 0; i < 256; i++) {
+            keys[i] = i * 3;
+        }
+        
+
+        std::vector<KeyValue<key_t, uintptr_t>> in_array;
+        size_t length = sizeof(keys)/sizeof(key_t);
+        for (size_t i = 0; i < length; i++) {
+            in_array.push_back(KeyValue<key_t, uintptr_t>(keys[i], keys[i]));
+        }
+        // model is y=0.05x
+        LinearModel<key_t> model(0.05,0);
+        double fill_ratio = 1;
+        Segment<key_t, 8> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+
+        for (int i = 0; i < 255 * 3; i++) {
+            auto it = seg.lower_bound(i);
+            key_t key = i / 3;
+            if (i % 3 != 0) key++;
+            key *= 3;
+            EXPECT_EQ(key, it->key_);
+        }
+
+        for (int i = 256 * 3; i < 300 * 3; i++) {
+            auto it = seg.lower_bound(i);
+            EXPECT_TRUE(it == seg.cend());
+        }
+    }
+
     TEST(Segment, segment_and_batch_update){
         // construct a segment
         key_t keys[] = {0,10,20,30};

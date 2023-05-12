@@ -22,7 +22,8 @@ public:
     // T base; // key compression
     // TBD: flag to determine whether it has rebalanced
 
-    size_t num_bucket_; // total num of buckets
+    //size_t num_bucket_; // total num of buckets
+    int num_bucket_;
     BucketType* sbucket_list_; // a list of S-Buckets
     static bool use_linear_regression_;
 
@@ -50,6 +51,7 @@ public:
         assert(fill_ratio>0 && fill_ratio<=1);
         size_t num_slot = ceil(num_kv / fill_ratio);
         num_bucket_ = ceil((double)num_slot / SBUCKET_SIZE);
+        assert((int)num_bucket_ > 0);
         sbucket_list_ = new BucketType[num_bucket_];
         //model_.dump();
         model_.expand(1/fill_ratio);
@@ -239,7 +241,11 @@ private:
 
     inline unsigned int predict_buck(T key) const { // get the predicted S-Bucket ID based on the model computing
         unsigned int buckID = (unsigned int)(model_.predict(key) / SBUCKET_SIZE);
+        
+        //buckID = std::min(num_bucket_-1, buckID);
+        // buckID = std::max(buckID, num_bucket_-1);
         buckID = std::min(buckID, (unsigned int)std::max(0,(int)(num_bucket_-1))); // ensure num_bucket>0
+        assert(buckID < num_bucket_);
         return buckID;
     }
 
@@ -249,7 +255,7 @@ private:
         // Step2: search neighbors to find the exact match (linear search)
         unsigned int buckID = predict_buck(key); // ensure buckID is valid s
 
-
+        //std::cout << "buckID: " << buckID << std::endl;
         if(sbucket_list_[buckID].get_pivot() <= key){ // search forwards
             while(buckID+1<num_bucket_){
                 if(sbucket_list_[buckID+1].get_pivot() > key){
@@ -318,8 +324,8 @@ bool Segment<T, SBUCKET_SIZE>::segment_and_batch_update(
 
     // collect all the valid keys (sorted)
     std::vector<KeyValue<T,uintptr_t>> list;
-    int input_min = input_pivots.front().key_;
-    int input_max = input_pivots.back().key_;
+    T input_min = input_pivots.front().key_;
+    T input_max = input_pivots.back().key_;
     auto it = this->cbegin();
     // current segment: insert entries before the input_pivots range
     for(;it!=this->cend();it++){ 
@@ -327,7 +333,7 @@ bool Segment<T, SBUCKET_SIZE>::segment_and_batch_update(
         if(kv.key_ >= input_min) break;
         list.push_back(kv);
     }
-    assert(input_min == (*it).key_);
+    assert(it == this->cend() || input_min == (*it).key_);
     // current segment: skip entries in the input_pivots range
     for(;it!=this->cend();it++){
         KeyValue<T,uintptr_t> kv = *it;
@@ -609,8 +615,10 @@ public:
 
         // locate the bucket
         while(pos >= segment_->sbucket_list_[cur_buckID_].num_keys()){
-            cur_buckID_++;
+            //if(pos<0) std::cout<<"pos: "<<pos<<", num_keys: "<<segment_->sbucket_list_[cur_buckID_].num_keys()<<std::endl;
+            
             pos -= segment_->sbucket_list_[cur_buckID_].num_keys();
+            cur_buckID_++;
         }
 
         // inside the bucket, locate the index
@@ -663,6 +671,11 @@ public:
         assert(upper_bound == std::numeric_limits<T>::max());
         find_next();
     }
+
+    // void operator--(int) {
+    //     assert(upper_bound == std::numeric_limits<T>::max());
+    //     find_previous();
+    // }
 
     // prefix ++it
     const_iterator &operator++() {
@@ -727,6 +740,32 @@ private:
             }
         }
     }
+
+    // // find the previous entry in the sorted list (Can cross boundary of bucket)
+    // inline void find_previous() {
+    //     if (reach_to_begin()) return;
+    //     if (cur_index_ == 0) {
+    //         cur_buckID_--;
+    //         while(!reach_to_begin()){
+    //             if(segment_->sbucket_list_[cur_buckID_].num_keys() == 0){
+    //                 cur_buckID_--;
+    //             }
+    //             else{
+    //                 segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_); 
+    //                 sort(sorted_list_.begin(), sorted_list_.end());
+    //                 break;
+    //             }
+    //         }
+    //         cur_index_ = sorted_list_.size() - 1;
+    //     }
+    //     else {
+    //         cur_index_--;
+    //     }
+    // }
+
+    // bool reach_to_begin(){
+    //     return (cur_buckID_ == 0 && cur_index_ == 0);
+    // }
 
     bool reach_to_end(){
         return (cur_buckID_ == segment_->num_bucket_);

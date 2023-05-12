@@ -115,6 +115,16 @@ public:
     SortedIterator begin() {return SortedIterator(this, 0); }
     SortedIterator end() {return SortedIterator(this, num_keys()); }
 
+    // points to the first key that is >= key
+    SortedIterator lower_bound(const T &key) {
+        std::vector<KeyValueType> valid_kvs;
+        get_valid_kvs(valid_kvs);
+        std::sort(valid_kvs.begin(), valid_kvs.end());
+        int pos = std::lower_bound(valid_kvs.begin(), valid_kvs.end(), 
+                  KeyValueType(key, std::numeric_limits<V>::min())) - valid_kvs.begin();
+        return SortedIterator(this, pos, valid_kvs);
+    }
+
     void get_valid_kvs(std::vector<KeyValueType> &v) const {
         // read bitmap
         // get all valid kvs
@@ -416,24 +426,33 @@ public:
     explicit SortedIterator(BucketType *bucket) : bucket_(bucket) {
         assert(bucket_ != nullptr);
         cur_pos_ = 0;
+        bucket_->get_valid_kvs(valid_kvs_);
+        sort(valid_kvs_.begin(), valid_kvs_.end());
     }
         
     SortedIterator(BucketType *bucket, int pos) : bucket_(bucket) {
-      assert(pos >= 0 && pos <= bucket_->num_keys());
-      cur_pos_ = pos;
+        bucket_->get_valid_kvs(valid_kvs_);
+        assert(pos >= 0 && pos <= valid_kvs_.size());
+        cur_pos_ = pos;
+        sort(valid_kvs_.begin(), valid_kvs_.end());
     }
 
+    SortedIterator(BucketType *bucket, int pos, std::vector<KeyValueType> &valid_kvs) : bucket_(bucket), valid_kvs_(valid_kvs) {
+        assert(pos >= 0 && pos <= valid_kvs_.size());
+        cur_pos_ = pos;
+    }
+    
     void operator++(int) {
         ++(*this);
     }
 
     SortedIterator &operator++() {
-        if (cur_pos_ < bucket_->num_keys()) cur_pos_++;
+        if (cur_pos_ < valid_kvs_.size()) cur_pos_++;
         return *this;
     }
 
     KeyValueType operator*() const {
-        return bucket_->find_kth_smallest(cur_pos_ + 1);
+        return valid_kvs_.at(cur_pos_);
     }
 
     bool operator==(const SortedIterator& rhs) const {
@@ -445,6 +464,7 @@ public:
 private:
     BucketType *bucket_;
     int cur_pos_ = 0;  // current position in the bucket list, cur_pos_ == SIZE if at end
+    std::vector<KeyValueType> valid_kvs_;
   };
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>

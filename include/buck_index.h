@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../tscns.h"
 #include "bucket.h"
 #include "segment.h"
 #include "segmentation.h"
@@ -28,15 +29,27 @@ public:
 
     BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO, bool use_linear_regression = true, bool use_SIMD = true): 
               use_linear_regression_(use_linear_regression), initial_filled_ratio_(initial_filled_ratio), use_SIMD_(use_SIMD) {
+        init(initial_filled_ratio, use_linear_regression, use_SIMD);
+        if(use_SIMD) printf("Using SIMD\n");
+        else printf("Not using SIMD\n");
+    }
+
+    void init(double initial_filled_ratio, bool use_linear_regression, bool use_SIMD){
         root_ = NULL;
-        SegmentType::use_linear_regression_ = use_linear_regression_;
-        Segmentation<vector<KeyValueType>, KeyType>::use_linear_regression_ = use_linear_regression_;
-        DataBucketType::use_SIMD_ = use_SIMD_;
         num_levels_ = 0;
+
+        use_linear_regression_ = use_linear_regression;
+        initial_filled_ratio_ = initial_filled_ratio;
+        use_SIMD_ = use_SIMD;
+        SegmentType::use_linear_regression_ = use_linear_regression;
+        Segmentation<vector<KeyValueType>, KeyType>::use_linear_regression_ = use_linear_regression;
+        DataBucketType::use_SIMD_ = use_SIMD;
+#ifdef BUCKINDEX_DEBUG
+        tn.init();
+#endif
     }
-    ~BuckIndex() {
-        //TODO
-    }
+
+    ~BuckIndex() { }
 
     /**
      * Lookup function
@@ -47,7 +60,12 @@ public:
     bool lookup(KeyType key, ValueType &value) {
         if (!root_) return false;
 
-        auto start = std::chrono::high_resolution_clock::now();
+        //auto start = std::chrono::high_resolution_clock::now();
+
+#ifdef BUCKINDEX_DEBUG
+        auto start_time = tn.rdtsc();
+#endif
+        
 
         uint64_t layer_idx = num_levels_ - 1;
         uintptr_t seg_ptr = (uintptr_t)root_;
@@ -65,18 +83,69 @@ public:
             layer_idx--;
         }
 
-        auto traverse_end = std::chrono::high_resolution_clock::now();
-        // Calculate elapsed time (in seconds)
-        lookup_stats_.time_traverse_to_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(traverse_end - start).count();
+        // auto traverse_end = std::chrono::high_resolution_clock::now();
+        // // Calculate elapsed time (in seconds)
+        // lookup_stats_.time_traverse_to_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(traverse_end - start).count();
 
         DataBucketType* d_bucket = (DataBucketType *)seg_ptr;
         result = d_bucket->lookup(key, value);
 
-        auto end = std::chrono::high_resolution_clock::now();
-        lookup_stats_.time_lookup_in_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(end - traverse_end).count();
-
+#ifdef BUCKINDEX_DEBUG
+        auto end_time = tn.rdtsc();
+        auto diff = tn.tsc2ns(end_time) - tn.tsc2ns(start_time);
+        lookup_stats_.time_lookup += (diff/(double) 1000000000);
         lookup_stats_.num_of_lookup++;
+#endif
+
+
+        // auto end = std::chrono::high_resolution_clock::now();
+        // lookup_stats_.time_lookup_in_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(end - traverse_end).count();
+
+        
+        
         return result;
+    }
+
+    /**
+     * Scan function
+     * @param start_key: scan from the first key that is >= start_key
+     * @param scan_num: the number of key-value pairs to be scanned
+     * @param kvs: the scanned key-value pairs
+     * @return the number of key-value pairs scanned(<= scan_num)
+    */
+    size_t scan(KeyType start_key, size_t num_to_scan, std::pair<KeyType, ValueType> *kvs) {
+        if (!root_) return 0;
+
+        int num_scanned = 0;
+
+        // traverse to leaf and record the path
+        std::vector<KeyValuePtrType> path(num_levels_);//root-to-leaf path, including the data bucket
+        bool success = lookup(start_key, path);
+
+        // get the d-bucket iterator
+        DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
+        auto dbuck_iter = d_bucket->lower_bound(start_key);
+
+        while (num_scanned < num_to_scan) {
+            // scan keys in the d-bucket
+            while(num_scanned < num_to_scan && dbuck_iter != d_bucket->end()) {
+                KeyValueType kv = (*dbuck_iter);
+                kvs[num_scanned] = std::make_pair(kv.key_, kv.value_);
+                num_scanned++;
+                dbuck_iter++;
+            }
+
+            // get the next d-bucket
+            if (num_scanned < num_to_scan) {
+                do {
+                    if (!find_next_d_bucket(path)) return num_scanned;
+                    d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
+                    dbuck_iter = d_bucket->begin();
+                } while (dbuck_iter == d_bucket->end()); // empty d-bucket, visit the next one
+            }
+        }
+        
+        return num_scanned;
     }
 
     /**
@@ -123,9 +192,10 @@ public:
                 SegmentType* cur_segment = (SegmentType*)(path[cur_level].value_);
                 
                 bool is_segment = true;
-                if (cur_level == num_levels_ - 2) is_segment = false; // TODO: let seg.lookup() return key+value ptr instead of ptr only
+                if (cur_level == num_levels_ - 2) is_segment = false;
                 if (cur_segment->batch_update(old_pivot, pivot_list[ping], is_segment)) {
                     pivot_list[ping].clear();
+                    success = true;
                     break;
                 }
 
@@ -163,7 +233,8 @@ public:
                 }
                 root_ = new SegmentType(pivot_list[ping].size(), initial_filled_ratio_, model, 
                                     pivot_list[ping].begin(), pivot_list[ping].end());
-                level_stats_[num_levels_] = 1;             
+                level_stats_[num_levels_] = 1;
+                                    
                 num_levels_++;
             }
        
@@ -251,15 +322,30 @@ public:
     uint64_t get_num_keys() {
         return num_keys_;
     }
+    
+    /**
+     * Helper function to get the stat of level in the index
+     *
+     * @return the number of keys in the index
+     */
+    uint64_t get_level_stat(int level) {
+        if(level >= num_levels_ || level < 0){
+            return 0;
+        }
+        return level_stats_[level];
+    }
 
     /**
      * Helper function to dump the look up statistics
      */
     void print_lookup_stat(){
+#ifdef BUCKINDEX_DEBUG
         cout << "lookup stat: " << endl;
         cout<<"num lookups: "<<lookup_stats_.num_of_lookup<<endl;
+        cout<<"avg time lookup: "<<lookup_stats_.time_lookup/lookup_stats_.num_of_lookup<<endl;
         cout<<"avg time traverse to leaf: "<<lookup_stats_.time_traverse_to_leaf/lookup_stats_.num_of_lookup<<endl;
         cout<<"avg time lookup in leaf: "<<lookup_stats_.time_lookup_in_leaf/lookup_stats_.num_of_lookup<<endl;
+#endif
     }
 private:
 
@@ -279,6 +365,46 @@ private:
         }
         assert(success);
         return success;
+    }
+
+    /**
+     * Helper function for scan() to find the next D-Bucket
+     * @param path: the path from root to the leaf D-Bucket
+     * @return true if the next D-Bucket is found, else false
+    */
+    bool find_next_d_bucket(std::vector<KeyValuePtrType> &path) {
+        assert(path.size() == num_levels_);
+
+        int cur_level = num_levels_ - 2; // leaf_segment level
+        assert(cur_level >= 0);
+
+        while(cur_level >= 0) {
+            SegmentType* cur_segment = (SegmentType*)(path[cur_level].value_);
+            auto seg_iter = cur_segment->lower_bound(path[cur_level+1].key_); // find the one after path[cur_level+1]
+                                                                              // TODO optimization: store the seg_iter,
+                                                                              // and use it as the start point for the next call
+            if (seg_iter != cur_segment->cend() && (*seg_iter).key_ == path[cur_level+1].key_) {
+                seg_iter++;
+            }
+            if (seg_iter != cur_segment->cend()) { // found the next entry
+                path[cur_level+1] = *seg_iter; // update to the next entry
+
+                // update the lower-level path
+                int tranverse_down_level = cur_level + 1;
+                while(tranverse_down_level < num_levels_ - 1) {
+                    SegmentType* segment = (SegmentType*)path[tranverse_down_level].value_;
+                    seg_iter = segment->cbegin();
+                    path[tranverse_down_level+1] = *seg_iter;
+                    tranverse_down_level++;
+                }
+
+                return true;
+            } else { // not found, go to the upper level
+                cur_level--;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -341,18 +467,27 @@ private:
     void* root_;
     //Learned index constants
     static const uint8_t max_levels_ = 16;
-    const double initial_filled_ratio_;
-    const bool use_linear_regression_;
-    const bool use_SIMD_;
+    double initial_filled_ratio_;
+    bool use_linear_regression_;
+    bool use_SIMD_;
+    
     //Statistics
-    uint64_t num_keys_; // the number of keys in the index // NOTE: may include the dummy key // TODO: add unit test
-    uint64_t num_levels_; // the number of layers including model layers and the data layer
-    uint64_t num_data_buckets_; // TODO:  add unit test for update num_data_buckets_ during bulk_load and insert
-    uint64_t level_stats_[max_levels_]; // TODO:  add unit test for update level_stats_ during bulk_load and insert
+    
+    uint64_t num_keys_; // the number of keys in the index 
+    // NOTE: may include the dummy key 
 
+    uint64_t num_levels_; // the number of layers including model layers and the data layer
+    uint64_t num_data_buckets_; // the number of data buckets in the data layer
+    uint64_t level_stats_[max_levels_]; // the number of buckets in each layer
+    // NOTE: level_stats_[0] is the number of data buckets in the data layer
+
+    #ifdef BUCKINDEX_DEBUG
+    TSCNS tn;
     
     struct lookupStats {
         size_t num_of_lookup = 0; // total number of lookup
+
+        double time_lookup = 0; // total time to perform lookup;
 
         double time_traverse_to_leaf = 0; // total time to traverse to leaf; 
         // need to divide by num of lookup to get average
@@ -370,7 +505,7 @@ private:
         double time_SMO = 0; // total time to perform SMO;
     };
     insertStats insert_stats_;
-
+#endif
 
 
 
