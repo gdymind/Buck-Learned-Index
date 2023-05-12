@@ -24,10 +24,9 @@ SOFTWARE.
 
 #pragma once
 
-#ifndef TSCNS_H
-#define TSCNS_H
-
 #include <time.h>
+
+namespace buckindex{
 
 class TSCNS
 {
@@ -110,4 +109,4 @@ public:
   int64_t base_ns = 0;
 };
 
-#endif // TSCNS_H
+} // namespace buckindex
