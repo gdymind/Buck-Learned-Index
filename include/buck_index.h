@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../../../tscns.h"
+#include "../tscns.h"
 #include "bucket.h"
 #include "segment.h"
 #include "segmentation.h"
