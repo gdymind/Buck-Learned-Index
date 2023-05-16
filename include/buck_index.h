@@ -285,6 +285,7 @@ public:
         dump();
 
     }
+    
     /**
      * Helper function to dump the index structure
      */
@@ -294,6 +295,44 @@ public:
         for (auto i = 0; i < num_levels_; i++) {
             std::cout << "    Layer " << i << " size: " << level_stats_[i] << std::endl;
         }
+    }
+
+    /**
+     * Helper function to get inner node fanout statistics
+    */
+    void dump_fanout() {
+        std::vector<int> fanouts;
+
+        // Traverse the tree to visit each segment
+        std::queue<std::pair<void *, int>> q; // <segment, level> pairs
+        q.push(std::make_pair(root_, 0));
+        while (!q.empty()) {
+            auto cur = q.front();
+            q.pop();
+            SegmentType *segment = (SegmentType *)cur.first;
+            fanouts.push_back(segment->num_bucket_);     
+            if (cur.second < num_levels_ - 1) {
+                for (auto it = segment->cbegin(); it != segment->cend(); it++) {
+                    q.push(std::make_pair((void *)it->value_, cur.second + 1));
+                }
+            }
+        }
+
+        sort(fanouts.begin(), fanouts.end());
+        std::cout << "Fanout Statistics" << std::endl;
+        // get the average fanout
+        int sum = 0;
+        for (auto fanout : fanouts) {
+            sum += fanout;
+        }
+        std::cout << "  Average fanout: " << (double)sum / fanouts.size() << std::endl;
+        // get the median fanout
+        std::cout << "  Median fanout: " << fanouts[fanouts.size() / 2] << std::endl;
+        // get the 99th percentile fanout
+        std::cout << "  99th percentile fanout: " << fanouts[(double)fanouts.size() * 99 / 100] << std::endl;
+        // get the min and max fanout
+        std::cout << "  Min fanout: " << fanouts[0] << std::endl;
+        std::cout << "  Max fanout: " << fanouts[fanouts.size() - 1] << std::endl;
     }
 
     /**
