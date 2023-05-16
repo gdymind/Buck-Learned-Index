@@ -196,6 +196,8 @@ private:
     uint64_t bitmap_[SIZE/BITS_UINT64_T + (SIZE % BITS_UINT64_T ? 1 : 0)];  //indicate whether the entries in the list_ are valid.
     size_t BITMAP_SIZE = SIZE/BITS_UINT64_T + (SIZE % BITS_UINT64_T ? 1 : 0);
    
+    // alignas(64) T pivot_;
+    // alignas(64) LISTTYPE list_;
     T pivot_;
     LISTTYPE list_;
 
