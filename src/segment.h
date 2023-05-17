@@ -22,6 +22,17 @@ public:
     // T base; // key compression
     // TBD: flag to determine whether it has rebalanced
 
+    // stats
+#ifdef BUCKINDEX_DEBUG
+    inline static int fail_predict = 0;
+    inline static int success_predict = 0;
+    inline static int num_locate = 0;
+    inline static int num_insert = 0;
+    inline static int num_insert_fail = 0;
+    inline static int fail_distance = 0;
+
+#endif
+
     //size_t num_bucket_; // total num of buckets
     int num_bucket_;
     BucketType* sbucket_list_; // a list of S-Buckets
@@ -273,11 +284,24 @@ private:
                 buckID--;
             }
         }
-
+#ifdef BUCKINDEX_DEBUG
+        num_locate++;
+        if (buckID != predict_buck(key)){
+            fail_predict++;
+            fail_distance += abs((int)(buckID - predict_buck(key)));
+        }
+        else{
+            success_predict++;
+        }
+#endif
         return buckID;
     }
 
     bool bucket_rebalance(unsigned int buckID);
+
+
+
+
 };
 
 

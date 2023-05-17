@@ -83,6 +83,10 @@ public:
             layer_idx--;
         }
 
+#ifdef BUCKINDEX_DEBUG
+        auto end_traverse_time = tn.rdtsc();
+        lookup_stats_.time_traverse_to_leaf += (tn.tsc2ns(end_traverse_time) - tn.tsc2ns(start_time))/(double) 1000000000;
+#endif
         // auto traverse_end = std::chrono::high_resolution_clock::now();
         // // Calculate elapsed time (in seconds)
         // lookup_stats_.time_traverse_to_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(traverse_end - start).count();
@@ -93,6 +97,7 @@ public:
 #ifdef BUCKINDEX_DEBUG
         auto end_time = tn.rdtsc();
         auto diff = tn.tsc2ns(end_time) - tn.tsc2ns(start_time);
+        lookup_stats_.time_lookup_in_leaf += (tn.tsc2ns(end_time) - tn.tsc2ns(end_traverse_time))/(double) 1000000000;
         lookup_stats_.time_lookup += (diff/(double) 1000000000);
         lookup_stats_.num_of_lookup++;
 #endif
@@ -102,7 +107,7 @@ public:
         // lookup_stats_.time_lookup_in_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(end - traverse_end).count();
 
        
-       
+
         return result;
     }
 
@@ -154,6 +159,11 @@ public:
     * @return true if kv in inserted, false else
     */
     bool insert(KeyValueType& kv) {
+
+#ifdef BUCKINDEX_DEBUG
+        auto start_time = tn.rdtsc();
+#endif
+
         if (root_ == nullptr) { 
             std::vector<KeyValueType> kvs;
             KeyValueType kv1(std::numeric_limits<KeyType>::min(), 0);
@@ -170,7 +180,9 @@ public:
 
         DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1].value_);
         success = d_bucket->insert(kv, true);
-
+#ifdef BUCKINDEX_DEBUG
+        auto insert_finish_time = tn.rdtsc();
+#endif
         // TODO: need to implement the GC
         std::vector<uintptr_t> GC_segs;
 
@@ -246,7 +258,18 @@ public:
                 SegmentType* seg = (SegmentType*)seg_ptr;
                 delete seg;
             }
+#ifdef BUCKINDEX_DEBUG
+            insert_stats_.num_of_SMO++;
+#endif
+
         }
+
+#ifdef BUCKINDEX_DEBUG
+        auto end_time = tn.rdtsc();
+        insert_stats_.time_insert_in_leaf += (tn.tsc2ns(insert_finish_time) - tn.tsc2ns(start_time))/(double) 1000000000;
+        insert_stats_.time_SMO += (tn.tsc2ns(end_time) - tn.tsc2ns(insert_finish_time))/(double) 1000000000;
+        insert_stats_.num_of_insert++;
+#endif
         num_keys_++;
         return success;
     }
@@ -340,11 +363,24 @@ public:
      */
     void print_lookup_stat(){
 #ifdef BUCKINDEX_DEBUG
-        cout << "lookup stat: " << endl;
+        cout<<"-----lookup stat-----"<<endl;
         cout<<"num lookups: "<<lookup_stats_.num_of_lookup<<endl;
         cout<<"avg time lookup: "<<lookup_stats_.time_lookup/lookup_stats_.num_of_lookup<<endl;
         cout<<"avg time traverse to leaf: "<<lookup_stats_.time_traverse_to_leaf/lookup_stats_.num_of_lookup<<endl;
         cout<<"avg time lookup in leaf: "<<lookup_stats_.time_lookup_in_leaf/lookup_stats_.num_of_lookup<<endl;
+
+        cout<<"-----insert stat-----"<<endl;
+        cout<<"num inserts: "<<insert_stats_.num_of_insert<<endl;
+        cout<<"avg time insert: "<<insert_stats_.time_insert_in_leaf/insert_stats_.num_of_insert<<endl;
+        cout<<"avg time SMO: "<<insert_stats_.time_SMO/insert_stats_.num_of_SMO<<endl;
+        cout<<"num SMO: "<<insert_stats_.num_of_SMO<<endl;
+
+        cout<<"-----segment stat-----"<<endl;
+        std::cout<<"Num of fail_predict: "<< SegmentType::fail_predict<<std::endl;
+        std::cout<<"avg fail distance: "<< (double)SegmentType::fail_distance/SegmentType::fail_predict<<std::endl;
+        std::cout<<"Num of success_predict: "<< SegmentType::success_predict<<std::endl;
+        std::cout<<"Num of locate: "<< SegmentType::num_locate<<std::endl;
+
 #endif
     }
 private:
@@ -500,9 +536,13 @@ private:
         double time_traverse_to_leaf = 0; // total time to traverse to leaf; 
         // need to divide by num of lookup to get average
 
-        double time_lookup_in_leaf = 0; // total time to lookup in leaf;
+        double time_insert_in_leaf = 0; // total time to lookup in leaf;
+
+        int num_of_insert = 0; // total number of insert
 
         double time_SMO = 0; // total time to perform SMO;
+
+        int num_of_SMO = 0; // total number of SMO;
     };
     insertStats insert_stats_;
 #endif

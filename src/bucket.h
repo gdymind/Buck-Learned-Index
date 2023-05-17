@@ -192,14 +192,28 @@ public:
         return (bitmap_[bitmap_pos]  & (1ULL << bit_pos)) != 0;
     }
 
+    // only for testing alignment
+
+    void print_alignment() const{
+        // print address and size of each member
+        std::cout << "pivot_ address: " << &pivot_ << " size: " << sizeof(pivot_) << std::endl;
+        std::cout << "list_ address: " << &list_ << " size: " << sizeof(list_) << std::endl;
+        std::cout << "bitmap_ address: " << &bitmap_ << " size: " << sizeof(bitmap_) << std::endl;
+        std::cout << "BITMAP_SIZE address: " << &BITMAP_SIZE << " size: " << sizeof(BITMAP_SIZE) << std::endl;
+
+    }
+
 private:
+    LISTTYPE list_;
+    T pivot_;
+    
+    
     uint64_t bitmap_[SIZE/BITS_UINT64_T + (SIZE % BITS_UINT64_T ? 1 : 0)];  //indicate whether the entries in the list_ are valid.
     size_t BITMAP_SIZE = SIZE/BITS_UINT64_T + (SIZE % BITS_UINT64_T ? 1 : 0);
    
     // alignas(64) T pivot_;
     // alignas(64) LISTTYPE list_;
-    T pivot_;
-    LISTTYPE list_;
+    
 
     // Helper functions for SIMD
     // assume T and V are the same type, so we can perform masked load
@@ -209,6 +223,10 @@ private:
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value) const {
+    
+    // only for testing alignment
+    // print_alignment();
+
     // if it's D-Bucket and use SIMD, call SIMD_lookup
     if (use_SIMD_ &&
         std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>::value) {
