@@ -36,7 +36,7 @@ namespace buckindex {
         EXPECT_EQ(bli.get_level_stat(0), 5);
         EXPECT_EQ(bli.get_level_stat(1), 1);
 
-        bli.dump_fanout();
+        bli.dump();
     }
 
     TEST(BuckIndex, bulk_load_multiple_segments) {
@@ -80,7 +80,7 @@ namespace buckindex {
         EXPECT_EQ(bli.get_level_stat(1), cuts.size());
         EXPECT_EQ(bli.get_level_stat(2), 1);
 
-        bli.dump_fanout();
+        bli.dump();
     }
 
     TEST(BuckIndex, bulk_load_multiple_model_layers) {
@@ -129,7 +129,7 @@ namespace buckindex {
         EXPECT_EQ(bli.get_level_stat(0), 1);
         EXPECT_EQ(bli.get_level_stat(1), 1);
 
-        bli.dump_fanout();
+        bli.dump();
     }
     TEST(BuckIndex, insert_perfectly_linear_keys) {
         BuckIndex<uint64_t, uint64_t, 2, 4> bli;
@@ -145,7 +145,7 @@ namespace buckindex {
             EXPECT_FALSE(bli.lookup(i+1, value));
         }
 
-        bli.dump_fanout();
+        bli.dump();
     }
 
     TEST(BuckIndex, insert_multi_segments) {
@@ -187,7 +187,7 @@ namespace buckindex {
             EXPECT_FALSE(bli.lookup(i+1, value));
         }
 
-        bli.dump_fanout();
+        bli.dump();
     }
 
 
@@ -205,7 +205,7 @@ namespace buckindex {
             EXPECT_FALSE(bli.lookup(i+1, value));
         }
 
-        bli.dump_fanout();
+        bli.dump();
     }
 
 
@@ -246,7 +246,7 @@ namespace buckindex {
 
         EXPECT_FALSE(bli.lookup(1000000000, value));
 
-        bli.dump_fanout();
+        bli.dump();
     }
 
 
@@ -297,7 +297,7 @@ namespace buckindex {
         n_result = bli.scan(start_key, num_keys, result);
         EXPECT_EQ(0, n_result);
 
-        bli.dump_fanout();
+        bli.dump();
 
         delete[] result;
     }
@@ -390,7 +390,7 @@ namespace buckindex {
             idx += 3;
         }
 
-        bli.dump_fanout();
+        bli.dump();
 
         delete[] result;
     }
@@ -426,7 +426,7 @@ namespace buckindex {
         EXPECT_EQ(bli.get_level_stat(1), 2);
         EXPECT_EQ(bli.get_level_stat(2), 1);
 
-        bli.dump_fanout();
+        bli.dump();
 
         delete[] result;
     }

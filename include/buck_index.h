@@ -72,9 +72,10 @@ public:
         bool result = false;
         value = 0;
         KeyValuePtrType kv_ptr;
+        KeyValuePtrType kv_ptr_next;
         while (layer_idx > 0) {
             SegmentType* segment = (SegmentType*)seg_ptr;
-            result = segment->lookup(key, kv_ptr);
+            result = segment->lb_lookup(key, kv_ptr, kv_ptr_next);
             seg_ptr = kv_ptr.value_;
             if (!seg_ptr) {
                 std::cerr << " failed to perform segment lookup for key: " << key << std::endl;
@@ -87,8 +88,16 @@ public:
         // // Calculate elapsed time (in seconds)
         // lookup_stats_.time_traverse_to_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(traverse_end - start).count();
 
+        //given kv_ptr and kv_ptr_next, check their key to make a linear model
+        KeyType &key1 = kv_ptr.key_;
+        KeyType &key2 = kv_ptr_next.key_;
+        double slope = (long double)(DATA_BUCKET_SIZE - 1) / (long double)(key2 - key1);
+        double offset = -slope * key1;
+        size_t hint = (size_t)(slope * key + offset);
+        assert(hint < DATA_BUCKET_SIZE);
+
         DataBucketType* d_bucket = (DataBucketType *)seg_ptr;
-        result = d_bucket->lookup(key, value);
+        result = d_bucket->lookup(key, value, hint);
 
 #ifdef BUCKINDEX_DEBUG
         auto end_time = tn.rdtsc();
@@ -120,7 +129,7 @@ public:
 
         // traverse to leaf and record the path
         std::vector<KeyValuePtrType> path(num_levels_);//root-to-leaf path, including the data bucket
-        bool success = lookup(start_key, path);
+        bool success = lookup_path(start_key, path);
 
         // get the d-bucket iterator
         DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
@@ -165,7 +174,7 @@ public:
 
         // traverse to the leaf D-Bucket, and record the path
         std::vector<KeyValuePtrType> path(num_levels_);//root-to-leaf path, including the  data bucket
-        bool success = lookup(kv.key_, path);
+        bool success = lookup_path(kv.key_, path);
         assert(success);
 
         DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1].value_);
@@ -295,6 +304,8 @@ public:
         for (auto i = 0; i < num_levels_; i++) {
             std::cout << "    Layer " << i << " size: " << level_stats_[i] << std::endl;
         }
+
+        dump_fanout();
     }
 
     /**
@@ -310,8 +321,8 @@ public:
             auto cur = q.front();
             q.pop();
             SegmentType *segment = (SegmentType *)cur.first;
-            fanouts.push_back(segment->num_bucket_);     
             if (cur.second < num_levels_ - 1) {
+                fanouts.push_back(segment->num_bucket_);     
                 for (auto it = segment->cbegin(); it != segment->cend(); it++) {
                     q.push(std::make_pair((void *)it->value_, cur.second + 1));
                 }
@@ -319,7 +330,8 @@ public:
         }
 
         sort(fanouts.begin(), fanouts.end());
-        std::cout << "Fanout Statistics" << std::endl;
+        std::cout << "Fanout Statistics:" << std::endl;
+        std::cout << "Number of inner nodes(except the leaf-level segment): " << fanouts.size() << std::endl;
         // get the average fanout
         int sum = 0;
         for (auto fanout : fanouts) {
@@ -393,13 +405,14 @@ private:
      * @param key: lookup key
      * @param path: the path from root to the leaf D-Bucket
     */
-    bool lookup(KeyType key, std::vector<KeyValuePtrType> &path) {
+    bool lookup_path(KeyType key, std::vector<KeyValuePtrType> &path) {
         // traverse the index to the leaf D-Bucket, and record the path
         bool success = true;
         path[0] = KeyValuePtrType(std::numeric_limits<KeyType>::min(), (uintptr_t)root_);
+        KeyValuePtrType dummy; // TODO: change to the next key
         for (int i = 1; i < num_levels_; i++) {
             SegmentType* segment = (SegmentType*)path[i-1].value_;
-            success &= segment->lookup(key, path[i]);
+            success &= segment->lb_lookup(key, path[i], dummy);
             assert((void *)path[i].value_ != nullptr);
         }
         assert(success);
