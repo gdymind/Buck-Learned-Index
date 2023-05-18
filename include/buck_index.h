@@ -312,7 +312,7 @@ public:
      * Helper function to get inner node fanout statistics
     */
     void dump_fanout() {
-        std::vector<int> fanouts;
+        std::vector<int> fanouts[num_levels_ - 1];
 
         // Traverse the tree to visit each segment
         std::queue<std::pair<void *, int>> q; // <segment, level> pairs
@@ -322,29 +322,34 @@ public:
             q.pop();
             SegmentType *segment = (SegmentType *)cur.first;
             if (cur.second < num_levels_ - 1) {
-                fanouts.push_back(segment->num_bucket_);     
+                int cnt = 0;   
                 for (auto it = segment->cbegin(); it != segment->cend(); it++) {
                     q.push(std::make_pair((void *)it->value_, cur.second + 1));
+                    cnt++;
                 }
+                fanouts[cur.second].push_back(cnt);  
             }
         }
 
-        sort(fanouts.begin(), fanouts.end());
         std::cout << "Fanout Statistics:" << std::endl;
-        std::cout << "Number of inner nodes(except the leaf-level segment): " << fanouts.size() << std::endl;
-        // get the average fanout
-        int sum = 0;
-        for (auto fanout : fanouts) {
-            sum += fanout;
+        for (int i = 0; i < num_levels_ - 2; i++) {
+            auto &fanout_cur = fanouts[i];
+            sort(fanout_cur.begin(), fanout_cur.end());
+            // get the average fanout
+            int sum = 0;
+            for (auto fanout : fanout_cur) {
+                sum += fanout;
+            }
+
+            std::cout << "Level #" << i << ": ";
+            std::cout << "Size = " << fanout_cur.size() << ", ";
+            std::cout << "[Average, median, 99th percentile, min, max fanout] fanout = [";
+            std::cout << (double)sum / fanout_cur.size() << ", ";
+            std::cout << fanout_cur[fanout_cur.size() / 2] << ", ";
+            std::cout << fanout_cur[(double)fanout_cur.size() * 99 / 100] << ", ";
+            std::cout << fanout_cur[0] << ", ";
+            std::cout << fanout_cur[fanout_cur.size() - 1] << "]" << std::endl;
         }
-        std::cout << "  Average fanout: " << (double)sum / fanouts.size() << std::endl;
-        // get the median fanout
-        std::cout << "  Median fanout: " << fanouts[fanouts.size() / 2] << std::endl;
-        // get the 99th percentile fanout
-        std::cout << "  99th percentile fanout: " << fanouts[(double)fanouts.size() * 99 / 100] << std::endl;
-        // get the min and max fanout
-        std::cout << "  Min fanout: " << fanouts[0] << std::endl;
-        std::cout << "  Max fanout: " << fanouts[fanouts.size() - 1] << std::endl;
     }
 
     /**
