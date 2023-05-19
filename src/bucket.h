@@ -226,6 +226,10 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value, size_t hint) c
     // if it's D-Bucket and use SIMD, call SIMD_lookup
     assert ((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>()));
 
+    if (use_SIMD_) {
+        return SIMD_lookup(key, value, hint);
+    }
+
     for (int i = 0, l = hint; i < SIZE; i++, l = (l+1) % SIZE) {
         if (valid(l) && list_.at(l).key_ == key) {
             value = list_.at(l).value_;

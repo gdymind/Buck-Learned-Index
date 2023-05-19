@@ -102,12 +102,7 @@ public:
         //size_t hint = 0;
 
         DataBucketType* d_bucket = (DataBucketType *)seg_ptr;
-        if(use_SIMD_){
-            result = d_bucket->SIMD_lookup(key, value, hint);
-        }
-        else{
-            result = d_bucket->lookup(key, value, hint);
-        }
+        result = d_bucket->lookup(key, value, hint);
 
 #ifdef BUCKINDEX_DEBUG
         auto end_time = tn.rdtsc();
