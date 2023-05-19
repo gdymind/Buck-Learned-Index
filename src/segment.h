@@ -27,8 +27,8 @@ public:
     inline static int fail_predict = 0;
     inline static int success_predict = 0;
     inline static int num_locate = 0;
-    inline static int num_insert = 0;
-    inline static int num_insert_fail = 0;
+    // inline static int num_insert = 0;
+    // inline static int num_insert_fail = 0;
     inline static int fail_distance = 0;
 
 #endif
