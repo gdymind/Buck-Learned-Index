@@ -45,11 +45,11 @@ public:
         memset(bitmap_, 0, sizeof(bitmap_));
     }
 
-    bool lookup(const T &key, V& value) const; // D-Bucket lookup
-    bool lb_lookup(const T &key, KeyValueType& kv) const; // S-Bucket lower_bound lookup; find the largest key that is <= the lookup key
+    bool lookup(const T &key, V& value, size_t hint) const; // D-Bucket lookup; hint is the starting/predicted position in the bucket
+    bool lb_lookup(const T &key, KeyValueType &lb_kv, KeyValueType &next_kv) const; // S-Bucket lower_bound lookup; find the largest key that is <= the lookup key
 
-    bool SIMD_lookup(const T &key, V& value) const; // D-Bucket lookup
-    bool SIMD_lb_lookup(const T &key, KeyValueType& value) const; // S-Bucket lower_bound lookup;
+    bool SIMD_lookup(const T &key, V& value, size_t hint) const; // D-Bucket lookup; hint is the starting/predicted position in the bucket
+    bool SIMD_lb_lookup(const T &key, KeyValueType &lb_kv, KeyValueType &next_kv) const; // S-Bucket lower_bound lookup;
 
     bool insert(const KeyValueType &kv, bool update_pivot); // Return false if insert() fails
     bool update(const KeyValueType &kv); // find kv.key_ and update its value; return false if not found
@@ -222,20 +222,18 @@ private:
 };
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value) const {
-    
-    // only for testing alignment
-    // print_alignment();
-
+bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value, size_t hint) const {
     // if it's D-Bucket and use SIMD, call SIMD_lookup
-    if (use_SIMD_ &&
-        std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>::value) {
-        return SIMD_lookup(key, value);
-    }
+    assert ((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>()));
 
-    for (int i = 0; i < SIZE; i++) {
-        if (valid(i) && list_.at(i).key_ == key) {
-            value = list_.at(i).value_;
+    for (int i = 0, l = hint; i < SIZE; i++, l = (l+1) % SIZE) {
+        if (valid(l) && list_.at(l).key_ == key) {
+            value = list_.at(l).value_;
+
+            // std:: cout << "lookup: found key " << key << " at position " << l << std::endl;
+            // std:: cout << "hint: " << hint << std::endl;
+            // std:: cout << "SIZE: " << SIZE << std::endl;
+
             return true;
         }
     }
@@ -244,19 +242,28 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value) const {
 }
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(const T &key, KeyValueType &kv) const {
+bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(const T &key, KeyValueType &lb_kv, KeyValueType &next_kv) const {
     T target_key = std::numeric_limits<T>::min();
-    int pos = -1;
+    int lb_pos = -1, next_pos = -1;
     for (int i = 0; i < SIZE; i++) {
         if (valid(i) && list_.at(i).key_ <= key && list_.at(i).key_ >= target_key) {
             target_key = list_.at(i).key_;
-            pos = i;
+            lb_pos = i;
+        }
+        if (valid(i) && list_.at(i).key_ > key && (next_pos == -1 || list_.at(i).key_ < list_.at(next_pos).key_)) {
+            next_pos = i;
         }
     }
 
-    if (pos == -1) return false;
+    if (lb_pos == -1) return false;
 
-    kv = list_.at(pos);
+    lb_kv = list_.at(lb_pos);
+    if (next_pos != -1) {
+        next_kv = list_.at(next_pos);
+    } else {
+        next_kv = KeyValueType(std::numeric_limits<T>::max(), V());
+    }
+
     return true;
 }
 
@@ -346,7 +353,7 @@ inline void print_m256i_bits(const __m256i &key_vector) {
 
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value) const {
+bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value, size_t hint) const {
     // We only support D-bucket; S-Bucket always calls SIMD_lb_lookup instead of SIMD_lookup
     // TODO: support S-Bucket, where key and value are in the same array
     assert((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>::value));
@@ -356,8 +363,10 @@ bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value) const {
     if constexpr (sizeof(T) == 4) key_vector = _mm256_set1_epi32(key); // 32-bit integer, repeat key 8 times
     else if constexpr(sizeof(T) == 8) key_vector = _mm256_set1_epi64x(key); // 64-bit integer, repeat key 4 times
 
-    for (int i = 0; i < SIZE; i += SIMD_WIDTH) {
-        __m256i keys = SIMD_load_keys(list_, i); // load 4 or 8 keys into a SIMD register
+    
+    // hint = 0;
+    for (int i = 0, l = (hint / SIMD_WIDTH) * SIMD_WIDTH; i < SIZE; i += SIMD_WIDTH, l = (l + SIMD_WIDTH) % SIZE) {
+        __m256i keys = SIMD_load_keys(list_, l); // load 4 or 8 keys into a SIMD register
         __m256i cmp;
         if constexpr (sizeof(T) == 4) cmp = _mm256_cmpeq_epi32(keys, key_vector); // compare every 32 bits;
                                                                                   // result bits start from LSB
@@ -368,15 +377,18 @@ bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value) const {
         if constexpr(sizeof(T) == 4) mask = _mm256_movemask_ps((__m256)cmp); // 8 bits in the mask, for 32-bit integer
         else if constexpr(sizeof(T) == 8) mask = _mm256_movemask_pd((__m256d)cmp); // 4 bits in the mask, for 64-bit integer
         
-        int bitmap_pos = i / BITS_UINT64_T; // use bitmap_[bitmap_pos]
-        int bit_pos = i % BITS_UINT64_T; // pos from MSB
+        int bitmap_pos = l / BITS_UINT64_T; // use bitmap_[bitmap_pos]
+        int bit_pos = l % BITS_UINT64_T; // pos from MSB
         // get 8 bits from (bitmap_[bitmap_pos], bit_pos)
         unsigned char valid_bits = (unsigned char)((bitmap_[bitmap_pos] >> bit_pos) & 0xFF);
 
         mask &= valid_bits; // only keep the valid bits
         if (mask == 0) continue; // no match in this SIMD register
 
-        int idx = i + __builtin_ctz(mask);
+        int idx = l + __builtin_ctz(mask);
+        // std:: cout << "SIMD_lookup: found key " << key << " at position " << idx << std::endl;
+        // std::cout << "hint = " << hint << std::endl;
+        // std::cout << "l = " << l << std::endl;
         value = list_.at(idx).value_;
         return true;
     }

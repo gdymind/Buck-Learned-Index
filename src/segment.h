@@ -143,8 +143,9 @@ public:
 
     // TODO: a non-pivoting version (deferred)
 
-    bool lookup(T key, KeyValuePtrType &kvptr) const; //return the child pointer;
-                                        // return the first element if key is smaller than the first element
+    bool lb_lookup(T key, KeyValuePtrType &kvptr, KeyValuePtrType &next_kvptr) const; //return the child pointer;
+                                        // return the largest element <= key in kvptr
+                                        // also return the smallest element > key in next_kvptr; if not exist, return (max_key, 0)
 
     BucketType *get_bucket(int pos) {
         assert(pos >= 0 && pos < num_bucket_);
@@ -475,11 +476,11 @@ bool Segment<T, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-bal
 
 
 template<typename T, size_t SBUCKET_SIZE>
-bool Segment<T, SBUCKET_SIZE>::lookup(T key, KeyValuePtrType &kvptr) const {
+bool Segment<T, SBUCKET_SIZE>::lb_lookup(T key, KeyValuePtrType &kvptr, KeyValuePtrType &next_kvptr) const {
     assert(num_bucket_>0);
     unsigned int buckID = locate_buck(key);
     
-    bool success = sbucket_list_[buckID].lb_lookup(key, kvptr);
+    bool success = sbucket_list_[buckID].lb_lookup(key, kvptr, next_kvptr);
     
     // if (!success && buckID == 0) {
     //     kvptr = sbucket_list_[0].find_kth_smallest(1);
