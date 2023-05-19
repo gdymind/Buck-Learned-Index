@@ -192,18 +192,33 @@ public:
         return (bitmap_[bitmap_pos]  & (1ULL << bit_pos)) != 0;
     }
 
+    // only for testing alignment
+
+    void print_alignment() const{
+        // print address and size of each member
+        std::cout << "pivot_ address: " << &pivot_ << " size: " << sizeof(pivot_) << std::endl;
+        std::cout << "list_ address: " << &list_ << " size: " << sizeof(list_) << std::endl;
+        std::cout << "bitmap_ address: " << &bitmap_ << " size: " << sizeof(bitmap_) << std::endl;
+        std::cout << "BITMAP_SIZE address: " << &BITMAP_SIZE << " size: " << sizeof(BITMAP_SIZE) << std::endl;
+
+    }
+
 private:
-    // define LISTTYPE list_; and make it aligned
-    LISTTYPE list_; 
+    LISTTYPE list_;
     T pivot_;
+    
+    
     uint64_t bitmap_[SIZE/BITS_UINT64_T + (SIZE % BITS_UINT64_T ? 1 : 0)];  //indicate whether the entries in the list_ are valid.
     size_t BITMAP_SIZE = SIZE/BITS_UINT64_T + (SIZE % BITS_UINT64_T ? 1 : 0);
    
+    // alignas(64) T pivot_;
+    // alignas(64) LISTTYPE list_;
+    
 
     // Helper functions for SIMD
     // assume T and V are the same type, so we can perform masked load
-    __m256i SIMD_load_keys(const KeyListValueList<T, V, SIZE>& list, int pos) const;
-    __m256i SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const;
+    inline __m256i SIMD_load_keys(const KeyListValueList<T, V, SIZE>& list, int pos) const;
+    inline __m256i SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const;
 };
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
@@ -211,9 +226,18 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value, size_t hint) c
     // if it's D-Bucket and use SIMD, call SIMD_lookup
     assert ((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>()));
 
+    if (use_SIMD_) {
+        return SIMD_lookup(key, value, hint);
+    }
+
     for (int i = 0, l = hint; i < SIZE; i++, l = (l+1) % SIZE) {
         if (valid(l) && list_.at(l).key_ == key) {
             value = list_.at(l).value_;
+
+            // std:: cout << "lookup: found key " << key << " at position " << l << std::endl;
+            // std:: cout << "hint: " << hint << std::endl;
+            // std:: cout << "SIZE: " << SIZE << std::endl;
+
             return true;
         }
     }
@@ -288,12 +312,12 @@ KeyValue<T, V> Bucket<LISTTYPE, T, V, SIZE>::find_kth_smallest(int k) const {
 }
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-__m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyListValueList<T, V, SIZE>& list, int pos) const {
+inline __m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyListValueList<T, V, SIZE>& list, int pos) const {
     return _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&list.keys_[pos]));
 }
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-__m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const {
+inline __m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const {
     assert(false); // KeyValueList does not support SIMD_lookup
 
     // __m256i key_mask = _mm256_setr_epi32(-1, 0, -1, 0, -1, 0, -1, 0);
@@ -344,8 +368,7 @@ bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value, size_t hi
     else if constexpr(sizeof(T) == 8) key_vector = _mm256_set1_epi64x(key); // 64-bit integer, repeat key 4 times
 
     
-
-    for (int i = 0, l = hint / SIMD_WIDTH; i < SIZE; i += SIMD_WIDTH, l = (l + SIMD_WIDTH) % SIZE) {
+    for (int i = 0, l = (hint / SIMD_WIDTH) * SIMD_WIDTH; i < SIZE; i += SIMD_WIDTH, l = (l + SIMD_WIDTH) % SIZE) {
         __m256i keys = SIMD_load_keys(list_, l); // load 4 or 8 keys into a SIMD register
         __m256i cmp;
         if constexpr (sizeof(T) == 4) cmp = _mm256_cmpeq_epi32(keys, key_vector); // compare every 32 bits;
@@ -366,6 +389,9 @@ bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value, size_t hi
         if (mask == 0) continue; // no match in this SIMD register
 
         int idx = l + __builtin_ctz(mask);
+        // std:: cout << "SIMD_lookup: found key " << key << " at position " << idx << std::endl;
+        // std::cout << "hint = " << hint << std::endl;
+        // std::cout << "l = " << l << std::endl;
         value = list_.at(idx).value_;
         return true;
     }
