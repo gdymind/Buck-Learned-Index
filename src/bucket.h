@@ -174,6 +174,15 @@ public:
             else return -1; // there are some redundant bits
                             // when SIZE % BITS_UINT64_T != 0
         }
+
+        // Not found yet, need to check [start, hint) again, without mask this time
+        int l = start;
+        uint64_t masked = bitmap_[l];
+        if (masked == UINT64_MAX) return -1; // all bits are 1 (occupied)
+        int pos = __builtin_ctzll(~masked);
+        pos = l * BITS_UINT64_T + pos;
+        if (pos < SIZE) return pos;
+
         return -1; // no empty slot
     }
 
