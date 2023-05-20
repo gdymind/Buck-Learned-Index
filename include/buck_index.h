@@ -88,18 +88,14 @@ public:
         auto end_traverse_time = tn.rdtsc();
         lookup_stats_.time_traverse_to_leaf += (tn.tsc2ns(end_traverse_time) - tn.tsc2ns(start_time))/(double) 1000000000;
 #endif
-        // auto traverse_end = std::chrono::high_resolution_clock::now();
-        // // Calculate elapsed time (in seconds)
-        // lookup_stats_.time_traverse_to_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(traverse_end - start).count();
 
         //given kv_ptr and kv_ptr_next, check their key to make a linear model
-        KeyType &key1 = kv_ptr.key_;
-        KeyType &key2 = kv_ptr_next.key_;
-        double slope = (long double)(DATA_BUCKET_SIZE - 1) / (long double)(key2 - key1);
-        double offset = -slope * key1;
+        KeyType &start_key = kv_ptr.key_;
+        KeyType &end_key = kv_ptr_next.key_;
+        double slope = (long double)(DATA_BUCKET_SIZE - 1) / (long double)(end_key - start_key);
+        double offset = -slope * start_key;
         size_t hint = (size_t)(slope * key + offset);
         assert(hint < DATA_BUCKET_SIZE);
-        //size_t hint = 0;
 
         DataBucketType* d_bucket = (DataBucketType *)seg_ptr;
         result = d_bucket->lookup(key, value, hint);
@@ -135,7 +131,8 @@ public:
 
         // traverse to leaf and record the path
         std::vector<KeyValuePtrType> path(num_levels_);//root-to-leaf path, including the data bucket
-        bool success = lookup_path(start_key, path);
+        LinearModel<KeyType> dummy_model;
+        bool success = lookup_path(start_key, path, dummy_model);
 
         // get the d-bucket iterator
         DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
@@ -185,9 +182,10 @@ public:
 
         // traverse to the leaf D-Bucket, and record the path
         std::vector<KeyValuePtrType> path(num_levels_);//root-to-leaf path, including the  data bucket
-        bool success = lookup_path(kv.key_, path);
+        LinearModel<KeyType> model;
+        bool success = lookup_path(kv.key_, path, model);
         assert(success);
-        size_t hint = 0; // TODO: change to model-based hint
+        size_t hint = model.predict(kv.key_);
         DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1].value_);
         success = d_bucket->insert(kv, true, hint);
 #ifdef BUCKINDEX_DEBUG
@@ -446,17 +444,30 @@ private:
      * Lookup function, traverse the index to the leaf D-Bucket, and record the path
      * @param key: lookup key
      * @param path: the path from root to the leaf D-Bucket
+     * @param model: the endpoint model used to predict the position of the key in the leaf D-Bucket
     */
-    bool lookup_path(KeyType key, std::vector<KeyValuePtrType> &path) {
+    bool lookup_path(KeyType key, std::vector<KeyValuePtrType> &path, LinearModel<KeyType> &model) {
         // traverse the index to the leaf D-Bucket, and record the path
         bool success = true;
         path[0] = KeyValuePtrType(std::numeric_limits<KeyType>::min(), (uintptr_t)root_);
-        KeyValuePtrType dummy; // TODO: change to the next key
+        KeyValuePtrType kvptr_next; // TODO: change to the next key
         for (int i = 1; i < num_levels_; i++) {
             SegmentType* segment = (SegmentType*)path[i-1].value_;
-            success &= segment->lb_lookup(key, path[i], dummy);
+            success &= segment->lb_lookup(key, path[i], kvptr_next);
             assert((void *)path[i].value_ != nullptr);
         }
+
+        KeyType start_key = path[num_levels_-1].key_;
+        KeyType end_key = kvptr_next.key_;
+        assert(end_key >= start_key);
+        if (end_key > start_key) {
+            double slope = (long double)(DATA_BUCKET_SIZE - 1) / (long double)(end_key - start_key);
+            double offset = -slope * start_key;
+            model = LinearModel<KeyType>(slope, offset);
+        } else {
+            model = LinearModel<KeyType>(0, 0);
+        }
+
         assert(success);
         return success;
     }
