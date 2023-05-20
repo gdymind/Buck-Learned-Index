@@ -781,13 +781,13 @@ namespace buckindex {
         }
 
         for (int i = 8; i < 12; i++) {
-            EXPECT_TRUE(bucket.insert(in_array[i], true, 132)); // hint  = 19, 21, 23, 25
+            EXPECT_TRUE(bucket.insert(in_array[i], true, 132)); // hint  = 132, 132, 132, 132
             EXPECT_EQ(132 + i - 8, bucket.get_pos(in_array[i].key_));
         }
 
         int positions[] = {255, 4, 5, 6}; // [0, 1, 2, 3] are occupied by keys 0, 1, 2, 3
         for (int i = 12; i < 16; i++) { // test wrap around
-            EXPECT_TRUE(bucket.insert(in_array[i], true, 255));
+            EXPECT_TRUE(bucket.insert(in_array[i], true, 255)); // hint  = 255, 255, 255, 255
             EXPECT_EQ(positions[i-12], bucket.get_pos(in_array[i].key_));
         }
     }
