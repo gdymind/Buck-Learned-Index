@@ -67,26 +67,25 @@ public:
         BucketType *new_bucket2 = new BucketType();
         bool success;
         // move all keys that are > median_key to the new bucket
-        size_t hint = 0; // TODO: change to model-based hint
         for (int i = 0; i < SIZE; i++) {
             if (valid(i)) {
                 if (list_.at(i).key_ <= median_key)  {
-                    success = new_bucket1->insert(list_.at(i), true, hint);
+                    success = new_bucket1->insert(list_.at(i), true, 0/*hint*/); //no hints for s-buckets.
                     assert(success);
                 }
                 else {
-                    success = new_bucket2->insert(list_.at(i), true, hint);
+                    success = new_bucket2->insert(list_.at(i), true, 0/*hint*/); //no hints for s-buckets.
                     assert(success);
                 }
             }
         }
 
         if (kv.key_ <= median_key) {
-            success = new_bucket1->insert(kv, true, hint);
+            success = new_bucket1->insert(kv, true, 0/*hint*/); //no hints for s-buckets.
             assert(success);
         }
         else {
-            success = new_bucket2->insert(kv, true, hint);
+            success = new_bucket2->insert(kv, true, 0/*hint*/); //no hints for s-buckets.
             assert(success);
         }
 
@@ -329,6 +328,7 @@ inline __m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyListValueLi
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 inline __m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const {
     assert(false); // KeyValueList does not support SIMD_lookup
+    return __m256i();
 
     // __m256i key_mask = _mm256_setr_epi32(-1, 0, -1, 0, -1, 0, -1, 0);
     // const int* ptr = reinterpret_cast<const int*>(&list.kvs_[pos]);
