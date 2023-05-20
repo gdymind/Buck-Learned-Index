@@ -36,7 +36,7 @@ namespace buckindex {
         void set_size(uint64_t size) {
             size_ = size;
         }
-        LinearModel<T> get_model() {
+        inline LinearModel<T> get_model() {
             if (end_key_ > start_key_) {
                 double slope = (double)(size_- 1) / (end_key_ - start_key_);
                 double offset = -slope*start_key_;

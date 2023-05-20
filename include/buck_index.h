@@ -168,7 +168,7 @@ public:
     * @param kv: the Key-Value pair to be inserted
     * @return true if kv in inserted, false else
     */
-    bool insert(KeyValueType& kv) {
+    bool insert(KeyValueType& kv) { // TODO: change to model-based insertion for d-buckets
 
 #ifdef BUCKINDEX_DEBUG
         auto start_time = tn.rdtsc();
@@ -187,9 +187,9 @@ public:
         std::vector<KeyValuePtrType> path(num_levels_);//root-to-leaf path, including the  data bucket
         bool success = lookup_path(kv.key_, path);
         assert(success);
-
+        size_t hint = 0; // TODO: change to model-based hint
         DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1].value_);
-        success = d_bucket->insert(kv, true);
+        success = d_bucket->insert(kv, true, hint);
 #ifdef BUCKINDEX_DEBUG
         auto insert_finish_time = tn.rdtsc();
 #endif
@@ -288,7 +288,7 @@ public:
      * Bulk load the user key value onto the learned index
      * @param kvs: list of user key value to be loaded onto the learned index
      */
-    void bulk_load(vector<KeyValueType> &kvs) {
+    void bulk_load(vector<KeyValueType> &kvs) { // TODO: change to model-based insertion for d-buckets
         vector<KeyValuePtrType> kvptr_array[2];
         uint64_t ping = 0, pong = 1;
         num_levels_ = 0;
@@ -523,9 +523,14 @@ private:
             //store the bucket anchor for the higher layer
             out_kv_array.push_back(KeyValuePtrType(in_kv_array[start_idx].key_,
                                                    (uintptr_t)d_bucket));
+
+            // add endpoint model
+            LinearModel<KeyType> model = out_cuts[i].get_model();
+            
             //load the keys to the data bucket
-            for(auto j = start_idx; j < (start_idx+length); j++) {
-                d_bucket->insert(in_kv_array[j], true);
+            for(auto j = start_idx; j < (start_idx+length); j++) { // TODO: model-based insertion
+                size_t hint = model.predict(in_kv_array[j].key_);
+                d_bucket->insert(in_kv_array[j], true, hint);
             }
             //segment->dump();
         }
