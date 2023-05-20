@@ -98,8 +98,7 @@ public:
                 // update the remaining_slot if insert in the new buckID
             }
             // else: accept to insert in this bucket
-            constexpr size_t hint = 0; // no hint for sbucket
-            sbucket_list_[buckID].insert(*it, true, hint); // TBD: suppose iterator iterate through KeyValue element
+            sbucket_list_[buckID].insert(*it, true, 0 /*hint*/); // TBD: suppose iterator iterate through KeyValue element
             remaining_keys--;
             remaining_slots--;
            
@@ -213,8 +212,7 @@ public:
             while(current_buckID + 1 < num_bucket_ && sbucket_list_[current_buckID+1].get_pivot() <= new_pivots[i].key_){
                 current_buckID++;
             }
-            constexpr size_t hint = 0; // no hint for sbucket
-            bool success = sbucket_list_[current_buckID].insert(new_pivots[i], true, hint);
+            bool success = sbucket_list_[current_buckID].insert(new_pivots[i], true, 0 /*hint*/);
             assert(success);
         }
 
@@ -225,8 +223,7 @@ public:
             success = sbucket_list_[first_buckID].update(new_pivots[0]);
             assert(success);
         } else { // insert the first pivot, and invalidate the old pivot
-            constexpr size_t hint = 0; // no hint for sbucket
-            success = sbucket_list_[first_buckID].insert(new_pivots[0], true, hint);
+            success = sbucket_list_[first_buckID].insert(new_pivots[0], true, 0 /*hint*/);
             assert(success);
 
             int buckID = locate_buck(old_pivot_key);
@@ -429,8 +426,7 @@ bool Segment<T, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-bal
         // for concurrency, first insert new entries, then update pivot_, then remove old entries
         for(size_t i = 0;i<src_buck_num;i++){
             if(sbucket_list_[buckID].at(i).get_key()>=new_pivot){
-                constexpr size_t hint = 0; // no hint for sbucket
-                sbucket_list_[buckID+1].insert(sbucket_list_[buckID].at(i), false, hint);
+                sbucket_list_[buckID+1].insert(sbucket_list_[buckID].at(i), false, 0 /*hint*/);
             }
         }
         sbucket_list_[buckID+1].set_pivot(new_pivot);
@@ -460,8 +456,7 @@ bool Segment<T, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-bal
         // for concurrency, first insert new entries, then update pivot_, then remove old entries
         for(size_t i = 0;i<sbucket_list_[buckID].num_keys();i++){
             if(sbucket_list_[buckID].at(i).get_key()<new_pivot){
-                constexpr size_t hint = 0; // no hint for sbucket
-                sbucket_list_[buckID-1].insert(sbucket_list_[buckID].at(i),false, hint);
+                sbucket_list_[buckID-1].insert(sbucket_list_[buckID].at(i),false, 0 /*hint*/);
             }
         }
         sbucket_list_[buckID].set_pivot(new_pivot);
@@ -528,8 +523,7 @@ bool Segment<T, SBUCKET_SIZE>::insert(KeyValue<T, uintptr_t> &kv) {
     // if buckID == 0, key may be smaller than pivot
     // then we need to update the pivot
     
-    constexpr size_t hint = 0; // s-bucket does not need model-based hint
-    bool ret = sbucket_list_[buckID].insert(kv, true, hint);
+    bool ret = sbucket_list_[buckID].insert(kv, true, 0 /*hint*/);
 
     return ret;
 }
