@@ -90,8 +90,8 @@ public:
 #endif
 
         //given kv_ptr and kv_ptr_next, check their key to make a linear model
-        KeyType &start_key = kv_ptr.key_;
-        KeyType &end_key = kv_ptr_next.key_;
+        KeyType start_key = kv_ptr.key_;
+        KeyType end_key = kv_ptr_next.key_ - 1;
         double slope = (long double)(DATA_BUCKET_SIZE - 1) / (long double)(end_key - start_key);
         double offset = -slope * start_key;
         size_t hint = (size_t)(slope * key + offset);
@@ -458,7 +458,7 @@ private:
         }
 
         KeyType start_key = path[num_levels_-1].key_;
-        KeyType end_key = kvptr_next.key_;
+        KeyType end_key = kvptr_next.key_ - 1;
         assert(end_key >= start_key);
         if (end_key > start_key) {
             double slope = (long double)(DATA_BUCKET_SIZE - 1) / (long double)(end_key - start_key);

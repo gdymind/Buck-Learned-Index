@@ -106,7 +106,6 @@ public:
         return -1;
     }
     
-    //TODO: remove all iterators
     // iterator-related
     class UnsortedIterator;
     UnsortedIterator begin_unsort() {return UnsortedIterator(this, 0); }
@@ -230,7 +229,7 @@ private:
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value, size_t hint) const {
-    // if it's D-Bucket and use SIMD, call SIMD_lookup
+    // must be D-Bucket
     assert ((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>()));
 
     if (use_SIMD_) {
@@ -240,11 +239,6 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value, size_t hint) c
     for (int i = 0, l = hint; i < SIZE; i++, l = (l+1) % SIZE) {
         if (valid(l) && list_.at(l).key_ == key) {
             value = list_.at(l).value_;
-
-            // std:: cout << "lookup: found key " << key << " at position " << l << std::endl;
-            // std:: cout << "hint: " << hint << std::endl;
-            // std:: cout << "SIZE: " << SIZE << std::endl;
-
             return true;
         }
     }
@@ -366,7 +360,6 @@ inline void print_m256i_bits(const __m256i &key_vector) {
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value, size_t hint) const {
     // We only support D-bucket; S-Bucket always calls SIMD_lb_lookup instead of SIMD_lookup
-    // TODO: support S-Bucket, where key and value are in the same array
     assert((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>::value));
 
     constexpr size_t SIMD_WIDTH = 256 / sizeof(T) / 8; // the number of keys in a 256-bit SIMD register
@@ -396,12 +389,11 @@ bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value, size_t hi
         if (mask == 0) continue; // no match in this SIMD register
 
         int idx = l + __builtin_ctz(mask);
-        // std:: cout << "SIMD_lookup: found key " << key << " at position " << idx << std::endl;
-        // std::cout << "hint = " << hint << std::endl;
-        // std::cout << "l = " << l << std::endl;
         value = list_.at(idx).value_;
         return true;
     }
+
+    // assert(false); // should not reach here
 
     return false;
 }
@@ -459,7 +451,6 @@ private:
     }
   };
 
-// TODO: store num_keys() as a member variable num_keys_ and ensure concurency?
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 class Bucket<LISTTYPE, T, V, SIZE>::SortedIterator {
 public:
