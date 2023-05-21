@@ -91,10 +91,11 @@ public:
 
         //given kv_ptr and kv_ptr_next, check their key to make a linear model
         KeyType start_key = kv_ptr.key_;
-        KeyType end_key = kv_ptr_next.key_ - 1;
-        double slope = (long double)(DATA_BUCKET_SIZE - 1) / (long double)(end_key - start_key);
+        KeyType end_key = kv_ptr_next.key_;
+        double slope = (long double)(DATA_BUCKET_SIZE-1) / (long double)(end_key - start_key);
         double offset = -slope * start_key;
         size_t hint = (size_t)(slope * key + offset);
+        // hint = std::min(hint, DATA_BUCKET_SIZE - 1);
         assert(hint < DATA_BUCKET_SIZE);
 
         DataBucketType* d_bucket = (DataBucketType *)seg_ptr;
@@ -246,7 +247,7 @@ public:
                     double end_key = pivot_list[ping].back().key_;
                     double slope = 0.0, offset = 0.0;
                     if (pivot_list[ping].size() > 1) {
-                        slope = (end_key - start_key) /(pivot_list[ping].size()- 1);
+                        slope = (long double)(pivot_list[ping].size()- 1) / (long double)(end_key - start_key);
                         offset = -slope * start_key;
                     }
                     model = LinearModel<KeyType>(slope, offset);
@@ -458,15 +459,11 @@ private:
         }
 
         KeyType start_key = path[num_levels_-1].key_;
-        KeyType end_key = kvptr_next.key_ - 1;
-        assert(end_key >= start_key);
-        if (end_key > start_key) {
-            double slope = (long double)(DATA_BUCKET_SIZE - 1) / (long double)(end_key - start_key);
-            double offset = -slope * start_key;
-            model = LinearModel<KeyType>(slope, offset);
-        } else {
-            model = LinearModel<KeyType>(0, 0);
-        }
+        KeyType end_key = kvptr_next.key_;
+        assert(end_key > start_key);
+        double slope = (long double)(DATA_BUCKET_SIZE-1) / (long double)(end_key - start_key);
+        double offset = -slope * start_key;
+        model = LinearModel<KeyType>(slope, offset);
 
         assert(success);
         return success;
@@ -535,12 +532,18 @@ private:
             out_kv_array.push_back(KeyValuePtrType(in_kv_array[start_idx].key_,
                                                    (uintptr_t)d_bucket));
 
-            // add endpoint model
-            LinearModel<KeyType> model = out_cuts[i].get_model();
+            KeyType start_key = in_kv_array[start_idx].key_;
+            KeyType end_key = std::numeric_limits<KeyType>::max();
+            if (start_idx+length-1 < in_kv_array.size()) end_key = in_kv_array[start_idx+length-1].key_;
+            assert(end_key > start_key);
+            double slope = (long double)(DATA_BUCKET_SIZE-1) / (long double)(end_key - start_key);
+            double offset = -slope * start_key;
             
             //load the keys to the data bucket
             for(auto j = start_idx; j < (start_idx+length); j++) { // TODO: model-based insertion
-                size_t hint = model.predict(in_kv_array[j].key_);
+                size_t hint = (size_t)(slope * in_kv_array[j].key_ + offset);
+                // hint = min(hint, DATA_BUCKET_SIZE-1);
+                assert(hint < DATA_BUCKET_SIZE);
                 d_bucket->insert(in_kv_array[j], true, hint);
             }
             //segment->dump();
