@@ -55,7 +55,7 @@ public:
     bool update(const KeyValueType &kv); // find kv.key_ and update its value; return false if not found
 
     /**
-     * Split the bucket into two buckets by the median key, and insert a new key-value pair
+     * Split the D-bucket into two buckets by the median key, and insert a new key-value pair
      * @param kv: the new key-value pair to be inserted
      * @return two KVptr of the new buckets
      */
@@ -67,25 +67,26 @@ public:
         BucketType *new_bucket2 = new BucketType();
         bool success;
         // move all keys that are > median_key to the new bucket
+        size_t hint = 0; // TODO: change to model-based hint
         for (int i = 0; i < SIZE; i++) {
             if (valid(i)) {
                 if (list_.at(i).key_ <= median_key)  {
-                    success = new_bucket1->insert(list_.at(i), true, 0/*hint*/); //no hints for s-buckets.
+                    success = new_bucket1->insert(list_.at(i), true, hint);
                     assert(success);
                 }
                 else {
-                    success = new_bucket2->insert(list_.at(i), true, 0/*hint*/); //no hints for s-buckets.
+                    success = new_bucket2->insert(list_.at(i), true, hint);
                     assert(success);
                 }
             }
         }
 
         if (kv.key_ <= median_key) {
-            success = new_bucket1->insert(kv, true, 0/*hint*/); //no hints for s-buckets.
+            success = new_bucket1->insert(kv, true, hint);
             assert(success);
         }
         else {
-            success = new_bucket2->insert(kv, true, 0/*hint*/); //no hints for s-buckets.
+            success = new_bucket2->insert(kv, true, hint);
             assert(success);
         }
 
@@ -159,6 +160,7 @@ public:
 
     inline int find_empty_slot(size_t hint) const {
         // return the offset of the first bit=0;
+        assert(hint < SIZE);
         const size_t start = hint / BITS_UINT64_T;
         const uint64_t mask = (1ull << (hint - start * BITS_UINT64_T)) - 1ull; // [start, hint) are 1, [hint, end) are 0, from LSB
 
@@ -238,7 +240,8 @@ private:
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value, size_t hint) const {
     // must be D-Bucket
-    assert ((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>()));
+    assert((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>()));
+    assert(hint < SIZE);
 
     if (use_SIMD_) {
         return SIMD_lookup(key, value, hint);
@@ -477,6 +480,8 @@ public:
         assert(pos >= 0 && pos <= valid_kvs_.size());
         cur_pos_ = pos;
         sort(valid_kvs_.begin(), valid_kvs_.end());
+        std::cout << "In SortedIterator: valid_kvs_.size() = " << valid_kvs_.size() << " pos = " << pos << std::endl;
+        std::cout << "In SortedIterator: min = " << valid_kvs_.front().key_ << ", max = " << valid_kvs_.back().key_ << std::endl;
     }
 
     SortedIterator(BucketType *bucket, int pos, std::vector<KeyValueType> &valid_kvs) : bucket_(bucket), valid_kvs_(valid_kvs) {
