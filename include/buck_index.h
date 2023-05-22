@@ -88,18 +88,14 @@ public:
         auto end_traverse_time = tn.rdtsc();
         lookup_stats_.time_traverse_to_leaf += (tn.tsc2ns(end_traverse_time) - tn.tsc2ns(start_time))/(double) 1000000000;
 #endif
-        // auto traverse_end = std::chrono::high_resolution_clock::now();
-        // // Calculate elapsed time (in seconds)
-        // lookup_stats_.time_traverse_to_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(traverse_end - start).count();
 
         //given kv_ptr and kv_ptr_next, check their key to make a linear model
-        KeyType &key1 = kv_ptr.key_;
-        KeyType &key2 = kv_ptr_next.key_;
-        double slope = (long double)(DATA_BUCKET_SIZE - 1) / (long double)(key2 - key1);
-        double offset = -slope * key1;
+        KeyType start_key = kv_ptr.key_;
+        KeyType end_key = kv_ptr_next.key_;
+        double slope = (long double)DATA_BUCKET_SIZE / (long double)(end_key - start_key);
+        double offset = -slope * start_key;
         size_t hint = (size_t)(slope * key + offset);
-        assert(hint < DATA_BUCKET_SIZE);
-        //size_t hint = 0;
+        hint = std::min(hint, DATA_BUCKET_SIZE - 1);
 
         DataBucketType* d_bucket = (DataBucketType *)seg_ptr;
         result = d_bucket->lookup(key, value, hint);
@@ -135,7 +131,8 @@ public:
 
         // traverse to leaf and record the path
         std::vector<KeyValuePtrType> path(num_levels_);//root-to-leaf path, including the data bucket
-        bool success = lookup_path(start_key, path);
+        LinearModel<KeyType> dummy_model;
+        bool success = lookup_path(start_key, path, dummy_model);
 
         // get the d-bucket iterator
         DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
@@ -168,7 +165,7 @@ public:
     * @param kv: the Key-Value pair to be inserted
     * @return true if kv in inserted, false else
     */
-    bool insert(KeyValueType& kv) {
+    bool insert(KeyValueType& kv) { // TODO: change to model-based insertion for d-buckets
 
 #ifdef BUCKINDEX_DEBUG
         auto start_time = tn.rdtsc();
@@ -185,11 +182,13 @@ public:
 
         // traverse to the leaf D-Bucket, and record the path
         std::vector<KeyValuePtrType> path(num_levels_);//root-to-leaf path, including the  data bucket
-        bool success = lookup_path(kv.key_, path);
+        LinearModel<KeyType> model;
+        bool success = lookup_path(kv.key_, path, model);
         assert(success);
-
+        size_t hint = model.predict(kv.key_);
+        hint = std::min(hint, DATA_BUCKET_SIZE - 1);
         DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1].value_);
-        success = d_bucket->insert(kv, true);
+        success = d_bucket->insert(kv, true, hint);
 #ifdef BUCKINDEX_DEBUG
         auto insert_finish_time = tn.rdtsc();
 #endif
@@ -248,7 +247,7 @@ public:
                     double end_key = pivot_list[ping].back().key_;
                     double slope = 0.0, offset = 0.0;
                     if (pivot_list[ping].size() > 1) {
-                        slope = (end_key - start_key) /(pivot_list[ping].size()- 1);
+                        slope = (long double)pivot_list[ping].size() / (long double)(end_key - start_key);
                         offset = -slope * start_key;
                     }
                     model = LinearModel<KeyType>(slope, offset);
@@ -288,7 +287,7 @@ public:
      * Bulk load the user key value onto the learned index
      * @param kvs: list of user key value to be loaded onto the learned index
      */
-    void bulk_load(vector<KeyValueType> &kvs) {
+    void bulk_load(vector<KeyValueType> &kvs) { // TODO: change to model-based insertion for d-buckets
         vector<KeyValuePtrType> kvptr_array[2];
         uint64_t ping = 0, pong = 1;
         num_levels_ = 0;
@@ -446,17 +445,26 @@ private:
      * Lookup function, traverse the index to the leaf D-Bucket, and record the path
      * @param key: lookup key
      * @param path: the path from root to the leaf D-Bucket
+     * @param model: the endpoint model used to predict the position of the key in the leaf D-Bucket
     */
-    bool lookup_path(KeyType key, std::vector<KeyValuePtrType> &path) {
+    bool lookup_path(KeyType key, std::vector<KeyValuePtrType> &path, LinearModel<KeyType> &model) {
         // traverse the index to the leaf D-Bucket, and record the path
         bool success = true;
         path[0] = KeyValuePtrType(std::numeric_limits<KeyType>::min(), (uintptr_t)root_);
-        KeyValuePtrType dummy; // TODO: change to the next key
+        KeyValuePtrType kvptr_next; // TODO: change to the next key
         for (int i = 1; i < num_levels_; i++) {
             SegmentType* segment = (SegmentType*)path[i-1].value_;
-            success &= segment->lb_lookup(key, path[i], dummy);
+            success &= segment->lb_lookup(key, path[i], kvptr_next);
             assert((void *)path[i].value_ != nullptr);
         }
+
+        KeyType start_key = path[num_levels_-1].key_;
+        KeyType end_key = kvptr_next.key_;
+        assert(end_key > start_key);
+        double slope = (long double)DATA_BUCKET_SIZE / (long double)(end_key - start_key);
+        double offset = -slope * start_key;
+        model = LinearModel<KeyType>(slope, offset);
+
         assert(success);
         return success;
     }
@@ -523,9 +531,19 @@ private:
             //store the bucket anchor for the higher layer
             out_kv_array.push_back(KeyValuePtrType(in_kv_array[start_idx].key_,
                                                    (uintptr_t)d_bucket));
+
+            KeyType start_key = in_kv_array[start_idx].key_;
+            KeyType end_key = std::numeric_limits<KeyType>::max();
+            if (start_idx+length-1 < in_kv_array.size()) end_key = in_kv_array[start_idx+length-1].key_;
+            assert(end_key > start_key);
+            double slope = (long double)DATA_BUCKET_SIZE / (long double)(end_key - start_key);
+            double offset = -slope * start_key;
+            
             //load the keys to the data bucket
-            for(auto j = start_idx; j < (start_idx+length); j++) {
-                d_bucket->insert(in_kv_array[j], true);
+            for(auto j = start_idx; j < (start_idx+length); j++) { // TODO: model-based insertion
+                size_t hint = (size_t)(slope * in_kv_array[j].key_ + offset);
+                hint = min(hint, DATA_BUCKET_SIZE-1);
+                d_bucket->insert(in_kv_array[j], true, hint);
             }
             //segment->dump();
         }

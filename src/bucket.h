@@ -51,11 +51,11 @@ public:
     bool SIMD_lookup(const T &key, V& value, size_t hint) const; // D-Bucket lookup; hint is the starting/predicted position in the bucket
     bool SIMD_lb_lookup(const T &key, KeyValueType &lb_kv, KeyValueType &next_kv) const; // S-Bucket lower_bound lookup;
 
-    bool insert(const KeyValueType &kv, bool update_pivot); // Return false if insert() fails
+    bool insert(const KeyValueType &kv, bool update_pivot, size_t hint); // Return false if insert() fails
     bool update(const KeyValueType &kv); // find kv.key_ and update its value; return false if not found
 
     /**
-     * Split the bucket into two buckets by the median key, and insert a new key-value pair
+     * Split the D-bucket into two buckets by the median key, and insert a new key-value pair
      * @param kv: the new key-value pair to be inserted
      * @return two KVptr of the new buckets
      */
@@ -67,25 +67,26 @@ public:
         BucketType *new_bucket2 = new BucketType();
         bool success;
         // move all keys that are > median_key to the new bucket
+        size_t hint = 0; // TODO: change to model-based hint
         for (int i = 0; i < SIZE; i++) {
             if (valid(i)) {
                 if (list_.at(i).key_ <= median_key)  {
-                    success = new_bucket1->insert(list_.at(i), true);
+                    success = new_bucket1->insert(list_.at(i), true, hint);
                     assert(success);
                 }
                 else {
-                    success = new_bucket2->insert(list_.at(i), true);
+                    success = new_bucket2->insert(list_.at(i), true, hint);
                     assert(success);
                 }
             }
         }
 
         if (kv.key_ <= median_key) {
-            success = new_bucket1->insert(kv, true);
+            success = new_bucket1->insert(kv, true, hint);
             assert(success);
         }
         else {
-            success = new_bucket2->insert(kv, true);
+            success = new_bucket2->insert(kv, true, hint);
             assert(success);
         }
 
@@ -105,7 +106,6 @@ public:
         return -1;
     }
     
-    //TODO: remove all iterators
     // iterator-related
     class UnsortedIterator;
     UnsortedIterator begin_unsort() {return UnsortedIterator(this, 0); }
@@ -158,16 +158,32 @@ public:
 
     KeyValueType find_kth_smallest(int k) const; // find the kth smallest element in 1-based index
 
-    //bitmap operations
-    inline int find_empty_slot() const { // return the offset of the first bit=0
-        for (int i = 0; i < BITMAP_SIZE; i++) {
-            if (bitmap_[i] == UINT64_MAX) continue; // all bits are 1 (occupied)
-            int pos = __builtin_ctzll(~bitmap_[i]);
-            pos = i * BITS_UINT64_T + pos;
+    inline int find_empty_slot(size_t hint) const {
+        // return the offset of the first bit=0;
+        assert(hint < SIZE);
+        const size_t start = hint / BITS_UINT64_T;
+        const uint64_t mask = (1ull << (hint - start * BITS_UINT64_T)) - 1ull; // [start, hint) are 1, [hint, end) are 0, from LSB
+
+        // output mask in binary
+
+        for (int i = 0, l = start; i < BITMAP_SIZE; i++, l = (l + 1) % BITMAP_SIZE) {
+            uint64_t masked = bitmap_[l] | (l == start ? mask : 0); // set [start, hint) bits to 1
+            if (masked == UINT64_MAX) continue; // all bits are 1 (occupied)
+            int pos = __builtin_ctzll(~masked);
+            pos = l * BITS_UINT64_T + pos;
             if (pos < SIZE) return pos;
             else return -1; // there are some redundant bits
                             // when SIZE % BITS_UINT64_T != 0
         }
+
+        // Not found yet, need to check [start, hint) again, without mask this time
+        int l = start;
+        uint64_t masked = bitmap_[l];
+        if (masked == UINT64_MAX) return -1; // all bits are 1 (occupied)
+        int pos = __builtin_ctzll(~masked);
+        pos = l * BITS_UINT64_T + pos;
+        if (pos < SIZE) return pos;
+
         return -1; // no empty slot
     }
 
@@ -223,8 +239,9 @@ private:
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value, size_t hint) const {
-    // if it's D-Bucket and use SIMD, call SIMD_lookup
-    assert ((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>()));
+    // must be D-Bucket
+    assert((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>()));
+    assert(hint < SIZE);
 
     if (use_SIMD_) {
         return SIMD_lookup(key, value, hint);
@@ -233,11 +250,6 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value, size_t hint) c
     for (int i = 0, l = hint; i < SIZE; i++, l = (l+1) % SIZE) {
         if (valid(l) && list_.at(l).key_ == key) {
             value = list_.at(l).value_;
-
-            // std:: cout << "lookup: found key " << key << " at position " << l << std::endl;
-            // std:: cout << "hint: " << hint << std::endl;
-            // std:: cout << "SIZE: " << SIZE << std::endl;
-
             return true;
         }
     }
@@ -273,8 +285,8 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(const T &key, KeyValueType &lb_kv, 
 
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::insert(const KeyValueType &kv, bool update_pivot) {
-    int pos = find_empty_slot();
+bool Bucket<LISTTYPE, T, V, SIZE>::insert(const KeyValueType &kv, bool update_pivot, size_t hint) {
+    int pos = find_empty_slot(hint);
     if (pos == -1 || pos >= SIZE) return false; // return false if the Bucket is already full
     list_.put(pos, kv.key_, kv.value_);
     validate(pos);
@@ -319,6 +331,7 @@ inline __m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyListValueLi
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 inline __m256i Bucket<LISTTYPE, T, V, SIZE>::SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const {
     assert(false); // KeyValueList does not support SIMD_lookup
+    return __m256i();
 
     // __m256i key_mask = _mm256_setr_epi32(-1, 0, -1, 0, -1, 0, -1, 0);
     // const int* ptr = reinterpret_cast<const int*>(&list.kvs_[pos]);
@@ -359,7 +372,6 @@ inline void print_m256i_bits(const __m256i &key_vector) {
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value, size_t hint) const {
     // We only support D-bucket; S-Bucket always calls SIMD_lb_lookup instead of SIMD_lookup
-    // TODO: support S-Bucket, where key and value are in the same array
     assert((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>::value));
 
     constexpr size_t SIMD_WIDTH = 256 / sizeof(T) / 8; // the number of keys in a 256-bit SIMD register
@@ -389,12 +401,11 @@ bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value, size_t hi
         if (mask == 0) continue; // no match in this SIMD register
 
         int idx = l + __builtin_ctz(mask);
-        // std:: cout << "SIMD_lookup: found key " << key << " at position " << idx << std::endl;
-        // std::cout << "hint = " << hint << std::endl;
-        // std::cout << "l = " << l << std::endl;
         value = list_.at(idx).value_;
         return true;
     }
+
+    // assert(false); // should not reach here
 
     return false;
 }
@@ -452,7 +463,6 @@ private:
     }
   };
 
-// TODO: store num_keys() as a member variable num_keys_ and ensure concurency?
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 class Bucket<LISTTYPE, T, V, SIZE>::SortedIterator {
 public:
@@ -470,6 +480,8 @@ public:
         assert(pos >= 0 && pos <= valid_kvs_.size());
         cur_pos_ = pos;
         sort(valid_kvs_.begin(), valid_kvs_.end());
+        std::cout << "In SortedIterator: valid_kvs_.size() = " << valid_kvs_.size() << " pos = " << pos << std::endl;
+        std::cout << "In SortedIterator: min = " << valid_kvs_.front().key_ << ", max = " << valid_kvs_.back().key_ << std::endl;
     }
 
     SortedIterator(BucketType *bucket, int pos, std::vector<KeyValueType> &valid_kvs) : bucket_(bucket), valid_kvs_(valid_kvs) {

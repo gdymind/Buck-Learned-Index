@@ -737,7 +737,7 @@ namespace buckindex {
         DataBucketType *d_buckets[length];
         for (size_t i = 0; i < length; i++) {
             d_buckets[i] = new DataBucketType();
-            d_buckets[i]->insert(KeyValue<key_t, value_t>(keys[i], keys[i]), true);
+            d_buckets[i]->insert(KeyValue<key_t, value_t>(keys[i], keys[i]), true, 0);
             in_array.push_back(KeyValue<key_t, uintptr_t>(keys[i], reinterpret_cast<uintptr_t>(d_buckets[i])));
         }
         // model is y=0.05x
