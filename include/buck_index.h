@@ -14,6 +14,16 @@
 
 namespace buckindex {
 
+// // murmur hash function for 64-bit
+// uint64_t murmur64(uint64_t key) {
+//     key ^= key >> 33;
+//     key *= 0xff51afd7ed558ccd;
+//     key ^= key >> 33;
+//     key *= 0xc4ceb9fe1a85ec53;
+//     key ^= key >> 33;
+//     return key;
+// }
+
 
 template<typename KeyType, typename ValueType, size_t SEGMENT_BUCKET_SIZE, size_t DATA_BUCKET_SIZE>
 class BuckIndex {
@@ -89,13 +99,18 @@ public:
         lookup_stats_.time_traverse_to_leaf += (tn.tsc2ns(end_traverse_time) - tn.tsc2ns(start_time))/(double) 1000000000;
 #endif
 
+        // decide the hint
+        size_t hint;
+#ifdef BUCKINDEX_HINT_HASH
+        hint = (key) % DATA_BUCKET_SIZE;
+#else
         //given kv_ptr and kv_ptr_next, check their key to make a linear model
         KeyType start_key = kv_ptr.key_;
         KeyType end_key = kv_ptr_next.key_;
         double slope = (long double)(DATA_BUCKET_SIZE-1) / (long double)(end_key - start_key);
         double offset = -slope * start_key;
-        size_t hint = (size_t)(slope * key + offset);
-        // hint = std::min(hint, DATA_BUCKET_SIZE - 1);
+        hint = (size_t)(slope * key + offset);
+#endif
         assert(hint < DATA_BUCKET_SIZE);
 
         DataBucketType* d_bucket = (DataBucketType *)seg_ptr;
@@ -108,12 +123,6 @@ public:
         lookup_stats_.time_lookup += (diff/(double) 1000000000);
         lookup_stats_.num_of_lookup++;
 #endif
-
-
-        // auto end = std::chrono::high_resolution_clock::now();
-        // lookup_stats_.time_lookup_in_leaf += std::chrono::duration_cast<std::chrono::duration<double>>(end - traverse_end).count();
-
-       
 
         return result;
     }
@@ -186,7 +195,12 @@ public:
         LinearModel<KeyType> model;
         bool success = lookup_path(kv.key_, path, model);
         assert(success);
-        size_t hint = model.predict(kv.key_);
+        size_t hint;
+#ifdef BUCKINDEX_HINT_HASH
+        hint = (kv.key_) % DATA_BUCKET_SIZE;
+#else
+        hint = model.predict(kv.key_);
+#endif
         DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1].value_);
         success = d_bucket->insert(kv, true, hint);
 #ifdef BUCKINDEX_DEBUG
@@ -329,6 +343,15 @@ public:
         }
 
         dump_fanout();
+
+        // // print all element from DataBucketType::hint_dist_count using iterator
+        // std::cout << "  Hint Distribution Count (distance = actual - predict): " << std::endl;
+        // std::cout << "  DataBucketType::hint_dist_count.size(): " << hint_dist_count.size() << std::endl;
+        // for (auto it = hint_dist_count.begin(); it != hint_dist_count.end(); it++) {
+        //     std::cout << "    " << it->first << ": " << it->second << std::endl;
+        // }
+
+
     }
 
     /**
@@ -532,16 +555,23 @@ private:
             out_kv_array.push_back(KeyValuePtrType(in_kv_array[start_idx].key_,
                                                    (uintptr_t)d_bucket));
 
+#ifndef BUCKINDEX_HINT_HASH
             KeyType start_key = in_kv_array[start_idx].key_;
             KeyType end_key = std::numeric_limits<KeyType>::max();
             if (start_idx+length-1 < in_kv_array.size()) end_key = in_kv_array[start_idx+length-1].key_;
             assert(end_key > start_key);
             double slope = (long double)(DATA_BUCKET_SIZE-1) / (long double)(end_key - start_key);
             double offset = -slope * start_key;
+#endif
             
             //load the keys to the data bucket
             for(auto j = start_idx; j < (start_idx+length); j++) { // TODO: model-based insertion
-                size_t hint = (size_t)(slope * in_kv_array[j].key_ + offset);
+                size_t hint;
+#ifdef BUCKINDEX_HINT_HASH
+                hint = (in_kv_array[j].key_) % DATA_BUCKET_SIZE;
+#else
+                hint = (size_t)(slope * in_kv_array[j].key_ + offset);
+#endif
                 // hint = min(hint, DATA_BUCKET_SIZE-1);
                 assert(hint < DATA_BUCKET_SIZE);
                 d_bucket->insert(in_kv_array[j], true, hint);
