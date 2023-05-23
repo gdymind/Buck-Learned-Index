@@ -172,8 +172,6 @@ public:
             int pos = __builtin_ctzll(~masked);
             pos = l * BITS_UINT64_T + pos;
             if (pos < SIZE) return pos;
-            else return -1; // there are some redundant bits
-                            // when SIZE % BITS_UINT64_T != 0
         }
 
         // Not found yet, need to check [start, hint) again, without mask this time
@@ -247,13 +245,22 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value, size_t hint) c
         return SIMD_lookup(key, value, hint);
     }
 
-    for (int i = 0, l = hint; i < SIZE; i++, l = (l+1) % SIZE) {
+    int l = hint;
+    int r = (hint + 1) % SIZE;
+
+    for (int i = 0; i < SIZE / 2; i++) {
         if (valid(l) && list_.at(l).key_ == key) {
             value = list_.at(l).value_;
             return true;
         }
+        if (valid(r) && list_.at(r).key_ == key) {
+            value = list_.at(r).value_;
+            return true;
+        }
+        l = (l - 1 + SIZE) % SIZE;
+        r = (r + 1) % SIZE;
     }
- 
+
     return false;
 }
 
@@ -379,9 +386,15 @@ bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value, size_t hi
     if constexpr (sizeof(T) == 4) key_vector = _mm256_set1_epi32(key); // 32-bit integer, repeat key 8 times
     else if constexpr(sizeof(T) == 8) key_vector = _mm256_set1_epi64x(key); // 64-bit integer, repeat key 4 times
 
-    
-    for (int i = 0, l = (hint / SIMD_WIDTH) * SIMD_WIDTH; i < SIZE; i += SIMD_WIDTH, l = (l + SIMD_WIDTH) % SIZE) {
-        __m256i keys = SIMD_load_keys(list_, l); // load 4 or 8 keys into a SIMD register
+    int start = (hint / SIMD_WIDTH) * SIMD_WIDTH; // align with SIMD_WIDTH
+    int l = start;
+    int r = (start + SIMD_WIDTH) % SIZE;
+    const int STEP = SIMD_WIDTH;
+
+
+    for (int i = 0; i < SIZE; i += SIMD_WIDTH) {
+        int idx_cur = (i/STEP % 2 == 0) ? l : r;
+        __m256i keys = SIMD_load_keys(list_, idx_cur); // load 4 or 8 keys into a SIMD register
         __m256i cmp;
         if constexpr (sizeof(T) == 4) cmp = _mm256_cmpeq_epi32(keys, key_vector); // compare every 32 bits;
                                                                                   // result bits start from LSB
@@ -392,17 +405,22 @@ bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value, size_t hi
         if constexpr(sizeof(T) == 4) mask = _mm256_movemask_ps((__m256)cmp); // 8 bits in the mask, for 32-bit integer
         else if constexpr(sizeof(T) == 8) mask = _mm256_movemask_pd((__m256d)cmp); // 4 bits in the mask, for 64-bit integer
         
-        int bitmap_pos = l / BITS_UINT64_T; // use bitmap_[bitmap_pos]
-        int bit_pos = l % BITS_UINT64_T; // pos from MSB
+        int bitmap_pos = idx_cur / BITS_UINT64_T; // use bitmap_[bitmap_pos]
+        int bit_pos = idx_cur % BITS_UINT64_T; // pos from MSB
         // get 8 bits from (bitmap_[bitmap_pos], bit_pos)
         unsigned char valid_bits = (unsigned char)((bitmap_[bitmap_pos] >> bit_pos) & 0xFF);
 
         mask &= valid_bits; // only keep the valid bits
-        if (mask == 0) continue; // no match in this SIMD register
+        if (mask != 0) { // match found in this SIMD register
+            int idx = idx_cur + __builtin_ctz(mask);
+            value = list_.at(idx).value_;
+            return true;
+        }
 
-        int idx = l + __builtin_ctz(mask);
-        value = list_.at(idx).value_;
-        return true;
+        if (i/STEP % 2 != 0) {
+            l = (l - STEP + SIZE) % SIZE;
+            r = (r + STEP) % SIZE;
+        }
     }
 
     // assert(false); // should not reach here
@@ -480,8 +498,11 @@ public:
         assert(pos >= 0 && pos <= valid_kvs_.size());
         cur_pos_ = pos;
         sort(valid_kvs_.begin(), valid_kvs_.end());
+#ifdef BUCKINDEX_DEBUG
         std::cout << "In SortedIterator: valid_kvs_.size() = " << valid_kvs_.size() << " pos = " << pos << std::endl;
-        std::cout << "In SortedIterator: min = " << valid_kvs_.front().key_ << ", max = " << valid_kvs_.back().key_ << std::endl;
+        if (valid_kvs_.size() > 0)
+            std::cout << "In SortedIterator: min = " << valid_kvs_.front().key_ << ", max = " << valid_kvs_.back().key_ << std::endl;
+#endif
     }
 
     SortedIterator(BucketType *bucket, int pos, std::vector<KeyValueType> &valid_kvs) : bucket_(bucket), valid_kvs_(valid_kvs) {
