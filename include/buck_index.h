@@ -481,7 +481,7 @@ private:
             success &= segment->lb_lookup(key, path[i], kvptr_next);
             assert((void *)path[i].value_ != nullptr);
         }
-#ifndef BUCKINDEX_DEBUG
+#ifndef BUCKINDEX_HINT_HASH
         KeyType start_key = path[num_levels_-1].key_;
         KeyType end_key = kvptr_next.key_;
         assert(end_key > start_key);
