@@ -92,10 +92,13 @@ public:
         //given kv_ptr and kv_ptr_next, check their key to make a linear model
         KeyType start_key = kv_ptr.key_;
         KeyType end_key = kv_ptr_next.key_;
+        // double slope = (long double)(DATA_BUCKET_SIZE-1) / (long double)(end_key - start_key);
         double slope = (long double)DATA_BUCKET_SIZE / (long double)(end_key - start_key);
         double offset = -slope * start_key;
         size_t hint = (size_t)(slope * key + offset);
-        hint = std::min(hint, DATA_BUCKET_SIZE - 1);
+        // hint = std::min(hint, DATA_BUCKET_SIZE - 1);
+        hint %= DATA_BUCKET_SIZE;
+        // assert(hint < DATA_BUCKET_SIZE);
 
         DataBucketType* d_bucket = (DataBucketType *)seg_ptr;
         result = d_bucket->lookup(key, value, hint);
@@ -186,7 +189,9 @@ public:
         bool success = lookup_path(kv.key_, path, model);
         assert(success);
         size_t hint = model.predict(kv.key_);
-        hint = std::min(hint, DATA_BUCKET_SIZE - 1);
+        // hint = std::min(hint, DATA_BUCKET_SIZE - 1);
+        hint %= DATA_BUCKET_SIZE;
+        // assert(hint < DATA_BUCKET_SIZE);
         DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1].value_);
         success = d_bucket->insert(kv, true, hint);
 #ifdef BUCKINDEX_DEBUG
@@ -534,15 +539,21 @@ private:
 
             KeyType start_key = in_kv_array[start_idx].key_;
             KeyType end_key = std::numeric_limits<KeyType>::max();
-            if (start_idx+length-1 < in_kv_array.size()) end_key = in_kv_array[start_idx+length-1].key_;
+            if (start_idx+length < in_kv_array.size()) end_key = in_kv_array[start_idx+length-1].key_;
+            if (end_key <= start_key) {
+                std::cout<<"start_key: "<<start_key<<" end_key: "<<end_key<<std::endl;
+            }
             assert(end_key > start_key);
+            // double slope = (long double)(DATA_BUCKET_SIZE-1) / (long double)(end_key - start_key);
             double slope = (long double)DATA_BUCKET_SIZE / (long double)(end_key - start_key);
             double offset = -slope * start_key;
             
             //load the keys to the data bucket
             for(auto j = start_idx; j < (start_idx+length); j++) { // TODO: model-based insertion
                 size_t hint = (size_t)(slope * in_kv_array[j].key_ + offset);
-                hint = min(hint, DATA_BUCKET_SIZE-1);
+                // hint = std::min(hint, DATA_BUCKET_SIZE-1);
+                hint %= DATA_BUCKET_SIZE;
+                // assert(hint < DATA_BUCKET_SIZE);
                 d_bucket->insert(in_kv_array[j], true, hint);
             }
             //segment->dump();
