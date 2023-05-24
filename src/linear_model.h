@@ -35,20 +35,22 @@ namespace buckindex {
             if (keys.size() < 2 || keys[keys.size() - 1] == keys[0]) {
                 return LinearModel<T>();
             }
-            double sum_x = 0;
-            double sum_y = 0;
-            double sum_xy = 0;
-            double sum_xx = 0;
-            double sum_yy = 0;
+
+            long double sum_x = 0;
+            long double sum_y = 0;
+            long double sum_xy = 0;
+            long double sum_xx = 0;
+            long double sum_yy = 0;
             for (int i = 0; i < keys.size(); i++) {
                 sum_x += keys[i];
                 sum_y += i;
-                sum_xy += keys[i]*i;
-                sum_xx += keys[i]*keys[i];
+                sum_xy += (long double)keys[i]*i;
+                sum_xx += (long double)keys[i]*keys[i];
                 sum_yy += i*i;
             }
-            double slope = ((long double)keys.size()*sum_xy - sum_x*sum_y) / ((long double)keys.size()*sum_xx - sum_x*sum_x);
-            double offset = ((long double)sum_y - slope*sum_x) / (long double)keys.size();
+            long double count = keys.size();
+            double slope = (count*sum_xy - sum_x*sum_y) / (count*sum_xx - sum_x*sum_x);
+            double offset = ((long double)sum_y - slope*sum_x) / count;
 
             // If floating point precision errors, fit spline
             if (slope <= 0) {
@@ -82,14 +84,14 @@ namespace buckindex {
          * Accessor of the internal slope parameter
          * @return the slope parameter
          */
-        double get_slope() {
+        double get_slope() const {
             return slope_;
         }
         /**
          * Accessor of the internal offset parameter
          * @return the offset parameter
          */
-        double get_offset() {
+        double get_offset() const {
             return offset_;
         }
         /**
@@ -104,7 +106,7 @@ namespace buckindex {
         /**
          * Helper function to dump the current model parameters
          */
-        void dump() {
+        void dump() const {
             std::cout << "(slope, offset) : " << slope_ << "," <<offset_<<std::endl;
         }
     private:

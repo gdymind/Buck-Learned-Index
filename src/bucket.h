@@ -11,6 +11,7 @@
 #include<limits>
 #include <algorithm> 
 #include <bitset>
+#include <map>
 #include <immintrin.h> //SIMD
 
 #include "keyvalue.h"
@@ -19,6 +20,9 @@
 namespace buckindex {
 
 constexpr unsigned int BITS_UINT64_T = sizeof(uint64_t) * 8;;
+
+//debug only
+// static std::map<int, int> hint_dist_count; // <distance, count>
 
 /**
  * Bucket is a list of unsorted KeyValue
@@ -33,6 +37,8 @@ public:
     using BucketType = Bucket<LISTTYPE, T, V, SIZE>;
 
     static bool use_SIMD_;
+
+    
 
     Bucket() {
         // assume T and V has the same size, so we can perform masked load
@@ -68,8 +74,12 @@ public:
         bool success;
         // move all keys that are > median_key to the new bucket
         size_t hint = 0; // TODO: change to model-based hint
+        
         for (int i = 0; i < SIZE; i++) {
             if (valid(i)) {
+#ifdef BUCKINDEX_HINT_HASH
+                hint = list_.at(i).key_ % SIZE;
+#endif
                 if (list_.at(i).key_ <= median_key)  {
                     success = new_bucket1->insert(list_.at(i), true, hint);
                     assert(success);
@@ -81,6 +91,9 @@ public:
             }
         }
 
+#ifdef BUCKINDEX_HINT_HASH
+        hint = kv.key_ % SIZE;
+#endif
         if (kv.key_ <= median_key) {
             success = new_bucket1->insert(kv, true, hint);
             assert(success);
@@ -378,7 +391,6 @@ bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value, size_t hi
     __m256i key_vector;
     if constexpr (sizeof(T) == 4) key_vector = _mm256_set1_epi32(key); // 32-bit integer, repeat key 8 times
     else if constexpr(sizeof(T) == 8) key_vector = _mm256_set1_epi64x(key); // 64-bit integer, repeat key 4 times
-
     
     for (int i = 0, l = (hint / SIMD_WIDTH) * SIMD_WIDTH; i < SIZE; i += SIMD_WIDTH, l = (l + SIMD_WIDTH) % SIZE) {
         __m256i keys = SIMD_load_keys(list_, l); // load 4 or 8 keys into a SIMD register
@@ -402,6 +414,9 @@ bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value, size_t hi
 
         int idx = l + __builtin_ctz(mask);
         value = list_.at(idx).value_;
+
+        // int dis = idx - hint;
+        // hint_dist_count[dis] = hint_dist_count[dis] + 1;
         return true;
     }
 
