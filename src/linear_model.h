@@ -82,14 +82,14 @@ namespace buckindex {
          * Accessor of the internal slope parameter
          * @return the slope parameter
          */
-        double get_slope() {
+        double get_slope() const {
             return slope_;
         }
         /**
          * Accessor of the internal offset parameter
          * @return the offset parameter
          */
-        double get_offset() {
+        double get_offset() const {
             return offset_;
         }
         /**
@@ -104,7 +104,7 @@ namespace buckindex {
         /**
          * Helper function to dump the current model parameters
          */
-        void dump() {
+        void dump() const {
             std::cout << "(slope, offset) : " << slope_ << "," <<offset_<<std::endl;
         }
     private:

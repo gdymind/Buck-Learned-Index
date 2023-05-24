@@ -461,6 +461,11 @@ public:
         std::cout<<"Num of success_predict: "<< SegmentType::success_predict<<std::endl;
         std::cout<<"Num of locate: "<< SegmentType::num_locate<<std::endl;
 
+        // std::cout<<"Num of fail_predict: "<< SegmentType::fail_predict_bulk<<std::endl;
+        // std::cout<<"avg fail distance: "<< (double)SegmentType::fail_distance/SegmentType::fail_predict_bulk<<std::endl;
+        // std::cout<<"Num of success_predict: "<< SegmentType::success_predict_bulk<<std::endl;
+\
+
 #endif
     }
 private:
@@ -559,7 +564,7 @@ private:
 #ifndef BUCKINDEX_HINT_HASH
             KeyType start_key = in_kv_array[start_idx].key_;
             KeyType end_key = std::numeric_limits<KeyType>::max();
-            if (start_idx+length-1 < in_kv_array.size()) end_key = in_kv_array[start_idx+length-1].key_;
+            if (start_idx+length < in_kv_array.size()) end_key = in_kv_array[start_idx+length-1].key_;
             assert(end_key > start_key);
             double slope = (long double)DATA_BUCKET_SIZE / (long double)(end_key - start_key);
             double offset = -slope * start_key;
