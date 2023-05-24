@@ -486,14 +486,14 @@ private:
             success &= segment->lb_lookup(key, path[i], kvptr_next);
             assert((void *)path[i].value_ != nullptr);
         }
-
+#ifndef BUCKINDEX_HINT_HASH
         KeyType start_key = path[num_levels_-1].key_;
         KeyType end_key = kvptr_next.key_;
         assert(end_key > start_key);
         double slope = (long double)DATA_BUCKET_SIZE / (long double)(end_key - start_key);
         double offset = -slope * start_key;
         model = LinearModel<KeyType>(slope, offset);
-
+#endif
         assert(success);
         return success;
     }
