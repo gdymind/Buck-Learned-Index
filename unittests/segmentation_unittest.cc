@@ -52,7 +52,7 @@ namespace buckindex {
         for (uint64_t i = 0; i < length; i++) {
             in_kv_array.push_back(KeyValue<uint64_t, uint64_t>(keys[i], keys[i]));
         }
-        #define BUCKINDEX_USE_LINEAR_REGRESSION
+#ifdef BUCKINDEX_USE_LINEAR_REGRESSION
         Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::compute_dynamic_segmentation(
             in_kv_array, cuts, models, error_bound);
 
@@ -77,6 +77,7 @@ namespace buckindex {
         EXPECT_EQ(3u, cuts[3].size_);
         EXPECT_NEAR(1.0, models[3].get_slope(), 1e-2);
         EXPECT_NEAR(-8.0, models[3].get_offset(), 1e-2);
+#endif
     }
 
     TEST(Segmentation, multiple_segments_and_use_endpoints) {
