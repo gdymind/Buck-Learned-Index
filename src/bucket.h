@@ -496,7 +496,9 @@ public:
         cur_pos_ = pos;
         sort(valid_kvs_.begin(), valid_kvs_.end());
         std::cout << "In SortedIterator: valid_kvs_.size() = " << valid_kvs_.size() << " pos = " << pos << std::endl;
-        std::cout << "In SortedIterator: min = " << valid_kvs_.front().key_ << ", max = " << valid_kvs_.back().key_ << std::endl;
+        if (valid_kvs_.size() > 0) {
+            std::cout << "In SortedIterator: min = " << valid_kvs_.front().key_ << ", max = " << valid_kvs_.back().key_ << std::endl;
+        }
     }
 
     SortedIterator(BucketType *bucket, int pos, std::vector<KeyValueType> &valid_kvs) : bucket_(bucket), valid_kvs_(valid_kvs) {
