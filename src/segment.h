@@ -36,7 +36,6 @@ public:
     //size_t num_bucket_; // total num of buckets
     int num_bucket_;
     BucketType* sbucket_list_; // a list of S-Buckets
-    static bool use_linear_regression_;
 
     // default constructors
     Segment(){
@@ -320,13 +319,13 @@ bool Segment<T, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std::ve
     std::vector<Cut<T>> out_cuts;
     out_cuts.clear();
 
-    Segmentation<SegmentType, T>::compute_dynamic_segmentation(*this, out_cuts, error_bound, use_linear_regression_);
+    Segmentation<SegmentType, T>::compute_dynamic_segmentation(*this, out_cuts, error_bound);
 
     // put result of segmentation into multiple segments
     size_t start_pos = 0;
     for(size_t i = 0;i<out_cuts.size();i++){
         // using dynamic allocation in case the segment is destroyed after the loop
-        SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), const_iterator(this, start_pos), const_iterator(this, start_pos+out_cuts[i].size_), use_linear_regression_);
+        SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), const_iterator(this, start_pos), const_iterator(this, start_pos+out_cuts[i].size_));
         T key = out_cuts[i].start_key_;
         KeyValue<T,uintptr_t> kv(key, (uintptr_t)seg);
         new_segs.push_back(kv);
@@ -796,9 +795,5 @@ private:
         return (cur_buckID_ == segment_->num_bucket_);
     }
 };
-
-// Define the static member variable
-template<typename T, size_t SBUCKET_SIZE>
-bool Segment<T, SBUCKET_SIZE>::use_linear_regression_ = true;
 
 } // end namespace buckindex

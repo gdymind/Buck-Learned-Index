@@ -90,8 +90,6 @@ namespace buckindex {
         key_t key;
         value_t value;
 
-        Bucket<KListVList8, key_t, value_t, 8>::use_SIMD_ = false;
-        EXPECT_FALSE((Bucket<KListVList8, key_t, value_t, 8>::use_SIMD_));
 
         // keys =   {0, 1, 2, 3, 4, 5,  6,  7}
         // values = {1, 3, 5, 7, 9, 11, 13, 15}
@@ -126,9 +124,6 @@ namespace buckindex {
         int key;
         int value;
 
-        Bucket<KVList8, key_t, value_t, 8>::use_SIMD_ = true;
-        EXPECT_TRUE((Bucket<KVList8, key_t, value_t, 8>::use_SIMD_));
-
         // keys =   {0, 1, 2, 3, 4, 5,  6,  7}
         // values = {1, 3, 5, 7, 9, 11, 13, 15}
         for (int i = 0; i < 8; i++) list.put(i, i, i * 2 + 1);
@@ -159,9 +154,6 @@ namespace buckindex {
         KeyListValueList<key_t, value_t, 8> list;
         key_t key;
         value_t value;
-
-        Bucket<KVList8, key_t, value_t, 8>::use_SIMD_ = true;
-        EXPECT_TRUE((Bucket<KVList8, key_t, value_t, 8>::use_SIMD_));
 
         // keys =   {0, 1, 2, 3, 4, 5,  6,  7}
         // values = {1, 3, 5, 7, 9, 11, 13, 15}
@@ -194,8 +186,6 @@ namespace buckindex {
         key_t key;
         value_t value;
 
-        Bucket<KeyListValueList<key_t, value_t, 256>, key_t, value_t, 256>::use_SIMD_ = false;
-        EXPECT_FALSE((Bucket<KeyListValueList<key_t, value_t, 256>, key_t, value_t, 256>::use_SIMD_));
     
         for (int i = 0; i < 200; i++) list.put(i, i, i * 2 + 1);
 
@@ -229,9 +219,6 @@ namespace buckindex {
         int key;
         int value;
 
-         Bucket<KeyListValueList<int, int, 256>, int, int, 256>::use_SIMD_ = true;
-        EXPECT_TRUE((Bucket<KeyListValueList<int, int, 256>, int, int, 256>::use_SIMD_));
-    
         for (int i = 0; i < 200; i++) list.put(i, i, i * 2 + 1);
 
         // initial size == 0
@@ -269,9 +256,6 @@ namespace buckindex {
         key_t key;
         value_t value;
 
-        Bucket<KeyListValueList<key_t, value_t, 256>, key_t, value_t, 256>::use_SIMD_ = true;
-        EXPECT_TRUE((Bucket<KeyListValueList<key_t, value_t, 256>, key_t, value_t, 256>::use_SIMD_));
-    
         for (int i = 0; i < 200; i++) list.put(i, i, i * 2 + 1);
 
         // initial size == 0

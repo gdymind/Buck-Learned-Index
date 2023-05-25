@@ -53,7 +53,6 @@ namespace buckindex {
     template<typename Container, typename KeyType>
     class Segmentation {
     public:
-        static bool use_linear_regression_;
         static void compute_dynamic_segmentation(Container &in_kv_array,
                                                  vector<Cut<KeyType>>& out_cuts, vector<LinearModel<KeyType>> &out_models,
                                                  uint64_t error_bound) {
@@ -68,7 +67,9 @@ namespace buckindex {
 
             alg.init(start->get_key(), error_bound);
             c.add_sample(start->get_key());
-            if(use_linear_regression_) keys.push_back(start->get_key());
+#ifdef BUICKINDEX_USE_LINEAR_REGRESSION
+            keys.push_back(start->get_key());
+#endif
             idx = 1;
             start++;
             while (start != end) {
@@ -77,14 +78,14 @@ namespace buckindex {
                     keys.push_back(start->get_key());
                 } else {
                     out_cuts.push_back(c);
-                    if(use_linear_regression_) {
-                        out_models.push_back(LinearModel<KeyType>::get_regression_model(keys));
-                        keys.clear();
-                    } else {
-                        out_models.push_back(c.get_model());
-                    }
+#ifdef BUICKINDEX_USE_LINEAR_REGRESSION
+                    out_models.push_back(LinearModel<KeyType>::get_regression_model(keys));
+                    keys.clear();
+                    keys.push_back(start->get_key());
+#else
+                    out_models.push_back(c.get_model());
+#endif
                     alg.init(start->get_key(), error_bound);
-                    if (use_linear_regression_) keys.push_back(start->get_key());
                     c = Cut<KeyType>(idx);
                     c.add_sample(start->get_key());
                 }
@@ -92,12 +93,12 @@ namespace buckindex {
                 start++;
             };
             out_cuts.push_back(c);
-            if(use_linear_regression_) {
-                out_models.push_back(LinearModel<KeyType>::get_regression_model(keys));
-                keys.clear();
-            } else {
-                out_models.push_back(c.get_model());
-            }
+#ifdef BUICKINDEX_USE_LINEAR_REGRESSION
+            out_models.push_back(LinearModel<KeyType>::get_regression_model(keys));
+            keys.clear();
+#else
+            out_models.push_back(c.get_model());
+#endif
         }
 
         static void compute_fixed_segmentation(Container &in_kv_array,
@@ -125,7 +126,4 @@ namespace buckindex {
             }
         }
     };
-
-    template<typename Container, typename KeyType>
-    bool Segmentation<Container, KeyType>::use_linear_regression_ = true;
 }
