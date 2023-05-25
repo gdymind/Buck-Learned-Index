@@ -11,7 +11,6 @@ namespace buckindex {
         vector<Cut<uint64_t>> cuts;
         vector<LinearModel<uint64_t>> models;
 
-        Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::use_linear_regression_ = false;
         Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::compute_dynamic_segmentation(
                 in_kv_array, cuts, models, error_bound);
         EXPECT_EQ(0u, cuts.size());
@@ -28,7 +27,6 @@ namespace buckindex {
         for (uint64_t i = 0; i < length; i++) {
             in_kv_array.push_back(KeyValue<uint64_t, uint64_t>(keys[i], keys[i]));
         }
-        Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::use_linear_regression_ = false;
         Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::compute_dynamic_segmentation(
             in_kv_array, cuts, models, error_bound);
         EXPECT_EQ(1u, cuts.size());
@@ -54,7 +52,7 @@ namespace buckindex {
         for (uint64_t i = 0; i < length; i++) {
             in_kv_array.push_back(KeyValue<uint64_t, uint64_t>(keys[i], keys[i]));
         }
-        Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::use_linear_regression_ = true;
+        #define BUCKINDEX_USE_LINEAR_REGRESSION
         Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::compute_dynamic_segmentation(
             in_kv_array, cuts, models, error_bound);
 
@@ -92,7 +90,6 @@ namespace buckindex {
         for (uint64_t i = 0; i < length; i++) {
             in_kv_array.push_back(KeyValue<uint64_t, uint64_t>(keys[i], keys[i]));
         }
-        Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::use_linear_regression_ = false;
         Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::compute_dynamic_segmentation(
             in_kv_array, cuts, models, error_bound);
 

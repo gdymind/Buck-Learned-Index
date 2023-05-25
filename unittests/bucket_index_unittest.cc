@@ -10,7 +10,9 @@ namespace buckindex {
 
     TEST(BuckIndex, bulk_load_basic) {
         BuckIndex<uint64_t, uint64_t, 2, 4> bli;
-        bli.init(0.5, true, true);
+        bli.init(0.5);
+        #define BUCKINDEX_USE_LINEAR_REGRESSION
+        #define BUCKINDEX_USE_SIMD
         vector<KeyValue<uint64_t, uint64_t>> in_kv_array;
         uint64_t keys[] = {1,2,3,4,5,6,7,8,9,10};
         uint64_t values[] = {11, 12, 13, 14, 15, 16, 17, 18, 19,20};
@@ -41,7 +43,9 @@ namespace buckindex {
 
     TEST(BuckIndex, bulk_load_multiple_segments) {
         BuckIndex<uint64_t, uint64_t, 2, 4> bli;
-        bli.init(0.5, true, true);
+        bli.init(0.5);
+        #define BUCKINDEX_USE_LINEAR_REGRESSION
+        #define BUCKINDEX_USE_SIMD
         vector<KeyValue<uint64_t, uint64_t>> in_kv_array;
         uint64_t keys[] = {1,2,3,100,110,200,210,300,305,1000,1200,1300,1400}; // 13 keys
         uint64_t values[] = {10,20,30,1000,1100,2000,2100,3000,3050,10000,12000,13000,14000};
@@ -69,7 +73,7 @@ namespace buckindex {
         }
         vector<Cut<uint64_t>> cuts;
         vector<LinearModel<uint64_t>> models;
-        Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::use_linear_regression_ = true;
+        #define BUCKINDEX_USE_LINEAR_REGRESSION
         Segmentation<vector<KeyValue<uint64_t, uint64_t>>, uint64_t>::compute_dynamic_segmentation(
             pivot_kv_array, cuts, models, 1);
 
@@ -251,7 +255,9 @@ namespace buckindex {
 
 
     TEST(BuckIndex, scan_one_segment) {
-        BuckIndex<uint64_t, uint64_t, 8, 64> bli(0.5, true, true);
+        BuckIndex<uint64_t, uint64_t, 8, 64> bli(0.5);
+        #define BUCKINDEX_USE_LINEAR_REGRESSION
+        #define BUCKINDEX_USE_SIMD
 
         std::pair<uint64_t, uint64_t> *result;
         result = new std::pair<uint64_t, uint64_t>[1000];
@@ -303,7 +309,9 @@ namespace buckindex {
     }
 
     TEST(BuckIndex, scan_multi_segment) {
-        BuckIndex<uint64_t, uint64_t, 8, 16> bli(0.5, true, true);
+        BuckIndex<uint64_t, uint64_t, 8, 16> bli(0.5);
+        #define BUCKINDEX_USE_LINEAR_REGRESSION
+        #define BUCKINDEX_USE_SIMD
 
         std::pair<uint64_t, uint64_t> *result;
         result = new std::pair<uint64_t, uint64_t>[1000];
@@ -396,7 +404,9 @@ namespace buckindex {
     }
 
     TEST(BuckIndex, level_stat){
-        BuckIndex<uint64_t, uint64_t, 8, 16> bli(0.5, true, true);
+        BuckIndex<uint64_t, uint64_t, 8, 16> bli(0.5);
+        #define BUCKINDEX_USE_LINEAR_REGRESSION
+        #define BUCKINDEX_USE_SIMD
 
         std::pair<uint64_t, uint64_t> *result;
         result = new std::pair<uint64_t, uint64_t>[1000];

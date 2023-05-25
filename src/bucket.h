@@ -256,18 +256,18 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value, size_t hint) c
     assert((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>()));
     assert(hint < SIZE);
 
-    if (use_SIMD_) {
-        return SIMD_lookup(key, value, hint);
-    }
-
+#ifdef BUCKINDEX_USE_SIMD
+    return SIMD_lookup(key, value, hint);
+#else
     for (int i = 0, l = hint; i < SIZE; i++, l = (l+1) % SIZE) {
         if (valid(l) && list_.at(l).key_ == key) {
             value = list_.at(l).value_;
             return true;
         }
     }
- 
+
     return false;
+#endif
 }
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
