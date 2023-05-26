@@ -256,18 +256,18 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value, size_t hint) c
     assert((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>()));
     assert(hint < SIZE);
 
-    if (use_SIMD_) {
-        return SIMD_lookup(key, value, hint);
-    }
-
+#ifdef BUCKINDEX_USE_SIMD
+    return SIMD_lookup(key, value, hint);
+#else
     for (int i = 0, l = hint; i < SIZE; i++, l = (l+1) % SIZE) {
         if (valid(l) && list_.at(l).key_ == key) {
             value = list_.at(l).value_;
             return true;
         }
     }
- 
+
     return false;
+#endif
 }
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
@@ -497,7 +497,9 @@ public:
         cur_pos_ = pos;
         sort(valid_kvs_.begin(), valid_kvs_.end());
         std::cout << "In SortedIterator: valid_kvs_.size() = " << valid_kvs_.size() << " pos = " << pos << std::endl;
-        std::cout << "In SortedIterator: min = " << valid_kvs_.front().key_ << ", max = " << valid_kvs_.back().key_ << std::endl;
+        if (valid_kvs_.size() > 0) {
+            std::cout << "In SortedIterator: min = " << valid_kvs_.front().key_ << ", max = " << valid_kvs_.back().key_ << std::endl;
+        }
     }
 
     SortedIterator(BucketType *bucket, int pos, std::vector<KeyValueType> &valid_kvs) : bucket_(bucket), valid_kvs_(valid_kvs) {

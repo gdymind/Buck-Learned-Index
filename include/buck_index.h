@@ -37,23 +37,35 @@ public:
     using KeyValueType = KeyValue<KeyType, ValueType>;
     using KeyValuePtrType = KeyValue<KeyType, uintptr_t>;
 
-    BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO, bool use_linear_regression = true, bool use_SIMD = true): 
-              use_linear_regression_(use_linear_regression), initial_filled_ratio_(initial_filled_ratio), use_SIMD_(use_SIMD) {
-        init(initial_filled_ratio, use_linear_regression, use_SIMD);
-        if(use_SIMD) printf("Using SIMD\n");
-        else printf("Not using SIMD\n");
+    BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO): 
+              initial_filled_ratio_(initial_filled_ratio) {
+        init(initial_filled_ratio);
+#ifdef BUCKINDEX_DEBUG
+        std::cout << "BLI: Debug mode" << std::endl;
+#else
+        std::cout << "BLI: Release mode" << std::endl;
+#endif
+#ifdef BUCKINDEX_HINT_HASH
+        std::cout << "BLI: Using hash hint" << std::endl;
+#else
+        std::cout << "BLI: Using linear model hint" << std::endl;
+#endif
+#ifdef BUCKINDEX_USE_LINEAR_REGRESSION
+        std::cout << "BLI: Using linear regression" << std::endl;
+#else
+        std::cout << "BLI: Using endpoint linear model" << std::endl;
+#endif
+#ifdef BUCKINDEX_USE_SIMD
+        std::cout << "BLI: Using SIMD" << std::endl;
+#else
+        std::cout << "BLI: Not using SIMD" << std::endl;
+#endif
     }
 
-    void init(double initial_filled_ratio, bool use_linear_regression, bool use_SIMD){
+    void init(double initial_filled_ratio){
         root_ = NULL;
         num_levels_ = 0;
 
-        use_linear_regression_ = use_linear_regression;
-        initial_filled_ratio_ = initial_filled_ratio;
-        use_SIMD_ = use_SIMD;
-        SegmentType::use_linear_regression_ = use_linear_regression;
-        Segmentation<vector<KeyValueType>, KeyType>::use_linear_regression_ = use_linear_regression;
-        DataBucketType::use_SIMD_ = use_SIMD;
 #ifdef BUCKINDEX_DEBUG
         tn.init();
 #endif
@@ -251,22 +263,22 @@ public:
             assert(pivot_list[ping].size() == 0 || cur_level == -1);
             if (pivot_list[ping].size() > 0) {
                 LinearModel<KeyType> model;
-                if (use_linear_regression_) {
-                    std::vector<KeyType> keys;
-                    for (auto kv_ptr : pivot_list[ping]) {
-                        keys.push_back(kv_ptr.key_);
-                    }
-                    model = LinearModel<KeyType>::get_regression_model(keys);
-                } else {
-                    double start_key = pivot_list[ping].front().key_;
-                    double end_key = pivot_list[ping].back().key_;
-                    double slope = 0.0, offset = 0.0;
-                    if (pivot_list[ping].size() > 1) {
-                        slope = (long double)pivot_list[ping].size() / (long double)(end_key - start_key);
-                        offset = -slope * start_key;
-                    }
-                    model = LinearModel<KeyType>(slope, offset);
+#ifdef BUICKINDEX_USE_LINEAR_REGRESSION
+                std::vector<KeyType> keys;
+                for (auto kv_ptr : pivot_list[ping]) {
+                    keys.push_back(kv_ptr.key_);
                 }
+                model = LinearModel<KeyType>::get_regression_model(keys);
+#else
+                double start_key = pivot_list[ping].front().key_;
+                double end_key = pivot_list[ping].back().key_;
+                double slope = 0.0, offset = 0.0;
+                if (pivot_list[ping].size() > 1) {
+                    slope = (long double)pivot_list[ping].size() / (long double)(end_key - start_key);
+                    offset = -slope * start_key;
+                }
+                model = LinearModel<KeyType>(slope, offset);
+#endif
                 root_ = new SegmentType(pivot_list[ping].size(), initial_filled_ratio_, model, 
                                     pivot_list[ping].begin(), pivot_list[ping].end());
                 level_stats_[num_levels_] = 1;
@@ -616,8 +628,6 @@ private:
     //Learned index constants
     static const uint8_t max_levels_ = 16;
     double initial_filled_ratio_;
-    bool use_linear_regression_;
-    bool use_SIMD_;
     
     //Statistics
     
