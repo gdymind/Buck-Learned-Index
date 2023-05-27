@@ -288,7 +288,6 @@ public:
     }
 
     // only for testing alignment
-
     void print_alignment() const{
         // print address and size of each member
         std::cout << "pivot_ address: " << &pivot_ << " size: " << sizeof(pivot_) << std::endl;
@@ -303,7 +302,6 @@ private:
     T pivot_;
     int num_keys_;
     
-    
     uint64_t bitmap_[SIZE/BITS_UINT64_T + (SIZE % BITS_UINT64_T ? 1 : 0)];  //indicate whether the entries in the list_ are valid.
     size_t BITMAP_SIZE = SIZE/BITS_UINT64_T + (SIZE % BITS_UINT64_T ? 1 : 0);
    
@@ -313,7 +311,18 @@ private:
 
     // Helper functions for SIMD
     // assume T and V are the same type, so we can perform masked load
+
+    /**
+     * Load keys from the D-bucket into a SIMD register
+     * @param list: the D-bucket list
+     * @param pos: the starting position of the keys to be loaded
+    */
     inline __m256i SIMD_load_keys(const KeyListValueList<T, V, SIZE>& list, int pos) const;
+    /**
+     * Load keys from the S-bucket into a SIMD register
+     * @param list: the S-bucket list
+     * @param pos: the starting position of the keys to be loaded
+    */
     inline __m256i SIMD_load_keys(const KeyValueList<T, V, SIZE>& list, int pos) const;
 };
 
@@ -551,10 +560,12 @@ public:
         assert(pos >= 0 && pos <= valid_kvs_.size());
         cur_pos_ = pos;
         sort(valid_kvs_.begin(), valid_kvs_.end());
+#ifdef BUCKINDEX_DEBUG
         std::cout << "In SortedIterator: valid_kvs_.size() = " << valid_kvs_.size() << " pos = " << pos << std::endl;
         if (valid_kvs_.size() > 0) {
             std::cout << "In SortedIterator: min = " << valid_kvs_.front().key_ << ", max = " << valid_kvs_.back().key_ << std::endl;
         }
+#endif
     }
 
     SortedIterator(BucketType *bucket, int pos, std::vector<KeyValueType> &valid_kvs) : bucket_(bucket), valid_kvs_(valid_kvs) {
