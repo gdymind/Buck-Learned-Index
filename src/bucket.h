@@ -35,9 +35,6 @@ public:
     using KeyValueType = KeyValue<T, V>;
     using KeyValuePtrType = KeyValue<T, uintptr_t>;
     using BucketType = Bucket<LISTTYPE, T, V, SIZE>;
-
-    static bool use_SIMD_;
-
     
 
     Bucket() {
@@ -47,34 +44,84 @@ public:
         // support only 32-bit and 64-bit keys for SIMD_lookup
         assert(sizeof(T) == 4 || sizeof(T) == 8);
 
+        // num_keys_ = 0;
+
         pivot_ = std::numeric_limits<T>::max(); // std::numeric_limits<T>::max() means invalid
         memset(bitmap_, 0, sizeof(bitmap_));
     }
 
-    bool lookup(const T &key, V& value, size_t hint) const; // D-Bucket lookup; hint is the starting/predicted position in the bucket
-    bool lb_lookup(const T &key, KeyValueType &lb_kv, KeyValueType &next_kv) const; // S-Bucket lower_bound lookup; find the largest key that is <= the lookup key
+    /**
+     * D-Bucket lookup
+     * @param key: the key to be looked up
+     * @param value: the value of the key
+     * @param hint: the starting/predicted position in the bucket
+     * @return true if the key is found; false otherwise
+    */
+    bool lookup(const T &key, V& value, size_t hint) const;
 
-    bool SIMD_lookup(const T &key, V& value, size_t hint) const; // D-Bucket lookup; hint is the starting/predicted position in the bucket
-    bool SIMD_lb_lookup(const T &key, KeyValueType &lb_kv, KeyValueType &next_kv) const; // S-Bucket lower_bound lookup;
-
-    bool insert(const KeyValueType &kv, bool update_pivot, size_t hint); // Return false if insert() fails
-    bool update(const KeyValueType &kv); // find kv.key_ and update its value; return false if not found
 
     /**
-     * Split the D-bucket into two buckets by the median key, and insert a new key-value pair
+     * D-Bucket SIMD lookup
+     * @param key: the key to be looked up
+     * @param value: the value of the key
+     * @param hint: the starting/predicted position in the bucket
+     * @return true if the key is found; false otherwise
+    */
+    bool SIMD_lookup(const T &key, V& value, size_t hint) const;
+
+    /**
+     * S-Bucket lower_bound lookup
+     * @param key: the key to be looked up
+     * @param lb_kv: the largest key-value pair that is <= the lookup key
+     * @param next_kv: the smallest key-value pair that is > the lookup key
+     * @return true if the key is found; false otherwise
+    */
+    bool lb_lookup(const T &key, KeyValueType &lb_kv, KeyValueType &next_kv) const;
+
+
+
+    /**
+     * S/D-Bucket insert
+     * @param kv: the key-value pair to be inserted
+     * @param update_pivot: whether to update the pivot
+     * @param hint: the starting/predicted position in the bucket
+     * @return true if the insertion is successful; false if the bucket is full
+    */
+    bool insert(const KeyValueType &kv, bool update_pivot, size_t hint);
+
+    /**
+     * S/D-Bucket update: find kv.key_ and update its value
+     * @param kv: the key-value pair to be updated
+     * @return true if the update is successful; false if the key is not found
+    */
+    bool update(const KeyValueType &kv) { //TODO: add SIMD_lookup
+        for (int i = 0; i < SIZE; i++) {
+            if (valid(i) && list_.at(i).key_ == kv.key_) {
+                list_.put(i, kv.key_, kv.value_);
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+    /**
+     * Split the D-bucket into two buckets by the median key, 
+     * to make room for a new key-value pair, and then insert the new key-value pair
      * @param kv: the new key-value pair to be inserted
      * @return two KVptr of the new buckets
      */
     std::pair<KeyValuePtrType, KeyValuePtrType> split_and_insert(const KeyValueType &kv) {
         // find the median key
         T median_key = find_kth_smallest((num_keys()+1) / 2).key_;
+
         // create a new bucket
         BucketType *new_bucket1 = new BucketType();
         BucketType *new_bucket2 = new BucketType();
+
         bool success;
-        // move all keys that are > median_key to the new bucket
+        // copy all keys that are > median_key to the new bucket
         size_t hint = 0; // TODO: change to model-based hint
-        
         for (int i = 0; i < SIZE; i++) {
             if (valid(i)) {
 #ifdef BUCKINDEX_HINT_HASH
@@ -91,6 +138,7 @@ public:
             }
         }
 
+        // insert the new key-value pair
 #ifdef BUCKINDEX_HINT_HASH
         hint = kv.key_ % SIZE;
 #endif
@@ -106,11 +154,15 @@ public:
         std::pair<KeyValuePtrType, KeyValuePtrType> ret;
         ret.first = KeyValuePtrType(new_bucket1->get_pivot(), reinterpret_cast<uintptr_t>(new_bucket1));
         ret.second = KeyValuePtrType(new_bucket2->get_pivot(), reinterpret_cast<uintptr_t>(new_bucket2));
-
         return ret;
     }
 
-    int get_pos(const T &key) const{ // get the index of key in list_; return -1 if not found
+    /**
+     * Get the position of the key in the bucket
+     * @param key: the key to be looked up
+     * @return the position of the key in the bucket; -1 if not found
+    */
+    inline int get_pos(const T &key) const{ // get the index of key in list_; return -1 if not found
         for (int i = 0; i < SIZE; i++) {
             if (valid(i) && list_.at(i).key_ == key) {
                 return i;
@@ -138,6 +190,10 @@ public:
         return SortedIterator(this, pos, valid_kvs);
     }
 
+    /**
+     * Get all valid key-value pairs in the bucket
+     * @param v: the vector to store the key-value pairs
+    */
     void get_valid_kvs(std::vector<KeyValueType> &v) const {
         // read bitmap
         // get all valid kvs
@@ -158,7 +214,11 @@ public:
     inline T get_pivot() const { return pivot_; }
     inline void set_pivot(T pivot) { pivot_ = pivot; }
 
-    inline size_t num_keys() const {
+    /**
+     * Get the number of valid keys in the bucket
+    */
+    inline size_t num_keys() const { //TODO: change to member variable
+        // return num_keys_;
         size_t cnt = 0;
         for (int i = 0; i < BITMAP_SIZE; i++) {
             cnt += __builtin_popcountll(bitmap_[i]);
@@ -205,6 +265,7 @@ public:
         int bitmap_pos = pos / BITS_UINT64_T;
         int bit_pos = pos % BITS_UINT64_T; // pos from LSB
         bitmap_[bitmap_pos] |= (1ULL << bit_pos);
+        // num_keys_++;
     }
 
     inline void invalidate(int pos) {
@@ -212,6 +273,7 @@ public:
         int bitmap_pos = pos / BITS_UINT64_T;
         int bit_pos = pos % BITS_UINT64_T;
         bitmap_[bitmap_pos] &= ~(1ULL << bit_pos);
+        // num_keys_--;
     } 
 
     inline bool valid(int pos) const {
@@ -235,6 +297,7 @@ public:
 private:
     LISTTYPE list_;
     T pivot_;
+    int num_keys_;
     
     
     uint64_t bitmap_[SIZE/BITS_UINT64_T + (SIZE % BITS_UINT64_T ? 1 : 0)];  //indicate whether the entries in the list_ are valid.
@@ -309,17 +372,6 @@ bool Bucket<LISTTYPE, T, V, SIZE>::insert(const KeyValueType &kv, bool update_pi
     }
 
     return true;
-}
-
-template<class LISTTYPE, typename T, typename V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::update(const KeyValueType &kv) {
-    for (int i = 0; i < SIZE; i++) {
-        if (valid(i) && list_.at(i).key_ == kv.key_) {
-            list_.put(i, kv.key_, kv.value_);
-            return true;
-        }
-    }
-    return false;
 }
 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
@@ -530,8 +582,5 @@ private:
     int cur_pos_ = 0;  // current position in the bucket list, cur_pos_ == SIZE if at end
     std::vector<KeyValueType> valid_kvs_;
   };
-
-template<class LISTTYPE, typename T, typename V, size_t SIZE>
-bool Bucket<LISTTYPE, T, V, SIZE>::use_SIMD_ = true;
 
 } // end namespace buckindex
