@@ -218,12 +218,12 @@ public:
      * Get the number of valid keys in the bucket
     */
     inline size_t num_keys() const { //TODO: change to member variable
-        // return num_keys_;
-        size_t cnt = 0;
-        for (int i = 0; i < BITMAP_SIZE; i++) {
-            cnt += __builtin_popcountll(bitmap_[i]);
-        }
-        return cnt;
+        return num_keys_;
+        // size_t cnt = 0;
+        // for (int i = 0; i < BITMAP_SIZE; i++) {
+        //     cnt += __builtin_popcountll(bitmap_[i]);
+        // }
+        // return cnt;
     }
 
     inline KeyValueType at(int pos) const { return list_.at(pos); }
@@ -269,7 +269,7 @@ public:
         int bitmap_pos = pos / BITS_UINT64_T;
         int bit_pos = pos % BITS_UINT64_T; // pos from LSB
         bitmap_[bitmap_pos] |= (1ULL << bit_pos);
-        // num_keys_++;
+        num_keys_++;
     }
 
     inline void invalidate(int pos) {
@@ -277,7 +277,7 @@ public:
         int bitmap_pos = pos / BITS_UINT64_T;
         int bit_pos = pos % BITS_UINT64_T;
         bitmap_[bitmap_pos] &= ~(1ULL << bit_pos);
-        // num_keys_--;
+        num_keys_--;
     } 
 
     inline bool valid(int pos) const {
