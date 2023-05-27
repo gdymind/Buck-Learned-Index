@@ -133,8 +133,10 @@ public:
     const_iterator upper_bound(T key);
 
 
-    // TBD: build a function / store a variable 
-    // count the valid keys in segment
+    // TODO: change to member variable?
+    /**
+     * @brief return the number of key-value pairs in the segment
+    */
     inline size_t size(){
         size_t ret=0;
         for (size_t i=0;i<num_bucket_;i++){
@@ -154,6 +156,11 @@ public:
     */
     bool lb_lookup(T key, KeyValuePtrType &kvptr, KeyValuePtrType &next_kvptr) const;
 
+    /**
+     * @brief return the S-Bucket at the given position
+     * @param pos the position of the S-Bucket
+     * @return the pointer to the S-Bucket at the given position
+    */
     BucketType *get_bucket(int pos) {
         assert(pos >= 0 && pos < num_bucket_);
         return &sbucket_list_[pos];
@@ -168,7 +175,7 @@ public:
     */
     bool insert(KeyValue<T, uintptr_t> &kvptr);
 
-    // is called by BucketIndex when insert/bucket_rebalance failed
+    // scale_and_segmentation() is called by BucketIndex when insert/bucket_rebalance failed
     // return a list of segments after scale and segmentation; put the segments into the tree index, then destroy the old seg
     // new_segs = old_seg->scale_and_seg()
     // bucket_index.update_seg(old_seg, new_segs)
@@ -178,7 +185,7 @@ public:
     // bool scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs);
 
     /**
-     * @brief the old segment with new_pivots
+     * @brief replace the old segment with new_pivots
      * Asuume that the new_pivots can be inserted into different buckets
      * But actually, the new_pivots are always inserted into the same bucket at this point
      * We can still use this multi-bucket version to support the future multi-bucket insertion
@@ -264,9 +271,8 @@ private:
     inline unsigned int predict_buck(T key) const { // get the predicted S-Bucket ID based on the model computing
         unsigned int buckID = (unsigned int)(model_.predict(key) / SBUCKET_SIZE);
         
-        //buckID = std::min(num_bucket_-1, buckID);
-        // buckID = std::max(buckID, num_bucket_-1);
-        buckID = std::min(buckID, (unsigned int)std::max(0,(int)(num_bucket_-1))); // ensure num_bucket>0
+        buckID = std::max(buckID, 0);
+        buckID = std::min(buckID, num_bucket_-1); // ensure num_bucket>0
         assert(buckID < num_bucket_);
         return buckID;
     }
@@ -276,25 +282,34 @@ private:
         // Step1: call predict_buck to get an intial position
         // Step2: search neighbors to find the exact match (linear search)
         unsigned int buckID = predict_buck(key); // ensure buckID is valid s
+       
+        // search forward
+        while(buckID+1<num_bucket_ && sbucket_list_[buckID+1].get_pivot() <= key){
+            buckID++;
+        }
+        // search backward
+        while(buckID>0 && sbucket_list_[buckID].get_pivot() > key){
+            buckID--;
+        }
 
-        //std::cout << "buckID: " << buckID << std::endl;
-        if(sbucket_list_[buckID].get_pivot() <= key){ // search forwards
-            while(buckID+1<num_bucket_){
-                if(sbucket_list_[buckID+1].get_pivot() > key){
-                    break;
-                }
-                buckID++;
-            }
-        }
-        else{ // search backwards
-            while(buckID>0){
-                if(sbucket_list_[buckID-1].get_pivot() <= key){
-                    buckID--;
-                    break;
-                }
-                buckID--;
-            }
-        }
+        // //std::cout << "buckID: " << buckID << std::endl;
+        // if(sbucket_list_[buckID].get_pivot() <= key){ // search forwards
+        //     while(buckID+1<num_bucket_){
+        //         if(sbucket_list_[buckID+1].get_pivot() > key){
+        //             break;
+        //         }
+        //         buckID++;
+        //     }
+        // }
+        // else{ // search backwards
+        //     while(buckID>0){
+        //         if(sbucket_list_[buckID-1].get_pivot() <= key){
+        //             buckID--;
+        //             break;
+        //         }
+        //         buckID--;
+        //     }
+        // }
 #ifdef BUCKINDEX_DEBUG
         num_locate++;
         if (buckID != predict_buck(key)){
@@ -489,15 +504,9 @@ template<typename T, size_t SBUCKET_SIZE>
 bool Segment<T, SBUCKET_SIZE>::lb_lookup(T key, KeyValuePtrType &kvptr, KeyValuePtrType &next_kvptr) const {
     assert(num_bucket_>0);
     unsigned int buckID = locate_buck(key);
-    
     bool success = sbucket_list_[buckID].lb_lookup(key, kvptr, next_kvptr);
     
-    // if (!success && buckID == 0) {
-    //     kvptr = sbucket_list_[0].find_kth_smallest(1);
-    //     return true;
-    // }
-
-    // TODO: predict -> search within bucket -> locate -> search (put a flag) (deferred)
+    // predict -> search within bucket ---if fail----> locate -> search (put a flag) (deferred)
     return success;
 }
 
