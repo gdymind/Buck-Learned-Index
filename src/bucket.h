@@ -227,17 +227,23 @@ public:
     }
 
     inline KeyValueType at(int pos) const { return list_.at(pos); }
-    inline std::pair<T*, V*> get_kvptr(int pos) { return list_.get_kvptr(pos); }
 
+    /**
+     * Find the kth smallest element with 1-based index
+     * @param k: the 1-based index of the element to be found
+     * @return the kth smallest KV pair
+    */
     KeyValueType find_kth_smallest(int k) const; // find the kth smallest element in 1-based index
 
+    /**
+     * Find an empty slot in the bucket
+     * @param hint: the suggested/starting position of the empty slot
+     * @return the position of the empty slot
+    */
     inline int find_empty_slot(size_t hint) const {
-        // return the offset of the first bit=0;
         assert(hint < SIZE);
         const size_t start = hint / BITS_UINT64_T;
         const uint64_t mask = (1ull << (hint - start * BITS_UINT64_T)) - 1ull; // [start, hint) are 1, [hint, end) are 0, from LSB
-
-        // output mask in binary
 
         for (int i = 0, l = start; i < BITMAP_SIZE; i++, l = (l + 1) % BITMAP_SIZE) {
             uint64_t masked = bitmap_[l] | (l == start ? mask : 0); // set [start, hint) bits to 1
@@ -245,8 +251,6 @@ public:
             int pos = __builtin_ctzll(~masked);
             pos = l * BITS_UINT64_T + pos;
             if (pos < SIZE) return pos;
-            else return -1; // there are some redundant bits
-                            // when SIZE % BITS_UINT64_T != 0
         }
 
         // Not found yet, need to check [start, hint) again, without mask this time
