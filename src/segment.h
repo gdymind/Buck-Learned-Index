@@ -271,8 +271,8 @@ private:
     inline unsigned int predict_buck(T key) const { // get the predicted S-Bucket ID based on the model computing
         unsigned int buckID = (unsigned int)(model_.predict(key) / SBUCKET_SIZE);
         
-        buckID = std::max(buckID, 0);
-        buckID = std::min(buckID, num_bucket_-1); // ensure num_bucket>0
+        buckID = std::max(buckID, 0U);
+        buckID = std::min(buckID, (unsigned int)(num_bucket_-1)); // ensure num_bucket>0
         assert(buckID < num_bucket_);
         return buckID;
     }

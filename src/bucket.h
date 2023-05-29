@@ -44,7 +44,7 @@ public:
         // support only 32-bit and 64-bit keys for SIMD_lookup
         assert(sizeof(T) == 4 || sizeof(T) == 8);
 
-        // num_keys_ = 0;
+        num_keys_ = 0;
 
         pivot_ = std::numeric_limits<T>::max(); // std::numeric_limits<T>::max() means invalid
         memset(bitmap_, 0, sizeof(bitmap_));
