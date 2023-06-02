@@ -31,10 +31,15 @@ public:
     // inline static int num_insert_fail = 0;
     inline static int fail_distance = 0;
 
+    inline static int num_bucket_rebalance = 0;
+    inline static int num_bucket_rebalance_fail = 0;
+
+    inline static int num_segment_and_update = 0;
+    inline static int num_segment_and_update_fail = 0;
+
 #endif
 
-    //size_t num_bucket_; // total num of buckets
-    int num_bucket_;
+    int num_bucket_; // total num of buckets
     BucketType* sbucket_list_; // a list of S-Buckets
 
     // default constructors
@@ -43,64 +48,63 @@ public:
         sbucket_list_ = nullptr;
     }
 
-
-    // Parameterized Constructor
-    // Pre-requisite: list of entries must be sorted before insertion
-
-    // a constructor that recevices the number of entries, fill ratio, and the model(before expansion)
-    // also pass a start iterator and an end iterator; iterate over the list and insert into the sbucket_list_
+    /**
+     * @brief Parameterized Constructor
+     * Pre-requisite: list of entries must be sorted
+     * @param num_kv number of key-value pairs to be inserted
+     * @param fill_ratio the average fill ratio of the all S-Buckets
+     * @param model the linear model(before scaling) used to predict the bucket ID
+     * @param it the start iterator of the list of entries
+     * @param end the end iterator of the list of entries
+    */
     template<typename IterType>
     Segment(size_t num_kv, double fill_ratio, const LinearModel<T> &model, 
             IterType it, IterType end)
     :model_(model){
         //assert(it+num_kv == end); // + operator may not be supported 
-
-        //create_bucket_and_load(num_kv,fill_ratio,model,it,end);
-
         assert(num_kv>0);
-        assert(fill_ratio>0 && fill_ratio<=1);
+        assert(fill_ratio > 0.01 && fill_ratio <= 1);
         size_t num_slot = ceil(num_kv / fill_ratio);
         num_bucket_ = ceil((double)num_slot / SBUCKET_SIZE);
         assert((int)num_bucket_ > 0);
         sbucket_list_ = new BucketType[num_bucket_];
-        //model_.dump();
         model_.expand(1/fill_ratio);
-        //model_.dump();
 
         // model_based insertion
         // normal case: insert in the bucket of prdiction
         // two corner cases:
         //      1. if predicted bucket is full, find the next avilable bucket to insert
         //      2. if the remaining slots are not enough for the future insertion,
-        //          insert at the nearest bucket, so that future insertion has enough slots
+        //          insert at the nearest bucket in which future insertions have enough slots
 
     
         size_t remaining_slots = num_bucket_ * SBUCKET_SIZE;
         size_t remaining_keys = num_kv;
         size_t buckID = 0;
+        size_t current_max_bukID = 0;
         for(;it!=end;it++){
             assert(remaining_keys <= remaining_slots);
-            buckID = model_.predict(it->get_key()) / SBUCKET_SIZE; // TBD: suppose iterator iterate through KeyValue element
-            // model predicts the offset, we translate it to buckID
+            buckID = model_.predict(it->get_key()) / SBUCKET_SIZE;
 
-            while(buckID<num_bucket_ && sbucket_list_[buckID].num_keys()==SBUCKET_SIZE){
+            while(buckID + 1 < num_bucket_ && sbucket_list_[buckID].num_keys()==SBUCKET_SIZE){
                 buckID++; // search forwards until find a bucket with empty slot
             }
-            if(buckID>=num_bucket_){
-                buckID = num_bucket_-1;
-            }
+
             // the new remaining_slots if the key is inserted here
             remaining_slots = SBUCKET_SIZE * (num_bucket_ - buckID) - sbucket_list_[buckID].num_keys();
-            if(remaining_keys > remaining_slots){ // refuse to insert in this place // and find the nearest bucket backwards so that it can be put in
+            if(remaining_keys > remaining_slots){ // refuse to insert in this place 
+                                                  // and find the nearest bucket backwards so that it can be put in
                 buckID = num_bucket_ - 1 - (remaining_keys-1)/SBUCKET_SIZE;
                 remaining_slots = SBUCKET_SIZE * (num_bucket_ - buckID) - sbucket_list_[buckID].num_keys();
-                // update the remaining_slot if insert in the new buckID
+                assert(buckID >= current_max_bukID); // ensure the order between buckets
             }
+            assert(remaining_slots >= remaining_keys);
+            current_max_bukID = std::max(current_max_bukID, buckID);
             // else: accept to insert in this bucket
-            sbucket_list_[buckID].insert(*it, true, 0 /*hint*/); // TBD: suppose iterator iterate through KeyValue element
+            bool succuess = sbucket_list_[buckID].insert(*it, true, 0 /*hint*/);
+            assert(succuess);
             remaining_keys--;
             remaining_slots--;
-           
         }
     }
 
@@ -118,20 +122,21 @@ public:
     // class UnsortedIterator;
     // UnsortedIterator unsorted_begin() {return UnsortedIterator(this, 0); }
     // UnsortedIterator unsorted_end() {return UnsortedIterator(this, SBUCKET_SIZE * num_bucket_); }
-
     class const_iterator;
     const_iterator cbegin() {return const_iterator(this, 0); }
     const_iterator cend() {return const_iterator(this, this->size()); }
 
-    // return the first element that is not less than key
+    // return the iterator of the smallest element >= key
     const_iterator lower_bound(T key);
 
-    // return the first element that is greater than key
+    // return the iterator of the smallest element > key
     const_iterator upper_bound(T key);
 
 
-    // TBD: build a function / store a variable 
-    // count the valid keys in segment
+    // TODO: change to member variable?
+    /**
+     * @brief return the number of key-value pairs in the segment
+    */
     inline size_t size(){
         size_t ret=0;
         for (size_t i=0;i<num_bucket_;i++){
@@ -142,22 +147,35 @@ public:
 
     // TODO: a non-pivoting version (deferred)
 
-    bool lb_lookup(T key, KeyValuePtrType &kvptr, KeyValuePtrType &next_kvptr) const; //return the child pointer;
-                                        // return the largest element <= key in kvptr
-                                        // also return the smallest element > key in next_kvptr; if not exist, return (max_key, 0)
+    /**
+     * @brief lookup the largest element <= key in the segment
+     * @param key the key to be looked up
+     * @param kvptr the largest element <= key
+     * @param next_kvptr the smallest element > key; if not found, reuturn <max_key, 0>
+     * @return true if found, false otherwise
+    */
+    bool lb_lookup(T key, KeyValuePtrType &kvptr, KeyValuePtrType &next_kvptr) const;
 
+    /**
+     * @brief return the S-Bucket at the given position
+     * @param pos the position of the S-Bucket
+     * @return the pointer to the S-Bucket at the given position
+    */
     BucketType *get_bucket(int pos) {
         assert(pos >= 0 && pos < num_bucket_);
         return &sbucket_list_[pos];
     }
 
 
-    // insert an entry to the target S-Bucket;
-    // If the target S-Bucket is full, reblance the bucket with its right neighbor;
-    // If bucket_rebalance does not work, insert() return false
+    /**
+     * @brief insert a key-value pair into the segment
+     *  If the target S-Bucket is full, reblance the bucket with its right neighbor
+     * @param kvptr the key-value pair to be inserted
+     * @return true if success, false otherwise
+    */
     bool insert(KeyValue<T, uintptr_t> &kvptr);
 
-    // is called by BucketIndex when insert/bucket_rebalance failed
+    // scale_and_segmentation() is called by BucketIndex when insert/bucket_rebalance failed
     // return a list of segments after scale and segmentation; put the segments into the tree index, then destroy the old seg
     // new_segs = old_seg->scale_and_seg()
     // bucket_index.update_seg(old_seg, new_segs)
@@ -167,7 +185,7 @@ public:
     // bool scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs);
 
     /**
-     * @brief the old segment with new_pivots
+     * @brief replace the old segment with new_pivots
      * Asuume that the new_pivots can be inserted into different buckets
      * But actually, the new_pivots are always inserted into the same bucket at this point
      * We can still use this multi-bucket version to support the future multi-bucket insertion
@@ -253,9 +271,8 @@ private:
     inline unsigned int predict_buck(T key) const { // get the predicted S-Bucket ID based on the model computing
         unsigned int buckID = (unsigned int)(model_.predict(key) / SBUCKET_SIZE);
         
-        //buckID = std::min(num_bucket_-1, buckID);
-        // buckID = std::max(buckID, num_bucket_-1);
-        buckID = std::min(buckID, (unsigned int)std::max(0,(int)(num_bucket_-1))); // ensure num_bucket>0
+        buckID = std::max(buckID, 0U);
+        buckID = std::min(buckID, (unsigned int)(num_bucket_-1)); // ensure num_bucket>0
         assert(buckID < num_bucket_);
         return buckID;
     }
@@ -265,25 +282,34 @@ private:
         // Step1: call predict_buck to get an intial position
         // Step2: search neighbors to find the exact match (linear search)
         unsigned int buckID = predict_buck(key); // ensure buckID is valid s
+       
+        // search forward
+        while(buckID+1<num_bucket_ && sbucket_list_[buckID+1].get_pivot() <= key){
+            buckID++;
+        }
+        // search backward
+        while(buckID>0 && sbucket_list_[buckID].get_pivot() > key){
+            buckID--;
+        }
 
-        //std::cout << "buckID: " << buckID << std::endl;
-        if(sbucket_list_[buckID].get_pivot() <= key){ // search forwards
-            while(buckID+1<num_bucket_){
-                if(sbucket_list_[buckID+1].get_pivot() > key){
-                    break;
-                }
-                buckID++;
-            }
-        }
-        else{ // search backwards
-            while(buckID>0){
-                if(sbucket_list_[buckID-1].get_pivot() <= key){
-                    buckID--;
-                    break;
-                }
-                buckID--;
-            }
-        }
+        // //std::cout << "buckID: " << buckID << std::endl;
+        // if(sbucket_list_[buckID].get_pivot() <= key){ // search forwards
+        //     while(buckID+1<num_bucket_){
+        //         if(sbucket_list_[buckID+1].get_pivot() > key){
+        //             break;
+        //         }
+        //         buckID++;
+        //     }
+        // }
+        // else{ // search backwards
+        //     while(buckID>0){
+        //         if(sbucket_list_[buckID-1].get_pivot() <= key){
+        //             buckID--;
+        //             break;
+        //         }
+        //         buckID--;
+        //     }
+        // }
 #ifdef BUCKINDEX_DEBUG
         num_locate++;
         if (buckID != predict_buck(key)){
@@ -478,15 +504,9 @@ template<typename T, size_t SBUCKET_SIZE>
 bool Segment<T, SBUCKET_SIZE>::lb_lookup(T key, KeyValuePtrType &kvptr, KeyValuePtrType &next_kvptr) const {
     assert(num_bucket_>0);
     unsigned int buckID = locate_buck(key);
-    
     bool success = sbucket_list_[buckID].lb_lookup(key, kvptr, next_kvptr);
     
-    // if (!success && buckID == 0) {
-    //     kvptr = sbucket_list_[0].find_kth_smallest(1);
-    //     return true;
-    // }
-
-    // TODO: predict -> search within bucket -> locate -> search (put a flag) (deferred)
+    // predict -> search within bucket ---if fail----> locate -> search (put a flag) (deferred)
     return success;
 }
 

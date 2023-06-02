@@ -41,12 +41,12 @@ namespace buckindex {
             long double sum_xy = 0;
             long double sum_xx = 0;
             long double sum_yy = 0;
-            for (int i = 0; i < keys.size(); i++) {
+            for (size_t i = 0; i < keys.size(); i++) {
                 sum_x += keys[i];
-                sum_y += i;
+                sum_y += (long double)i;
                 sum_xy += (long double)keys[i]*i;
                 sum_xx += (long double)keys[i]*keys[i];
-                sum_yy += i*i;
+                sum_yy += (long double)i*i;
             }
             long double count = keys.size();
             double slope = (count*sum_xy - sum_x*sum_y) / (count*sum_xx - sum_x*sum_x);
