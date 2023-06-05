@@ -5,7 +5,6 @@
 #include "segment.h"
 #include "segmentation.h"
 #include "util.h"
-#include <chrono>
 
 /**
  * Index configurations
@@ -22,6 +21,15 @@ namespace buckindex {
 //     key *= 0xc4ceb9fe1a85ec53;
 //     key ^= key >> 33;
 //     return key;
+// }
+
+
+
+// uint64_t clhash64(uint64_t key) {
+//     //hash_t hash_(char const* str, hash_t last_value = basis)
+//     static void * random =  get_random_key_for_clhash(UINT64_C(0x23a23cf5033c3c81),UINT64_C(0xb3816f6a2c68e530));
+//     return clhash(random, (const char *)&key, sizeof(key));
+//     //return hash_((const char *)&key);
 // }
 
 
@@ -115,6 +123,7 @@ public:
         size_t hint;
 #ifdef BUCKINDEX_HINT_HASH
         hint = (key) % DATA_BUCKET_SIZE;
+        //hint = clhash64(key) % DATA_BUCKET_SIZE;
 #else
         //given kv_ptr and kv_ptr_next, check their key to make a linear model
         KeyType start_key = kv_ptr.key_;
@@ -210,6 +219,7 @@ public:
         size_t hint;
 #ifdef BUCKINDEX_HINT_HASH
         hint = (kv.key_) % DATA_BUCKET_SIZE;
+        //hint = clhash64(kv.key_) % DATA_BUCKET_SIZE;
 #else
         hint = model.predict(kv.key_);
 #endif
@@ -357,7 +367,7 @@ public:
 
         dump_fanout();
 
-        // // print all element from DataBucketType::hint_dist_count using iterator
+        // print all element from DataBucketType::hint_dist_count using iterator
         // std::cout << "  Hint Distribution Count (distance = actual - predict): " << std::endl;
         // std::cout << "  DataBucketType::hint_dist_count.size(): " << hint_dist_count.size() << std::endl;
         // for (auto it = hint_dist_count.begin(); it != hint_dist_count.end(); it++) {
@@ -587,6 +597,7 @@ private:
                 size_t hint;
 #ifdef BUCKINDEX_HINT_HASH
                 hint = (in_kv_array[j].key_) % DATA_BUCKET_SIZE;
+                //hint = clhash64(in_kv_array[j].key_) % DATA_BUCKET_SIZE;
 #else
                 hint = (size_t)(slope * in_kv_array[j].key_ + offset);
 #endif

@@ -41,3 +41,4 @@ int Parse(string cfgfile){
     }
     return 0;
 }
+
