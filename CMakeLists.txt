@@ -19,3 +19,4 @@ add_subdirectory(unittests)
 
 
 add_executable(BuckIndex main.cc src/util.cc)
+target_link_libraries(BuckIndex pthread)
