@@ -31,6 +31,10 @@ public:
     // inline static int num_insert_fail = 0;
     inline static int fail_distance = 0;
 
+    inline static int fail_predict_bulk = 0;
+    inline static int success_predict_bulk = 0;
+    inline static int fail_distance_bulk = 0;
+
     inline static int num_bucket_rebalance = 0;
     inline static int num_bucket_rebalance_fail = 0;
 
@@ -101,8 +105,22 @@ public:
             assert(remaining_slots >= remaining_keys);
             current_max_bukID = std::max(current_max_bukID, buckID);
             // else: accept to insert in this bucket
+
             bool succuess = sbucket_list_[buckID].insert(*it, true, 0 /*hint*/);
             assert(succuess);
+
+#ifdef BUCKINDEX_DEBUG
+            // int act = buckID;
+            // int pred = model_.predict(it->get_key()) / SBUCKET_SIZE;
+            // if(act != pred){
+            //     fail_predict_bulk++;
+            //     fail_distance_bulk += abs(act-pred);
+            // }
+            // else{
+            //     success_predict_bulk++;
+            // }
+
+#endif
             remaining_keys--;
             remaining_slots--;
         }
@@ -312,9 +330,24 @@ private:
         // }
 #ifdef BUCKINDEX_DEBUG
         num_locate++;
-        if (buckID != predict_buck(key)){
+        auto pred_buckID = predict_buck(key);
+        if (buckID != pred_buckID){
             fail_predict++;
-            fail_distance += abs((int)(buckID - predict_buck(key)));
+            fail_distance += abs((int)(buckID - pred_buckID));
+            if(abs((int)(buckID - pred_buckID)) > 10){
+                std::cout << "buckID: " << buckID << " predict_buck(key): " << pred_buckID << " key: "<<key<<std::endl;
+                model_.dump();
+                //auto offset = model_.get_offset();
+                //std::cout<< "model: "<<slope<<" "<<offset<<std::endl;
+                auto min_id = std::min(buckID, pred_buckID);
+                auto max_id = std::max(buckID, pred_buckID);
+                for (int i = 0; i < num_bucket_; i++){
+                    std::cout <<i << ", " << sbucket_list_[i].get_pivot()<<std::endl;
+                }
+                //std::cout << std::endl;
+                std::cout <<"-------------------"<< std::endl;
+            }
+            
         }
         else{
             success_predict++;
