@@ -49,7 +49,6 @@ public:
     int insert(const KeyValue<T, V> &kv) {
         std::promise<int> outstanding_write;
         std::future<int> write_future = outstanding_write.get_future();
-        write_queue.push(make_pair(kv, std::move(outstanding_write))); // std::promise does not support copying
         {
             std::lock_guard<std::mutex> lock(write_queue_mutex);
             write_queue.push(make_pair(kv, std::move(outstanding_write))); // std::promise does not support copying
@@ -79,9 +78,8 @@ private:
         std::mutex *write_queue_mutex = args->write_queue_mutex;
         BuckIndex<T, V, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE> *idx = args->idx;
 
-        while(true){
+        while(true){ //TODO: add condition variable to wake up the thread when there is a write request.
             std::pair<KeyValue<T, V>, std::promise<int>> kv_promise_pair;
-
             {
                 std::lock_guard<std::mutex> lock(*write_queue_mutex);
                 if (write_queue->empty()) {
@@ -96,11 +94,6 @@ private:
             int M2O_ret = idx->insert(kv);
             write_promise.set_value(M2O_ret); // this will unblock the thread O's write_future.get();
 
-            while (!write_queue->empty()) { // check the O2M_queue for all the write request from all other threads.
-                auto& [kv, write_promise] = write_queue->front(); // get the write_request and write_promise from the queue.
-                write_queue->pop();
-                write_promise.set_value(M2O_ret); // this will unblock the thread O's write_future.get();
-            }
             pthread_yield();
         }
 
