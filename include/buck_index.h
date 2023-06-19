@@ -45,8 +45,7 @@ public:
     using KeyValueType = KeyValue<KeyType, ValueType>;
     using KeyValuePtrType = KeyValue<KeyType, uintptr_t>;
 
-    BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO): 
-              initial_filled_ratio_(initial_filled_ratio) {
+    BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO) {
         init(initial_filled_ratio);
 #ifdef BUCKINDEX_DEBUG
         std::cout << "BLI: Debug mode" << std::endl;
@@ -73,6 +72,9 @@ public:
     void init(double initial_filled_ratio){
         root_ = NULL;
         num_levels_ = 0;
+
+        initial_filled_ratio_ = initial_filled_ratio;
+        std::cout << "Initial fill ratio = " << initial_filled_ratio_ << std::endl;
 
 #ifdef BUCKINDEX_DEBUG
         tn.init();
