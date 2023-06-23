@@ -341,8 +341,9 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value, size_t hint) c
     return SIMD_lookup(key, value, hint);
 #else
     for (int i = 0, l = hint; i < SIZE; i++, l = (l+1) % SIZE) {
-        //if (list_.at(l).key_ == key) {
+        // if (list_.at(l).key_ == key) {
         if (valid(l) && list_.at(l).key_ == key) {
+        // if (list_.at(l).key_ == key && valid(l)) {
             value = list_.at(l).value_;
             return true;
         }

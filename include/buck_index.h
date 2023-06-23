@@ -37,7 +37,9 @@ template<typename KeyType, typename ValueType, size_t SEGMENT_BUCKET_SIZE, size_
 class BuckIndex {
 public:
     //List of template aliasing
-    using DataBucketType = Bucket<KeyListValueList<KeyType, ValueType, DATA_BUCKET_SIZE>,
+    // using DataBucketType = Bucket<KeyListValueList<KeyType, ValueType, DATA_BUCKET_SIZE>,
+    //                              KeyType, ValueType, DATA_BUCKET_SIZE>;
+    using DataBucketType = Bucket<KeyValueList<KeyType, ValueType, DATA_BUCKET_SIZE>,
                                   KeyType, ValueType, DATA_BUCKET_SIZE>;
     using SegBucketType = Bucket<KeyValueList<KeyType, ValueType, SEGMENT_BUCKET_SIZE>,
                                   KeyType, ValueType, SEGMENT_BUCKET_SIZE>;
@@ -225,7 +227,15 @@ public:
 #endif
         hint = std::min(hint, DATA_BUCKET_SIZE - 1);
         DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1].value_);
-        success = d_bucket->insert(kv, true, hint);
+        if(kv.key_ == 0) {
+            success = d_bucket->update(kv);
+            //std::cout << "update key==0" << std::endl;
+            return success;
+        }
+        else {
+            success = d_bucket->insert(kv, true, hint);
+        }
+        
 #ifdef BUCKINDEX_DEBUG
         auto insert_finish_time = tn.rdtsc();
 #endif
@@ -271,7 +281,17 @@ public:
 
             // add one more level
             assert(pivot_list[ping].size() == 0 || cur_level == -1);
-            if (pivot_list[ping].size() > 0) {
+
+            // what if there is only one node
+            if (pivot_list[ping].size() > 1) {
+
+                // //debug only
+                // dump();
+                // // print all elements in the pivot list[ping]
+                // for (auto kv_ptr : pivot_list[ping]) {
+                //     std::cout << "key: " << kv_ptr.key_ << " value: " << kv_ptr.value_ << std::endl;
+                // }
+                
                 LinearModel<KeyType> model;
 #ifdef BUICKINDEX_USE_LINEAR_REGRESSION
                 std::vector<KeyType> keys;
@@ -294,12 +314,17 @@ public:
                 level_stats_[num_levels_] = 1;
                                     
                 num_levels_++;
+            } else if (pivot_list[ping].size() == 1){
+                // GC_segs.push_back((uintptr_t)root_);
+                // TODO: original root is not deleted
+                root_ = (void*)(SegmentType*)pivot_list[ping][0].value_;
             }
        
             num_data_buckets_++;
             level_stats_[0]++;
 
             // GC
+            delete d_bucket;
             for (auto seg_ptr : GC_segs) { // TODO: support MRSW
                 SegmentType* seg = (SegmentType*)seg_ptr;
                 delete seg;
