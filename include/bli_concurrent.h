@@ -28,7 +28,7 @@ public:
 
     void init(double fill_ratio) {
         idx = new BuckIndex<T, V, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE>(fill_ratio);
-        write_queue = new tbb::concurrent_queue<std::pair<KeyValue<T, V>, std::promise<int>>>();
+        write_queue = new tbb::concurrent_queue<std::pair<KeyValue<T, V>, int *>>();
        
         consumer_thread = new std::thread(run, write_queue, idx);
     }
@@ -41,11 +41,11 @@ public:
        return idx->lookup(key, value);
     }
 
-    bool insert(const KeyValue<T, V> &kv) {
-        std::promise<int> outstanding_write;
-        std::future<int> write_future = outstanding_write.get_future();
-        write_queue->push({kv, std::move(outstanding_write)}); // std::promise is not copyable, so we need to use std::move.
-        return write_future.get(); // block until the write is done
+    void insert(const KeyValue<T, V> &kv, int *ret) {
+        write_queue->push({kv, ret}); // std::promise is not copyable, so we need to use std::move.
+        while(*ret == -1){
+            std::this_thread::yield();
+        }
     }
 
     void print_lookup_stat(){
@@ -57,7 +57,7 @@ public:
     }
     
 private:
-    using PromiseWriteType = std::pair<KeyValue<T, V>, std::promise<int>>;
+    using PromiseWriteType = std::pair<KeyValue<T, V>, int *>;
     
     tbb::concurrent_queue<PromiseWriteType> *write_queue; // other threads to main thread queue
     BuckIndex<T, V, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE> *idx; // TODO: remove runtime stats updates in BLI, to avoid synchronization overhead.
@@ -65,13 +65,12 @@ private:
     std::thread *consumer_thread;
 
     static void run(tbb::concurrent_queue<PromiseWriteType> *write_queue, BuckIndex<T, V, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE> *idx) {
-        std::pair<KeyValue<T, V>, std::promise<int>> kv_promise_pair;
+        std::pair<KeyValue<T, V>, int *> kv_promise_pair;
 
         while(true){ //TODO: add condition variable to wake up the thread when there is a write request.
-            if(write_queue->try_pop(kv_promise_pair)){
-                auto& [kv, write_promise] = kv_promise_pair;
-                bool insert_ret = idx->insert(kv);
-                write_promise.set_value(insert_ret); // this will unblock the thread O's write_future.get();
+            if(write_queue->pop(kv_promise_pair)){
+                auto& [kv, ret_addr] = kv_promise_pair;
+                *ret_addr = idx->insert(kv);
             }
             std::this_thread::yield();
         }

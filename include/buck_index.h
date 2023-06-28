@@ -99,10 +99,12 @@ public:
             SegmentType* segment = (SegmentType*)seg_ptr;
             result = segment->lb_lookup(key, kv_ptr, kv_ptr_next);
             seg_ptr = kv_ptr.value_;
+#ifdef BUCKINDEX_DEBUG
             if (!seg_ptr) {
                 std::cerr << " failed to perform segment lookup for key: " << key << std::endl;
                 return false;
             }
+#endif
             layer_idx--;
         }
 
@@ -249,7 +251,9 @@ public:
 
                 pivot_list[pong].clear();
                 success = cur_segment->segment_and_batch_update(initial_filled_ratio_, pivot_list[ping], pivot_list[pong]);
+#ifdef BUCKINDEX_DEBUG
                 level_stats_[num_levels_ - 1 - cur_level] += (pivot_list[pong].size()-1);
+#endif
                 old_pivot = path[cur_level];
                 assert(success);
 
@@ -270,6 +274,7 @@ public:
                 }
                 model = LinearModel<KeyType>::get_regression_model(keys);
 #else
+                // TODO: instead of endpoints, use linear regression
                 double start_key = pivot_list[ping].front().key_;
                 double end_key = pivot_list[ping].back().key_;
                 double slope = 0.0, offset = 0.0;
@@ -281,13 +286,16 @@ public:
 #endif
                 root_ = new SegmentType(pivot_list[ping].size(), initial_filled_ratio_, model, 
                                     pivot_list[ping].begin(), pivot_list[ping].end());
+#ifdef BUCKINDEX_DEBUG
                 level_stats_[num_levels_] = 1;
-                                    
+#endif
+
                 num_levels_++;
             }
-       
+#ifdef BUCKINDEX_DEBUG
             num_data_buckets_++;
             level_stats_[0]++;
+#endif
 
             // GC
             for (auto seg_ptr : GC_segs) { // TODO: support MRSW
@@ -305,8 +313,8 @@ public:
         insert_stats_.time_insert_in_leaf += (tn.tsc2ns(insert_finish_time) - tn.tsc2ns(start_time))/(double) 1000000000;
         insert_stats_.time_SMO += (tn.tsc2ns(end_time) - tn.tsc2ns(insert_finish_time))/(double) 1000000000;
         insert_stats_.num_of_insert++;
-#endif
         num_keys_++;
+#endif
         return success;
     }
 
@@ -320,10 +328,11 @@ public:
         num_levels_ = 0;
         run_data_layer_segmentation(kvs,
                                     kvptr_array[ping]);
-        
-        num_keys_ = kvs.size();
-        num_data_buckets_ = kvptr_array[ping].size();
-        level_stats_[num_levels_] = num_data_buckets_;
+        #ifdef BUCKINDEX_DEBUG
+            num_keys_ = kvs.size();
+            num_data_buckets_ = kvptr_array[ping].size();
+            level_stats_[num_levels_] = num_data_buckets_;
+        #endif
         num_levels_++;
 
         assert(kvptr_array[ping].size() > 0);
@@ -334,7 +343,9 @@ public:
             ping = (ping +1) % 2;
             pong = (pong +1) % 2;
             kvptr_array[pong].clear();
-            level_stats_[num_levels_] = kvptr_array[ping].size();
+            #ifdef BUCKINDEX_DEBUG
+                level_stats_[num_levels_] = kvptr_array[ping].size();
+            #endif
             num_levels_++;
         } while (kvptr_array[ping].size() > 1);
         

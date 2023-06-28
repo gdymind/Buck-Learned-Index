@@ -355,19 +355,23 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(const T &key, KeyValueType &lb_kv, 
             target_key = list_.at(i).key_;
             lb_pos = i;
         }
+#ifndef BUCKINDEX_HINT_HASH
         if (valid(i) && list_.at(i).key_ > key && (next_pos == -1 || list_.at(i).key_ < list_.at(next_pos).key_)) {
             next_pos = i;
         }
+#endif
     }
 
     if (lb_pos == -1) return false;
 
     lb_kv = list_.at(lb_pos);
+#ifndef BUCKINDEX_HINT_HASH
     if (next_pos != -1) {
         next_kv = list_.at(next_pos);
     } else {
         next_kv = KeyValueType(std::numeric_limits<T>::max(), V());
     }
+#endif
 
     return true;
 }

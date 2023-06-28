@@ -1,5 +1,6 @@
 #include "gtest/gtest.h"
 #define UNITTEST
+#define BUCKINDEX_DEBUG
 #include "buck_index.h"
 
 #include <stdlib.h>

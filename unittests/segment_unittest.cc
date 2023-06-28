@@ -9,6 +9,8 @@
 #include <random>
 #include <algorithm>
 
+#define BUCKINDEX_DEBUG
+
 
 namespace buckindex {
     typedef unsigned long long key_t;

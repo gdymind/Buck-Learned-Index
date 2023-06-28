@@ -3,6 +3,9 @@
 #include "gtest/gtest.h"
 #include "linear_model.h"
 
+#define BUCKINDEX_DEBUG
+
+
 namespace buckindex {
     TEST(LinearModel, predict) {
         LinearModel<uint64_t> m(0,0);
