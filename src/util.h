@@ -32,6 +32,9 @@ constexpr hash_t hash_(char const* str, hash_t last_value = basis)
     return *str ? hash_(str+1, (*str ^ last_value) * prime) : last_value;
 }
 
+
+
+
 //https://github.com/lemire/clhash
 /*
  * CLHash is a very fast hashing function that uses the

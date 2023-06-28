@@ -25,7 +25,12 @@ constexpr unsigned int BITS_UINT64_T = sizeof(uint64_t) * 8;;
 //debug only
 // static std::map<int, int> hint_dist_count; // <distance, count>
 
-// uint64_t clhash64(uint64_t key);
+#ifdef CL_HASH
+uint64_t clhash64(uint64_t key);
+#endif
+#ifdef MURMUR_HASH
+uint64_t murmur64(uint64_t key);
+#endif
 
 /**
  * Bucket is a list of unsorted KeyValue
@@ -127,9 +132,21 @@ public:
         size_t hint = 0; // TODO: change to model-based hint
         for (int i = 0; i < SIZE; i++) {
             if (valid(i)) {
-#ifdef BUCKINDEX_HINT_HASH
+
+#ifdef MOD_HASH
                 hint = list_.at(i).key_ % SIZE;
-                //hint = clhash64(list_.at(i).key_) % SIZE;
+#endif
+#ifdef CL_HASH
+                hint = clhash64(list_.at(i).key_) % SIZE; 
+#endif
+#ifdef MURMUR_HASH
+                hint = murmur64(list_.at(i).key_) % SIZE; 
+#endif
+#ifdef MODEL_PREDICT
+                hint = 0; // TODO: don't know the next bucket's pivot
+#endif
+#ifdef NO_HASH
+                hint = 0;
 #endif
                 if (list_.at(i).key_ <= median_key)  {
                     success = new_bucket1->insert(list_.at(i), true, hint);
@@ -143,10 +160,22 @@ public:
         }
 
         // insert the new key-value pair
-#ifdef BUCKINDEX_HINT_HASH
+#ifdef MOD_HASH
         hint = kv.key_ % SIZE;
-        //hint = clhash64(kv.key_) % SIZE;
 #endif
+#ifdef CL_HASH
+        hint = clhash64(kv.key_) % SIZE; 
+#endif
+#ifdef MURMUR_HASH
+        hint = murmur64(kv.key_) % SIZE;
+#endif
+#ifdef MODEL_PREDICT
+        hint = 0; // TODO: don't know the next bucket's pivot
+#endif
+#ifdef NO_HASH
+        hint = 0;
+#endif
+
         if (kv.key_ <= median_key) {
             success = new_bucket1->insert(kv, true, hint);
             assert(success);
