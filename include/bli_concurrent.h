@@ -68,7 +68,7 @@ private:
         std::pair<KeyValue<T, V>, int *> kv_promise_pair;
 
         while(true){ //TODO: add condition variable to wake up the thread when there is a write request.
-            if(write_queue->pop(kv_promise_pair)){
+            if(write_queue->try_pop(kv_promise_pair)){
                 auto& [kv, ret_addr] = kv_promise_pair;
                 *ret_addr = idx->insert(kv);
             }
