@@ -37,6 +37,7 @@ template<typename KeyType, typename ValueType, size_t SEGMENT_BUCKET_SIZE, size_
 class BuckIndex {
 public:
     //List of template aliasing
+    // TBD: use KeyListValueList or KeyValueList
     // using DataBucketType = Bucket<KeyListValueList<KeyType, ValueType, DATA_BUCKET_SIZE>,
     //                              KeyType, ValueType, DATA_BUCKET_SIZE>;
     using DataBucketType = Bucket<KeyValueList<KeyType, ValueType, DATA_BUCKET_SIZE>,
@@ -286,14 +287,6 @@ public:
 
             // what if there is only one node
             if (pivot_list[ping].size() > 1) {
-
-                // //debug only
-                // dump();
-                // // print all elements in the pivot list[ping]
-                // for (auto kv_ptr : pivot_list[ping]) {
-                //     std::cout << "key: " << kv_ptr.key_ << " value: " << kv_ptr.value_ << std::endl;
-                // }
-                
                 LinearModel<KeyType> model;
 #ifdef BUICKINDEX_USE_LINEAR_REGRESSION
                 std::vector<KeyType> keys;
