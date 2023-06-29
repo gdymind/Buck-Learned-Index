@@ -13,8 +13,8 @@
 #include <bitset>
 #include <map>
 #include <immintrin.h> //SIMD
-#include "util.h"
-#include "buck_index.h"
+// #include "util.h"
+// #include "buck_index.h"
 #include "keyvalue.h"
 
 
