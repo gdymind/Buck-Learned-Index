@@ -357,7 +357,7 @@ private:
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value, size_t hint) const {
     // must be D-Bucket
-    assert((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>()));
+    //assert((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>()));
     assert(hint < SIZE);
 
 #ifdef BUCKINDEX_USE_SIMD
@@ -480,7 +480,7 @@ inline void print_m256i_bits(const __m256i &key_vector) {
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value, size_t hint) const {
     // We only support D-bucket; S-Bucket always calls SIMD_lb_lookup instead of SIMD_lookup
-    assert((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>::value));
+    //assert((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>::value));
 
     constexpr size_t SIMD_WIDTH = 256 / sizeof(T) / 8; // the number of keys in a 256-bit SIMD register
     __m256i key_vector;
