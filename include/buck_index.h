@@ -12,27 +12,6 @@
 #define DEFAULT_FILLED_RATIO 0.6
 
 namespace buckindex {
-
-// // murmur hash function for 64-bit
-// uint64_t murmur64(uint64_t key) {
-//     key ^= key >> 33;
-//     key *= 0xff51afd7ed558ccd;
-//     key ^= key >> 33;
-//     key *= 0xc4ceb9fe1a85ec53;
-//     key ^= key >> 33;
-//     return key;
-// }
-
-
-
-// uint64_t clhash64(uint64_t key) {
-//     //hash_t hash_(char const* str, hash_t last_value = basis)
-//     static void * random =  get_random_key_for_clhash(UINT64_C(0x23a23cf5033c3c81),UINT64_C(0xb3816f6a2c68e530));
-//     return clhash(random, (const char *)&key, sizeof(key));
-//     //return hash_((const char *)&key);
-// }
-
-
 template<typename KeyType, typename ValueType, size_t SEGMENT_BUCKET_SIZE, size_t DATA_BUCKET_SIZE>
 class BuckIndex {
 public:

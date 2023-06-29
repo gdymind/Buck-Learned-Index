@@ -4,6 +4,7 @@ project(BuckIndex)
 set(CMAKE_CXX_STANDARD 17)
 add_compile_options(-mavx -mavx2)
 
+add_compile_options(-mpclmul)
 
 # Download the google gtest
 include(FetchContent)
@@ -18,4 +19,4 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 add_subdirectory(unittests)
 
 
-add_executable(BuckIndex main.cc src/util.cc)
+add_executable(BuckIndex main.cc)
