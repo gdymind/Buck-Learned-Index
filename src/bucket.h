@@ -14,7 +14,7 @@
 #include <map>
 #include <immintrin.h> //SIMD
 #include "util.h"
-#include "buck_index.h"
+// #include "buck_index.h"
 #include "keyvalue.h"
 
 
@@ -25,12 +25,6 @@ constexpr unsigned int BITS_UINT64_T = sizeof(uint64_t) * 8;;
 //debug only
 // static std::map<int, int> hint_dist_count; // <distance, count>
 
-#ifdef CL_HASH
-uint64_t clhash64(uint64_t key);
-#endif
-#ifdef MURMUR_HASH
-uint64_t murmur64(uint64_t key);
-#endif
 
 /**
  * Bucket is a list of unsorted KeyValue

@@ -13,47 +13,11 @@
 
 namespace buckindex {
 
-#ifdef MURMUR_HASH
-// murmur hash function for 64-bit
-uint64_t murmur64(uint64_t key) {
-    key ^= key >> 33;
-    key *= 0xff51afd7ed558ccd;
-    key ^= key >> 33;
-    key *= 0xc4ceb9fe1a85ec53;
-    key ^= key >> 33;
-    return key;
-}
-#endif
-
-#ifdef CL_HASH
-uint64_t clhash64(uint64_t key) {
-    //hash_t hash_(char const* str, hash_t last_value = basis)
-    static void * random =  get_random_key_for_clhash(UINT64_C(0x23a23cf5033c3c81),UINT64_C(0xb3816f6a2c68e530));
-    return clhash(random, (const char *)&key, sizeof(key));
-    //return hash_((const char *)&key);
-}
-#endif
-
-// uint64_t hash(uint64_t key, size_t size) {
-//     uint64_t hint = 0;
-// #ifdef MOD_HASH
-//     hint = key % size;
-// #endif
-// #ifdef CL_HASH
-//     hint = clhash64(key) % size;
-// #endif
-// #ifdef MURMUR_HASH
-//     hint = murmur64(key) % size;
-// #endif
-//     return hint;
-// }
-
-
-
 template<typename KeyType, typename ValueType, size_t SEGMENT_BUCKET_SIZE, size_t DATA_BUCKET_SIZE>
 class BuckIndex {
 public:
     //List of template aliasing
+    // TBD: use KeyListValueList or KeyValueList
     // using DataBucketType = Bucket<KeyListValueList<KeyType, ValueType, DATA_BUCKET_SIZE>,
     //                              KeyType, ValueType, DATA_BUCKET_SIZE>;
     using DataBucketType = Bucket<KeyValueList<KeyType, ValueType, DATA_BUCKET_SIZE>,
@@ -337,14 +301,6 @@ public:
 
             // what if there is only one node
             if (pivot_list[ping].size() > 1) {
-
-                // //debug only
-                // dump();
-                // // print all elements in the pivot list[ping]
-                // for (auto kv_ptr : pivot_list[ping]) {
-                //     std::cout << "key: " << kv_ptr.key_ << " value: " << kv_ptr.value_ << std::endl;
-                // }
-                
                 LinearModel<KeyType> model;
 #ifdef BUICKINDEX_USE_LINEAR_REGRESSION
                 std::vector<KeyType> keys;
