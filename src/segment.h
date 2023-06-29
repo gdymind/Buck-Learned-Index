@@ -333,8 +333,8 @@ private:
         auto pred_buckID = predict_buck(key);
         if (buckID != pred_buckID){
             fail_predict++;
-            fail_distance += abs((int)(buckID - pred_buckID));
-            if(abs((int)(buckID - pred_buckID)) > 10){
+            fail_distance += abs(((int)buckID - (int)pred_buckID));
+            if(abs(((int)buckID - (int)pred_buckID)) > 10){
                 std::cout << "buckID: " << buckID << " predict_buck(key): " << pred_buckID << " key: "<<key<<std::endl;
                 model_.dump();
                 //auto offset = model_.get_offset();
