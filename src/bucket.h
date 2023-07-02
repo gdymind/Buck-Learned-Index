@@ -112,13 +112,17 @@ public:
     */
 
     size_t mem_size() const {
-        size_t size = 0;
-        size += sizeof(LISTTYPE); // size of the list_
-        size +- sizeof(T); // size of the pivot_
-        size += sizeof(int); // size of the num_keys_
-        size += sizeof(uint64_t) * BITMAP_SIZE; // size of the bitmap_
-        size += sizeof(size_t); // size of the BITMAP_SIZE
-        return size;
+        typedef Bucket<LISTTYPE, T, V, SIZE> self_type;
+        return sizeof(self_type);
+
+        // return sizeof(self_type);
+        // size_t size = 0;
+        // size += sizeof(LISTTYPE); // size of the list_
+        // size += sizeof(T); // size of the pivot_
+        // size += sizeof(int); // size of the num_keys_
+        // size += sizeof(uint64_t) * BITMAP_SIZE; // size of the bitmap_
+        // size += sizeof(size_t); // size of the BITMAP_SIZE
+        //return size;
     }
 
 

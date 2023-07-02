@@ -423,8 +423,10 @@ public:
         while (!q.empty()) {
             auto cur = q.front();
             q.pop();
-            SegmentType *segment = (SegmentType *)cur.first;
+
             if (cur.second < num_levels_ - 1) {
+                SegmentType *segment = (SegmentType *)cur.first;
+
                 int cnt = 0;   
                 for (auto it = segment->cbegin(); it != segment->cend(); it++) {
                     q.push(std::make_pair((void *)it->value_, cur.second + 1));
@@ -435,7 +437,7 @@ public:
         }
 
         std::cout << "Fanout Statistics:" << std::endl;
-        for (int i = 0; i < num_levels_ - 2; i++) {
+        for (int i = 0; i < num_levels_ - 1; i++) {
             auto &fanout_cur = fanouts[i];
             sort(fanout_cur.begin(), fanout_cur.end());
             // get the average fanout
@@ -454,6 +456,42 @@ public:
             std::cout << fanout_cur[fanout_cur.size() - 1] << "]" << std::endl;
         }
     }
+
+
+    /**
+     * Helper function to get the memory size of the index
+     *
+     * @return the memory size of the index
+     */
+
+    size_t mem_size () const{
+        size_t mem_size = 0;
+
+        // Traverse the tree to visit each segment
+        std::queue<std::pair<void *, int>> q; // <segment, level> pairs
+        q.push(std::make_pair(root_, 0));
+        while (!q.empty()) {
+            auto cur = q.front();
+            q.pop();
+
+            if (cur.second < num_levels_ - 1) {
+                SegmentType *segment = (SegmentType *)cur.first;
+                mem_size += segment->mem_size(); 
+                for (auto it = segment->cbegin(); it != segment->cend(); it++) {
+                    q.push(std::make_pair((void *)it->value_, cur.second + 1));
+                }
+            }
+            else{ //cur is a d-bucket
+                DataBucketType *d_bucket = (DataBucketType *)cur.first;
+                mem_size += d_bucket->mem_size();
+            }
+        }
+
+        typedef BuckIndex<KeyType, ValueType, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE> self_type;
+        std::cout << "Total memory size: " << mem_size + sizeof(self_type) << std::endl;
+        return mem_size + sizeof(self_type);
+    }
+
 
     /**
      * Helper function to get the number of levels in the index

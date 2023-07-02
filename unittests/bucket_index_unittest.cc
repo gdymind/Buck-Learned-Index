@@ -426,4 +426,29 @@ namespace buckindex {
 
         delete[] result;
     }
+
+    TEST(BuckIndex, mem_size){
+        
+        BuckIndex<uint64_t, uint64_t, 8, 128> bli(1);
+        vector<KeyValue<uint64_t, uint64_t>> in_kv_array;
+        
+        for (int i = 3; i < 1000; i += 3) {
+            KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(i, i * 2 + 5);
+            in_kv_array.push_back(kv);
+        }
+
+        for (int i = 100002; i < 100100; i += 3) {
+            KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(i, i * 2 + 5);
+            in_kv_array.push_back(kv);
+        }
+
+        bli.bulk_load(in_kv_array);
+
+
+        // expect the mem_size should be a little bit larger than the raw data
+        EXPECT_GE(bli.mem_size(), in_kv_array.size() * 2 * sizeof(uint64_t));
+        EXPECT_LT(bli.mem_size(), 2*in_kv_array.size() * 2 * sizeof(uint64_t));
+
+        bli.dump();
+    }
 }
