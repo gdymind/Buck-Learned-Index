@@ -3,6 +3,7 @@
 #include <chrono>
 #include <pthread.h>
 #include <boost/lockfree/queue.hpp>
+#include <atomic_queue/atomic_queue.h>
 #include <iostream>
 #include <thread>
 
