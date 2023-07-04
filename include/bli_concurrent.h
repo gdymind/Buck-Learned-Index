@@ -2,7 +2,7 @@
 #include <future>
 #include <chrono>
 #include <pthread.h>
-#include <tbb/concurrent_queue.h>
+#include <boost/lockfree/queue.hpp>
 #include <iostream>
 #include <thread>
 
@@ -10,6 +10,20 @@
 #include "buck_index.h"
 
 namespace  buckindex{
+
+template <typename T, typename V>
+struct KVRet { // Boost's lock-free queue requires trivial copy
+    V key;
+    V value;
+    int* ret;
+
+    KVRet() = default;
+    KVRet(const KVRet& other) = default;
+    KVRet(KVRet&& other) = default;
+    KVRet& operator=(const KVRet& other) = default;
+    KVRet& operator=(KVRet&& other) = default;
+    ~KVRet() = default;
+};
 
 /**
  * Concurrent interface of BLI; used by GRE
@@ -28,7 +42,7 @@ public:
 
     void init(double fill_ratio) {
         idx = new BuckIndex<T, V, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE>(fill_ratio);
-        write_queue = new tbb::concurrent_queue<std::pair<KeyValue<T, V>, int *>>();
+        write_queue = new boost::lockfree::queue<KVRet<T, V>>(128);
        
         consumer_thread = new std::thread(run, write_queue, idx);
     }
@@ -42,7 +56,7 @@ public:
     }
 
     void insert(const KeyValue<T, V> &kv, int *ret) {
-        write_queue->push({kv, ret}); // std::promise is not copyable, so we need to use std::move.
+        write_queue->push({kv.key_, kv.value_, ret}); // std::promise is not copyable, so we need to use std::move.
         while(*ret == -1){
             std::this_thread::yield();
         }
@@ -57,22 +71,21 @@ public:
     }
     
 private:
-    using PromiseWriteType = std::pair<KeyValue<T, V>, int *>;
     
-    tbb::concurrent_queue<PromiseWriteType> *write_queue; // other threads to main thread queue
+    boost::lockfree::queue<KVRet<T, V>> *write_queue; // other threads to main thread queue
     BuckIndex<T, V, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE> *idx; // TODO: remove runtime stats updates in BLI, to avoid synchronization overhead.
 
     std::thread *consumer_thread;
 
-    static void run(tbb::concurrent_queue<PromiseWriteType> *write_queue, BuckIndex<T, V, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE> *idx) {
-        std::pair<KeyValue<T, V>, int *> kv_promise_pair;
+    static void run(boost::lockfree::queue<KVRet<T, V>> *write_queue, BuckIndex<T, V, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE> *idx) {
+        KVRet<T, V> kv_ret;
 
         while(true){ //TODO: add condition variable to wake up the thread when there is a write request.
-            if(write_queue->try_pop(kv_promise_pair)){
-                auto& [kv, ret_addr] = kv_promise_pair;
-                *ret_addr = idx->insert(kv);
+            if(write_queue->pop(kv_ret)){
+                KeyValue kv(kv_ret.key, kv_ret.value);
+                *(kv_ret.ret) = idx->insert(kv);
             }
-            std::this_thread::yield();
+            // std::this_thread::yield();
         }
     }
 };
