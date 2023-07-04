@@ -5,7 +5,6 @@
 #include "segment.h"
 #include "segmentation.h"
 #include "util.h"
-#include <chrono>
 
 /**
  * Index configurations
@@ -14,22 +13,14 @@
 
 namespace buckindex {
 
-// // murmur hash function for 64-bit
-// uint64_t murmur64(uint64_t key) {
-//     key ^= key >> 33;
-//     key *= 0xff51afd7ed558ccd;
-//     key ^= key >> 33;
-//     key *= 0xc4ceb9fe1a85ec53;
-//     key ^= key >> 33;
-//     return key;
-// }
-
-
 template<typename KeyType, typename ValueType, size_t SEGMENT_BUCKET_SIZE, size_t DATA_BUCKET_SIZE>
 class BuckIndex {
 public:
     //List of template aliasing
-    using DataBucketType = Bucket<KeyListValueList<KeyType, ValueType, DATA_BUCKET_SIZE>,
+    // TBD: use KeyListValueList or KeyValueList
+    // using DataBucketType = Bucket<KeyListValueList<KeyType, ValueType, DATA_BUCKET_SIZE>,
+    //                              KeyType, ValueType, DATA_BUCKET_SIZE>;
+    using DataBucketType = Bucket<KeyValueList<KeyType, ValueType, DATA_BUCKET_SIZE>,
                                   KeyType, ValueType, DATA_BUCKET_SIZE>;
     using SegBucketType = Bucket<KeyValueList<KeyType, ValueType, SEGMENT_BUCKET_SIZE>,
                                   KeyType, ValueType, SEGMENT_BUCKET_SIZE>;
@@ -37,19 +28,32 @@ public:
     using KeyValueType = KeyValue<KeyType, ValueType>;
     using KeyValuePtrType = KeyValue<KeyType, uintptr_t>;
 
-    BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO): 
-              initial_filled_ratio_(initial_filled_ratio) {
+    BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO) {
         init(initial_filled_ratio);
 #ifdef BUCKINDEX_DEBUG
         std::cout << "BLI: Debug mode" << std::endl;
 #else
         std::cout << "BLI: Release mode" << std::endl;
 #endif
-#ifdef BUCKINDEX_HINT_HASH
-        std::cout << "BLI: Using hash hint" << std::endl;
-#else
-        std::cout << "BLI: Using linear model hint" << std::endl;
+
+// hint system configuration
+#ifdef HINT_MOD_HASH
+        std::cout << "BLI: Using mod hash" << std::endl;
 #endif
+#ifdef HINT_CL_HASH
+        std::cout << "BLI: Using cl hash" << std::endl; 
+#endif
+#ifdef HINT_MURMUR_HASH
+        std::cout << "BLI: Using murmur hash" << std::endl; 
+#endif
+#ifdef HINT_MODEL_PREDICT
+        std::cout << "BLI: Using model prediction" << std::endl;
+#endif
+#ifdef NO_HINT
+        std::cout << "BLI: Using no hash" << std::endl;
+#endif
+
+
 #ifdef BUCKINDEX_USE_LINEAR_REGRESSION
         std::cout << "BLI: Using linear regression" << std::endl;
 #else
@@ -65,6 +69,9 @@ public:
     void init(double initial_filled_ratio){
         root_ = NULL;
         num_levels_ = 0;
+
+        initial_filled_ratio_ = initial_filled_ratio;
+        std::cout << "Initial fill ratio = " << initial_filled_ratio_ << std::endl;
 
 #ifdef BUCKINDEX_DEBUG
         tn.init();
@@ -114,17 +121,28 @@ public:
 #endif
 
         // decide the hint
-        size_t hint;
-#ifdef BUCKINDEX_HINT_HASH
+        size_t hint = 0;
+#ifdef HINT_MOD_HASH
         hint = (key) % DATA_BUCKET_SIZE;
-#else
+#endif
+#ifdef HINT_CL_HASH
+        hint = clhash64(key) % DATA_BUCKET_SIZE; 
+#endif
+#ifdef HINT_MURMUR_HASH
+        hint = murmur64(key) % DATA_BUCKET_SIZE; 
+#endif
+#ifdef HINT_MODEL_PREDICT
         //given kv_ptr and kv_ptr_next, check their key to make a linear model
         KeyType start_key = kv_ptr.key_;
         KeyType end_key = kv_ptr_next.key_;
         double slope = (long double)DATA_BUCKET_SIZE / (long double)(end_key - start_key);
         double offset = -slope * start_key;
         hint = (size_t)(slope * key + offset);
-#endif  
+#endif
+#ifdef NO_HINT
+        hint=0;
+#endif
+
         hint = std::min(hint, DATA_BUCKET_SIZE - 1);
 
         DataBucketType* d_bucket = (DataBucketType *)seg_ptr;
@@ -209,15 +227,34 @@ public:
         LinearModel<KeyType> model;
         bool success = lookup_path(kv.key_, path, model);
         assert(success);
-        size_t hint;
-#ifdef BUCKINDEX_HINT_HASH
+        size_t hint = 0;
+#ifdef HINT_MOD_HASH
         hint = (kv.key_) % DATA_BUCKET_SIZE;
-#else
+#endif
+#ifdef HINT_CL_HASH
+        hint = clhash64(kv.key_) % DATA_BUCKET_SIZE; 
+#endif
+#ifdef HINT_MURMUR_HASH
+        hint = murmur64(kv.key_) % DATA_BUCKET_SIZE; 
+#endif
+#ifdef HINT_MODEL_PREDICT
         hint = model.predict(kv.key_);
 #endif
+#ifdef NO_HINT
+        hint=0;
+#endif
+
         hint = std::min(hint, DATA_BUCKET_SIZE - 1);
         DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1].value_);
-        success = d_bucket->insert(kv, true, hint);
+        if(kv.key_ == 0) {
+            success = d_bucket->update(kv);
+            //std::cout << "update key==0" << std::endl;
+            return success;
+        }
+        else {
+            success = d_bucket->insert(kv, true, hint);
+        }
+        
 #ifdef BUCKINDEX_DEBUG
         auto insert_finish_time = tn.rdtsc();
 #endif
@@ -265,7 +302,9 @@ public:
 
             // add one more level
             assert(pivot_list[ping].size() == 0 || cur_level == -1);
-            if (pivot_list[ping].size() > 0) {
+
+            // what if there is only one node
+            if (pivot_list[ping].size() > 1) {
                 LinearModel<KeyType> model;
 #ifdef BUICKINDEX_USE_LINEAR_REGRESSION
                 std::vector<KeyType> keys;
@@ -291,6 +330,10 @@ public:
 #endif
 
                 num_levels_++;
+            } else if (pivot_list[ping].size() == 1){
+                // GC_segs.push_back((uintptr_t)root_);
+                // TODO: original root is not deleted
+                root_ = (void*)(SegmentType*)pivot_list[ping][0].value_;
             }
 #ifdef BUCKINDEX_DEBUG
             num_data_buckets_++;
@@ -298,6 +341,7 @@ public:
 #endif
 
             // GC
+            delete d_bucket;
             for (auto seg_ptr : GC_segs) { // TODO: support MRSW
                 SegmentType* seg = (SegmentType*)seg_ptr;
                 delete seg;
@@ -368,7 +412,7 @@ public:
 
         dump_fanout();
 
-        // // print all element from DataBucketType::hint_dist_count using iterator
+        // print all element from DataBucketType::hint_dist_count using iterator
         // std::cout << "  Hint Distribution Count (distance = actual - predict): " << std::endl;
         // std::cout << "  DataBucketType::hint_dist_count.size(): " << hint_dist_count.size() << std::endl;
         // for (auto it = hint_dist_count.begin(); it != hint_dist_count.end(); it++) {
@@ -484,6 +528,11 @@ public:
         std::cout<<"Num of success_predict: "<< SegmentType::success_predict<<std::endl;
         std::cout<<"Num of locate: "<< SegmentType::num_locate<<std::endl;
 
+        // std::cout<<"Num of fail_predict: "<< SegmentType::fail_predict_bulk<<std::endl;
+        // std::cout<<"avg fail distance: "<< (double)SegmentType::fail_distance/SegmentType::fail_predict_bulk<<std::endl;
+        // std::cout<<"Num of success_predict: "<< SegmentType::success_predict_bulk<<std::endl;
+\
+
 #endif
     }
 private:
@@ -504,7 +553,7 @@ private:
             success &= segment->lb_lookup(key, path[i], kvptr_next);
             assert((void *)path[i].value_ != nullptr);
         }
-#ifndef BUCKINDEX_HINT_HASH
+#ifdef HINT_MODEL_PREDICT
         KeyType start_key = path[num_levels_-1].key_;
         KeyType end_key = kvptr_next.key_;
         assert(end_key > start_key);
@@ -579,7 +628,7 @@ private:
             out_kv_array.push_back(KeyValuePtrType(in_kv_array[start_idx].key_,
                                                    (uintptr_t)d_bucket));
 
-#ifndef BUCKINDEX_HINT_HASH
+#ifdef HINT_MODEL_PREDICT
             KeyType start_key = in_kv_array[start_idx].key_;
             KeyType end_key = std::numeric_limits<KeyType>::max();
             if (start_idx+length < in_kv_array.size()) end_key = in_kv_array[start_idx+length-1].key_;
@@ -590,11 +639,22 @@ private:
             
             //load the keys to the data bucket
             for(auto j = start_idx; j < (start_idx+length); j++) { // TODO: model-based insertion
-                size_t hint;
-#ifdef BUCKINDEX_HINT_HASH
+                size_t hint = 0;
+
+#ifdef HINT_MOD_HASH
                 hint = (in_kv_array[j].key_) % DATA_BUCKET_SIZE;
-#else
+#endif
+#ifdef HINT_CL_HASH
+                hint = clhash64(in_kv_array[j].key_) % DATA_BUCKET_SIZE; 
+#endif
+#ifdef HINT_MURMUR_HASH
+                hint = murmur64(in_kv_array[j].key_) % DATA_BUCKET_SIZE; 
+#endif
+#ifdef HINT_MODEL_PREDICT
                 hint = (size_t)(slope * in_kv_array[j].key_ + offset);
+#endif
+#ifdef NO_HINT
+                hint=0;
 #endif
                 hint = min(hint, DATA_BUCKET_SIZE-1);
                 d_bucket->insert(in_kv_array[j], true, hint);
