@@ -775,4 +775,33 @@ namespace buckindex {
             EXPECT_EQ(positions[i-12], bucket.get_pos(in_array[i].key_));
         }
     }
+
+    TEST(Bucket, mem_size){
+        Bucket<KeyValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
+        size_t meta_size = sizeof(key_t) + sizeof(int) + sizeof(uint64_t) + sizeof(size_t);
+        // pivot_, num_keys_, bitmap_ and BITMAP_SIZE are all in the meta data
+        // assume BITMAP_SIZE = 1, when bucket_size <=64;
+
+        size_t kv_size = sizeof(key_t) + sizeof(value_t);
+        EXPECT_GE(bucket.mem_size(), meta_size + 8 * kv_size);
+        EXPECT_LT(bucket.mem_size(), meta_size + 8 * kv_size + 10);
+        // expect the mem_size should be a little bit larger than the expected value
+
+        Bucket<KeyValueList<key_t, value_t, 16>, key_t, value_t, 16> bucket1;
+        EXPECT_GE(bucket1.mem_size(), meta_size + 16 * kv_size);
+        EXPECT_LT(bucket1.mem_size(), meta_size + 16 * kv_size + 10);
+        
+        Bucket<KeyValueList<key_t, value_t, 32>, key_t, value_t, 32> bucket2;
+        EXPECT_GE(bucket2.mem_size(), meta_size + 32 * kv_size);
+        EXPECT_LT(bucket2.mem_size(), meta_size + 32 * kv_size + 10);
+
+        meta_size = sizeof(key_t) + sizeof(int) + 2*sizeof(uint64_t) + sizeof(size_t);
+        // pivot_, num_keys_, bitmap_ and BITMAP_SIZE are all in the meta data
+        // assume BITMAP_SIZE = 2, when 64<bucket_size <=128;
+
+        Bucket<KeyValueList<key_t, value_t, 128>, key_t, value_t, 128> bucket4;
+        EXPECT_GE(bucket4.mem_size(), meta_size + 128 * kv_size);
+        EXPECT_LT(bucket4.mem_size(), meta_size + 128 * kv_size + 10);
+    }
+
 }
