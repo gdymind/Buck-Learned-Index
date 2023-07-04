@@ -13,7 +13,7 @@
 #include <bitset>
 #include <map>
 #include <immintrin.h> //SIMD
-// #include "util.h"
+#include "util.h"
 // #include "buck_index.h"
 #include "keyvalue.h"
 
@@ -25,7 +25,6 @@ constexpr unsigned int BITS_UINT64_T = sizeof(uint64_t) * 8;;
 //debug only
 // static std::map<int, int> hint_dist_count; // <distance, count>
 
-// uint64_t clhash64(uint64_t key);
 
 /**
  * Bucket is a list of unsorted KeyValue
@@ -127,9 +126,21 @@ public:
         size_t hint = 0; // TODO: change to model-based hint
         for (int i = 0; i < SIZE; i++) {
             if (valid(i)) {
-#ifdef BUCKINDEX_HINT_HASH
+
+#ifdef HINT_MOD_HASH
                 hint = list_.at(i).key_ % SIZE;
-                //hint = clhash64(list_.at(i).key_) % SIZE;
+#endif
+#ifdef HINT_CL_HASH
+                hint = clhash64(list_.at(i).key_) % SIZE; 
+#endif
+#ifdef HINT_MURMUR_HASH
+                hint = murmur64(list_.at(i).key_) % SIZE; 
+#endif
+#ifdef HINT_MODEL_PREDICT
+                hint = 0; // TODO: don't know the next bucket's pivot
+#endif
+#ifdef NO_HINT
+                hint = 0;
 #endif
                 if (list_.at(i).key_ <= median_key)  {
                     success = new_bucket1->insert(list_.at(i), true, hint);
@@ -143,10 +154,22 @@ public:
         }
 
         // insert the new key-value pair
-#ifdef BUCKINDEX_HINT_HASH
+#ifdef HINT_MOD_HASH
         hint = kv.key_ % SIZE;
-        //hint = clhash64(kv.key_) % SIZE;
 #endif
+#ifdef HINT_CL_HASH
+        hint = clhash64(kv.key_) % SIZE; 
+#endif
+#ifdef HINT_MURMUR_HASH
+        hint = murmur64(kv.key_) % SIZE;
+#endif
+#ifdef HINT_MODEL_PREDICT
+        hint = 0; // TODO: don't know the next bucket's pivot
+#endif
+#ifdef NO_HINT
+        hint = 0;
+#endif
+
         if (kv.key_ <= median_key) {
             success = new_bucket1->insert(kv, true, hint);
             assert(success);
@@ -334,7 +357,7 @@ private:
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value, size_t hint) const {
     // must be D-Bucket
-    assert((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>()));
+    //assert((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>()));
     assert(hint < SIZE);
 
 #ifdef BUCKINDEX_USE_SIMD
@@ -457,7 +480,7 @@ inline void print_m256i_bits(const __m256i &key_vector) {
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::SIMD_lookup(const T &key, V &value, size_t hint) const {
     // We only support D-bucket; S-Bucket always calls SIMD_lb_lookup instead of SIMD_lookup
-    assert((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>::value));
+    //assert((std::is_same<LISTTYPE, KeyListValueList<T, V, SIZE>>::value));
 
     constexpr size_t SIMD_WIDTH = 256 / sizeof(T) / 8; // the number of keys in a 256-bit SIMD register
     __m256i key_vector;

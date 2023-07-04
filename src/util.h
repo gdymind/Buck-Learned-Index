@@ -20,9 +20,9 @@ using namespace std;
 
 
 
-extern string g_data_path;
-extern bool g_bulk_load;
-extern float g_read_ratio;
+// extern string g_data_path;
+// extern bool g_bulk_load;
+// extern float g_read_ratio;
 
 
 typedef std::uint64_t hash_t;
@@ -36,49 +36,49 @@ constexpr hash_t hash_(char const* str, hash_t last_value = basis)
 
 
 
-string g_data_path; 
-bool g_bulk_load = false;
-float g_read_ratio = 0.5;
+// string g_data_path; 
+// bool g_bulk_load = false;
+// float g_read_ratio = 0.5;
 
-int Parse(string cfgfile){
-    ifstream filestream(cfgfile, ios_base::in);
-    if (filestream.fail()) {
-        cerr << "open cfgfile:" << cfgfile << " fails!\n";
-        return -1;
-    }
-    string line;
+// int Parse(string cfgfile){
+//     ifstream filestream(cfgfile, ios_base::in);
+//     if (filestream.fail()) {
+//         cerr << "open cfgfile:" << cfgfile << " fails!\n";
+//         return -1;
+//     }
+//     string line;
 
-    while(getline(filestream, line)) {
-        if (line.size()<=1 || line[0]== '#')
-            continue;
+//     while(getline(filestream, line)) {
+//         if (line.size()<=1 || line[0]== '#')
+//             continue;
 
-        stringstream ss(line);
-        string key, value;
-        getline(ss, key, ' ');
-        getline(ss, value, ' ');
+//         stringstream ss(line);
+//         string key, value;
+//         getline(ss, key, ' ');
+//         getline(ss, value, ' ');
 
-        switch(hash_(key.c_str())){
-            case hash_("g_data_path"):
-                g_data_path = value;
-                break;
-            case hash_("g_bulk_load"):
-                g_bulk_load = stoi(value);
-                break;
-            case hash_("g_read_ratio"):
-                g_read_ratio = stof(value);
-                break;
+//         switch(hash_(key.c_str())){
+//             case hash_("g_data_path"):
+//                 g_data_path = value;
+//                 break;
+//             case hash_("g_bulk_load"):
+//                 g_bulk_load = stoi(value);
+//                 break;
+//             case hash_("g_read_ratio"):
+//                 g_read_ratio = stof(value);
+//                 break;
             
             
-            default:
-                cout << "unknown cfg: " << key << endl;
-                return -1;
-        }
-    }
-    return 0;
-}
+//             default:
+//                 cout << "unknown cfg: " << key << endl;
+//                 return -1;
+//         }
+//     }
+//     return 0;
+// }
 
 
-
+#ifdef HINT_CL_HASH
 //https://github.com/lemire/clhash
 /*
  * CLHash is a very fast hashing function that uses the
@@ -596,9 +596,9 @@ void * get_random_key_for_clhash(uint64_t seed1, uint64_t seed2) {
 
 
 }
+#endif //HINT_CL_HASH
 
-
-
+#ifdef HINT_MURMUR_HASH
 // murmur hash function for 64-bit
 uint64_t murmur64(uint64_t key) {
     key ^= key >> 33;
@@ -608,12 +608,13 @@ uint64_t murmur64(uint64_t key) {
     key ^= key >> 33;
     return key;
 }
+#endif
 
-
-
+#ifdef HINT_CL_HASH
 uint64_t clhash64(uint64_t key) {
     //hash_t hash_(char const* str, hash_t last_value = basis)
     static void * random =  get_random_key_for_clhash(UINT64_C(0x23a23cf5033c3c81),UINT64_C(0xb3816f6a2c68e530));
     return clhash(random, (const char *)&key, sizeof(key));
     //return hash_((const char *)&key);
 }
+#endif
