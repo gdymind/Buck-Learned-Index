@@ -37,19 +37,19 @@ public:
 #endif
 
 // hint system configuration
-#ifdef MOD_HASH
+#ifdef HINT_MOD_HASH
         std::cout << "BLI: Using mod hash" << std::endl;
 #endif
-#ifdef CL_HASH
+#ifdef HINT_CL_HASH
         std::cout << "BLI: Using cl hash" << std::endl; 
 #endif
-#ifdef MURMUR_HASH
+#ifdef HINT_MURMUR_HASH
         std::cout << "BLI: Using murmur hash" << std::endl; 
 #endif
-#ifdef MODEL_PREDICT
+#ifdef HINT_MODEL_PREDICT
         std::cout << "BLI: Using model prediction" << std::endl;
 #endif
-#ifdef NO_HASH
+#ifdef NO_HINT
         std::cout << "BLI: Using no hash" << std::endl;
 #endif
 
@@ -120,16 +120,16 @@ public:
 
         // decide the hint
         size_t hint = 0;
-#ifdef MOD_HASH
+#ifdef HINT_MOD_HASH
         hint = (key) % DATA_BUCKET_SIZE;
 #endif
-#ifdef CL_HASH
+#ifdef HINT_CL_HASH
         hint = clhash64(key) % DATA_BUCKET_SIZE; 
 #endif
-#ifdef MURMUR_HASH
+#ifdef HINT_MURMUR_HASH
         hint = murmur64(key) % DATA_BUCKET_SIZE; 
 #endif
-#ifdef MODEL_PREDICT
+#ifdef HINT_MODEL_PREDICT
         //given kv_ptr and kv_ptr_next, check their key to make a linear model
         KeyType start_key = kv_ptr.key_;
         KeyType end_key = kv_ptr_next.key_;
@@ -137,7 +137,7 @@ public:
         double offset = -slope * start_key;
         hint = (size_t)(slope * key + offset);
 #endif
-#ifdef NO_HASH
+#ifdef NO_HINT
         hint=0;
 #endif
 
@@ -226,19 +226,19 @@ public:
         bool success = lookup_path(kv.key_, path, model);
         assert(success);
         size_t hint = 0;
-#ifdef MOD_HASH
+#ifdef HINT_MOD_HASH
         hint = (kv.key_) % DATA_BUCKET_SIZE;
 #endif
-#ifdef CL_HASH
+#ifdef HINT_CL_HASH
         hint = clhash64(kv.key_) % DATA_BUCKET_SIZE; 
 #endif
-#ifdef MURMUR_HASH
+#ifdef HINT_MURMUR_HASH
         hint = murmur64(kv.key_) % DATA_BUCKET_SIZE; 
 #endif
-#ifdef MODEL_PREDICT
+#ifdef HINT_MODEL_PREDICT
         hint = model.predict(kv.key_);
 #endif
-#ifdef NO_HASH
+#ifdef NO_HINT
         hint=0;
 #endif
 
@@ -583,7 +583,7 @@ private:
             success &= segment->lb_lookup(key, path[i], kvptr_next);
             assert((void *)path[i].value_ != nullptr);
         }
-#ifdef MODEL_PREDICT
+#ifdef HINT_MODEL_PREDICT
         KeyType start_key = path[num_levels_-1].key_;
         KeyType end_key = kvptr_next.key_;
         assert(end_key > start_key);
@@ -658,7 +658,7 @@ private:
             out_kv_array.push_back(KeyValuePtrType(in_kv_array[start_idx].key_,
                                                    (uintptr_t)d_bucket));
 
-#ifdef MODEL_PREDICT
+#ifdef HINT_MODEL_PREDICT
             KeyType start_key = in_kv_array[start_idx].key_;
             KeyType end_key = std::numeric_limits<KeyType>::max();
             if (start_idx+length < in_kv_array.size()) end_key = in_kv_array[start_idx+length-1].key_;
@@ -671,19 +671,19 @@ private:
             for(auto j = start_idx; j < (start_idx+length); j++) { // TODO: model-based insertion
                 size_t hint = 0;
 
-#ifdef MOD_HASH
+#ifdef HINT_MOD_HASH
                 hint = (in_kv_array[j].key_) % DATA_BUCKET_SIZE;
 #endif
-#ifdef CL_HASH
+#ifdef HINT_CL_HASH
                 hint = clhash64(in_kv_array[j].key_) % DATA_BUCKET_SIZE; 
 #endif
-#ifdef MURMUR_HASH
+#ifdef HINT_MURMUR_HASH
                 hint = murmur64(in_kv_array[j].key_) % DATA_BUCKET_SIZE; 
 #endif
-#ifdef MODEL_PREDICT
+#ifdef HINT_MODEL_PREDICT
                 hint = (size_t)(slope * in_kv_array[j].key_ + offset);
 #endif
-#ifdef NO_HASH
+#ifdef NO_HINT
                 hint=0;
 #endif
                 hint = min(hint, DATA_BUCKET_SIZE-1);

@@ -146,19 +146,19 @@ public:
         for (int i = 0; i < SIZE; i++) {
             if (valid(i)) {
 
-#ifdef MOD_HASH
+#ifdef HINT_MOD_HASH
                 hint = list_.at(i).key_ % SIZE;
 #endif
-#ifdef CL_HASH
+#ifdef HINT_CL_HASH
                 hint = clhash64(list_.at(i).key_) % SIZE; 
 #endif
-#ifdef MURMUR_HASH
+#ifdef HINT_MURMUR_HASH
                 hint = murmur64(list_.at(i).key_) % SIZE; 
 #endif
-#ifdef MODEL_PREDICT
+#ifdef HINT_MODEL_PREDICT
                 hint = 0; // TODO: don't know the next bucket's pivot
 #endif
-#ifdef NO_HASH
+#ifdef NO_HINT
                 hint = 0;
 #endif
                 if (list_.at(i).key_ <= median_key)  {
@@ -173,19 +173,19 @@ public:
         }
 
         // insert the new key-value pair
-#ifdef MOD_HASH
+#ifdef HINT_MOD_HASH
         hint = kv.key_ % SIZE;
 #endif
-#ifdef CL_HASH
+#ifdef HINT_CL_HASH
         hint = clhash64(kv.key_) % SIZE; 
 #endif
-#ifdef MURMUR_HASH
+#ifdef HINT_MURMUR_HASH
         hint = murmur64(kv.key_) % SIZE;
 #endif
-#ifdef MODEL_PREDICT
+#ifdef HINT_MODEL_PREDICT
         hint = 0; // TODO: don't know the next bucket's pivot
 #endif
-#ifdef NO_HASH
+#ifdef NO_HINT
         hint = 0;
 #endif
 

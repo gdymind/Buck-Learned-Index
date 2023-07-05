@@ -78,7 +78,7 @@ constexpr hash_t hash_(char const* str, hash_t last_value = basis)
 // }
 
 
-#ifdef CL_HASH
+#ifdef HINT_CL_HASH
 //https://github.com/lemire/clhash
 /*
  * CLHash is a very fast hashing function that uses the
@@ -596,9 +596,9 @@ void * get_random_key_for_clhash(uint64_t seed1, uint64_t seed2) {
 
 
 }
-#endif //CL_HASH
+#endif //HINT_CL_HASH
 
-#ifdef MURMUR_HASH
+#ifdef HINT_MURMUR_HASH
 // murmur hash function for 64-bit
 uint64_t murmur64(uint64_t key) {
     key ^= key >> 33;
@@ -610,7 +610,7 @@ uint64_t murmur64(uint64_t key) {
 }
 #endif
 
-#ifdef CL_HASH
+#ifdef HINT_CL_HASH
 uint64_t clhash64(uint64_t key) {
     //hash_t hash_(char const* str, hash_t last_value = basis)
     static void * random =  get_random_key_for_clhash(UINT64_C(0x23a23cf5033c3c81),UINT64_C(0xb3816f6a2c68e530));
