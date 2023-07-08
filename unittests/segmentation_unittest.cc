@@ -2,6 +2,9 @@
 #include "keyvalue.h"
 #include "segmentation.h"
 
+#define BUCKINDEX_DEBUG
+
+
 namespace buckindex {
     TEST(Segmentation, no_segment) {
         uint64_t keys[] = {};

@@ -9,6 +9,9 @@
 #include <random>
 #include <algorithm>
 
+#define BUCKINDEX_DEBUG
+
+
 namespace buckindex {
     // TEST(KeyValue, operator_less_than) {
     //     std::vector<KeyValue<int, int>> list;

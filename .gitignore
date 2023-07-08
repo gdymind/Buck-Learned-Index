@@ -4,6 +4,9 @@
 *.d
 
 build/
+build*
+release/
+release*
 
 # Compiled Object files
 *.slo
