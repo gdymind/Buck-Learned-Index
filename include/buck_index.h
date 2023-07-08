@@ -406,9 +406,11 @@ public:
     void dump() {
         std::cout << "Index Structure" << std::endl;
         std::cout << "  Number of Layers: " << num_levels_ << std::endl;
+#ifdef BUCKINDEX_DEBUG
         for (auto i = 0; i < num_levels_; i++) {
             std::cout << "    Layer " << i << " size: " << level_stats_[i] << std::endl;
         }
+#endif
 
         dump_fanout();
 
@@ -481,7 +483,11 @@ public:
      * @return the number of data buckets in the index
      */
     uint64_t get_num_data_buckets() {
+#ifdef BUCKINDEX_DEBUG
         return num_data_buckets_;
+#else
+        return 0;
+#endif
     }
 
     /**
@@ -499,10 +505,14 @@ public:
      * @return the number of keys in the index
      */
     uint64_t get_level_stat(int level) {
+#ifdef BUCKINDEX_DEBUG
         if(level >= num_levels_ || level < 0){
             return 0;
         }
         return level_stats_[level];
+#else
+        return 0;
+#endif
     }
 
     /**
@@ -701,11 +711,12 @@ private:
     // NOTE: may include the dummy key 
 
     uint64_t num_levels_; // the number of layers including model layers and the data layer
+
+    #ifdef BUCKINDEX_DEBUG
     uint64_t num_data_buckets_; // the number of data buckets in the data layer
     uint64_t level_stats_[max_levels_]; // the number of buckets in each layer
     // NOTE: level_stats_[0] is the number of data buckets in the data layer
 
-    #ifdef BUCKINDEX_DEBUG
     TSCNS tn;
     
     struct lookupStats {
