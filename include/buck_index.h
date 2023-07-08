@@ -70,6 +70,9 @@ public:
         root_ = NULL;
         num_levels_ = 0;
 
+        error_bound_ = SEGMENT_BUCKET_SIZE * initial_filled_ratio_;
+        std::cout << "Segmeantation error bound = " << error_bound_ << std::endl;
+
         initial_filled_ratio_ = initial_filled_ratio;
         std::cout << "Initial fill ratio = " << initial_filled_ratio_ << std::endl;
 
@@ -725,7 +728,7 @@ private:
         uint64_t initial_sbucket_occupacy = SEGMENT_BUCKET_SIZE * initial_filled_ratio_;
         Segmentation<vector<KeyValuePtrType>, KeyType>::compute_dynamic_segmentation(in_kv_array,
                                                                                      out_cuts, out_models,
-                                                                                     initial_sbucket_occupacy);
+                                                                                  error_bound_);
         for(auto i = 0; i < out_cuts.size(); i++) {
             uint64_t start_idx = out_cuts[i].start_;
             uint64_t length = out_cuts[i].size_;
@@ -742,6 +745,8 @@ private:
     //Learned index constants
     static const uint8_t max_levels_ = 16;
     double initial_filled_ratio_;
+
+    int error_bound_;
     
     //Statistics
     
