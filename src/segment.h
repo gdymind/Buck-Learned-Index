@@ -163,6 +163,16 @@ public:
         return ret;
     }
 
+    size_t mem_size() const{
+        size_t ret = 0;
+        ret += sizeof(SegmentType); // model_, num_bucket_, sbucket_list_
+        ret += num_bucket_ * sizeof(BucketType); // sbucket_list_
+
+        // bucket has no pointer type member variable, 
+        // so no need to count the danymic memory from buckets
+        return ret;
+    }
+
     // TODO: a non-pivoting version (deferred)
 
     /**

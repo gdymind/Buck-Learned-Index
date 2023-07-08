@@ -31,7 +31,7 @@ struct KeyValue
 };
 
 template<typename T, typename V, size_t SIZE> 
-class KeyListValueList { // KV list for S-Bucket
+class KeyListValueList { // KV list for S-Bucket // TBD: may not be used
 public:
     T keys_[SIZE];
     V values_[SIZE];
@@ -43,7 +43,7 @@ public:
 };
 
 template<typename T, typename V, size_t SIZE>
-class KeyValueList { // KV list for S-Bucket
+class KeyValueList { // KV list for S-Bucket and D-Bucket
 public:
 
     KeyValue<T, V> kvs_[SIZE];

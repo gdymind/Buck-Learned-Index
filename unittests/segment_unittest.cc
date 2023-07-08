@@ -996,5 +996,27 @@ namespace buckindex {
         delete seg3;
     }
 
+    TEST(Segment, mem_size){
+        // construct a segment
+        key_t keys[] = {0,10,20,30};
+        std::vector<KeyValue<key_t, uintptr_t>> in_array;
+        size_t length = sizeof(keys)/sizeof(key_t);
+        for (size_t i = 0; i < length; i++) {
+            in_array.push_back(KeyValue<key_t, uintptr_t>(keys[i], keys[i]));
+        }
+        // model is y=0.05x
+        LinearModel<key_t> model(0.1,0);
+        double fill_ratio = 0.5;
+        Segment<key_t, 4> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
 
+        // expect 2 s-buckets
+        EXPECT_EQ(2, seg.num_bucket_);
+
+        typedef Bucket<KeyValueList<key_t, uintptr_t, 4>, key_t, uintptr_t, 4> BucketType;
+        size_t meta_size = sizeof(LinearModel<key_t>)+sizeof(int)+sizeof(BucketType*);
+        meta_size += sizeof(BucketType)*2;
+        EXPECT_LE(meta_size, seg.mem_size());
+        EXPECT_GT(meta_size+10, seg.mem_size());
+        // expect the mem_size should be a little bit larger than the expected value
+    }
 }
