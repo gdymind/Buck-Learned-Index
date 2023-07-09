@@ -26,8 +26,8 @@ public:
         delete write_queue;
     }
 
-    void init(double fill_ratio) {
-        idx = new BuckIndex<T, V, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE>(fill_ratio);
+    void init(double fill_ratio, int error_bound) {
+        idx = new BuckIndex<T, V, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE>(fill_ratio, error_bound);
         write_queue = new tbb::concurrent_queue<std::pair<KeyValue<T, V>, int *>>();
        
         consumer_thread = new std::thread(run, write_queue, idx);

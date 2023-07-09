@@ -28,8 +28,8 @@ public:
     using KeyValueType = KeyValue<KeyType, ValueType>;
     using KeyValuePtrType = KeyValue<KeyType, uintptr_t>;
 
-    BuckIndex(double initial_filled_ratio = DEFAULT_FILLED_RATIO) {
-        init(initial_filled_ratio);
+    BuckIndex(double initial_filled_ratio=0.7, int error_bound=8) {
+        init(initial_filled_ratio, error_bound);
 #ifdef BUCKINDEX_DEBUG
         std::cout << "BLI: Debug mode" << std::endl;
 #else
@@ -66,9 +66,12 @@ public:
 #endif
     }
 
-    void init(double initial_filled_ratio){
+    void init(double initial_filled_ratio, int error_bound){
         root_ = NULL;
         num_levels_ = 0;
+
+        error_bound_ = error_bound;
+        std::cout << "Segmeantation error bound = " << error_bound_ << std::endl;
 
         initial_filled_ratio_ = initial_filled_ratio;
         std::cout << "Initial fill ratio = " << initial_filled_ratio_ << std::endl;
@@ -722,10 +725,9 @@ private:
                                       vector<KeyValuePtrType>& out_kv_array) {
         vector<Cut<KeyType>> out_cuts;
         vector<LinearModel<KeyType>> out_models;
-        uint64_t initial_sbucket_occupacy = SEGMENT_BUCKET_SIZE * initial_filled_ratio_;
         Segmentation<vector<KeyValuePtrType>, KeyType>::compute_dynamic_segmentation(in_kv_array,
                                                                                      out_cuts, out_models,
-                                                                                     initial_sbucket_occupacy);
+                                                                                     error_bound_);
         for(auto i = 0; i < out_cuts.size(); i++) {
             uint64_t start_idx = out_cuts[i].start_;
             uint64_t length = out_cuts[i].size_;
@@ -742,6 +744,8 @@ private:
     //Learned index constants
     static const uint8_t max_levels_ = 16;
     double initial_filled_ratio_;
+
+    int error_bound_;
     
     //Statistics
     
