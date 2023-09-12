@@ -414,7 +414,7 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(const T &key, KeyValueType &lb_kv, 
     if (lb_pos == -1) return false;
 
     lb_kv = list_.at(lb_pos);
-#ifndef HINT_MODEL_PREDICT
+#ifdef HINT_MODEL_PREDICT
     if (next_pos != -1) {
         next_kv = list_.at(next_pos);
     } else {
