@@ -309,7 +309,7 @@ public:
             // what if there is only one node
             if (pivot_list[ping].size() > 1) {
                 LinearModel<KeyType> model;
-#ifdef BUICKINDEX_USE_LINEAR_REGRESSION
+#ifdef BUCKINDEX_USE_LINEAR_REGRESSION
                 std::vector<KeyType> keys;
                 for (auto kv_ptr : pivot_list[ping]) {
                     keys.push_back(kv_ptr.key_);
