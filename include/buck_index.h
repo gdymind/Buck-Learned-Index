@@ -482,6 +482,7 @@ public:
 
     size_t mem_size () const{
         size_t mem_size = 0;
+        size_t d_bucket_size = 0;
 
         // Traverse the tree to visit each segment
         std::queue<std::pair<void *, int>> q; // <segment, level> pairs
@@ -500,11 +501,13 @@ public:
             else{ //cur is a d-bucket
                 DataBucketType *d_bucket = (DataBucketType *)cur.first;
                 mem_size += d_bucket->mem_size();
+                d_bucket_size += d_bucket->mem_size();
             }
         }
 
         typedef BuckIndex<KeyType, ValueType, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE> self_type;
         std::cout << "Total memory size: " << mem_size + sizeof(self_type) << std::endl;
+        std::cout << "Total data bucket size: " << d_bucket_size << std::endl;
         return mem_size + sizeof(self_type);
     }
 
