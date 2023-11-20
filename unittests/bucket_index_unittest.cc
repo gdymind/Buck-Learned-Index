@@ -11,7 +11,7 @@ namespace buckindex {
 
     TEST(BuckIndex, bulk_load_basic) {
         BuckIndex<uint64_t, uint64_t, 2, 4> bli;
-        bli.init(0.5);
+        bli.init(0.5, 4);
         vector<KeyValue<uint64_t, uint64_t>> in_kv_array;
         uint64_t keys[] = {1,2,3,4,5,6,7,8,9,10};
         uint64_t values[] = {11, 12, 13, 14, 15, 16, 17, 18, 19,20};
@@ -42,7 +42,7 @@ namespace buckindex {
 
     TEST(BuckIndex, bulk_load_multiple_segments) {
         BuckIndex<uint64_t, uint64_t, 2, 4> bli;
-        bli.init(0.5);
+        bli.init(0.5, 4);
         vector<KeyValue<uint64_t, uint64_t>> in_kv_array;
         uint64_t keys[] = {1,2,3,100,110,200,210,300,305,1000,1200,1300,1400}; // 13 keys
         uint64_t values[] = {10,20,30,1000,1100,2000,2100,3000,3050,10000,12000,13000,14000};
