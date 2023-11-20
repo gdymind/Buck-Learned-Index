@@ -870,6 +870,16 @@ namespace buckindex {
             idx++;
         }
         EXPECT_EQ(7, idx);
+
+        idx = 3;
+        lower = seg.lower_bound(60);
+        for (it = lower; it != seg.cbegin(); it--) {
+            EXPECT_TRUE(it->key_ >= 0 && it->key_ <= 120);
+            EXPECT_EQ(it->key_, keys[idx]);
+            //cout<<"key: "<<it->key_<<endl;
+            idx--;
+        }
+        EXPECT_EQ(0, idx);
     
         // alternative:
         // store the upper_bound(99) iterator to avoid calling upper_bound(99) multiple times

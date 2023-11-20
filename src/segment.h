@@ -673,7 +673,7 @@ public:
     //     sorted_list_.clear();
 
     //     // find the first valid bucket
-    //     while(!reach_to_end()){
+    //     while(!reach_end()){
     //         if(segment_->sbucket_list_[cur_buckID_].num_keys() == 0){
     //             cur_buckID_++;
     //         }
@@ -686,10 +686,14 @@ public:
     // }
     */
 
-    // num of bucket to indicate the end
+    
+    /**
+     * @param segment the segment to be iterated
+     * @param pos the position of the iterator when all the entries are sorted
+    */
     const_iterator(SegmentType *segment, int pos) : segment_(segment) {
         assert(pos >= 0 && pos <= segment_->size());
-        cur_buckID_ = 0;
+        cur_buckID_ = 0; // num of bucket to indicate the end of the segment
         cur_index_ = 0;
         if(pos == segment_->size()){
             cur_buckID_ = segment_->num_bucket_;
@@ -750,20 +754,30 @@ public:
 
     // disable upper bound iterator to be increased or deferenced 
 
+    // postfix it++
     void operator++(int) {
         assert(upper_bound == std::numeric_limits<T>::max());
         find_next();
     }
 
-    // void operator--(int) {
-    //     assert(upper_bound == std::numeric_limits<T>::max());
-    //     find_previous();
-    // }
+    // postfix it--
+    void operator--(int) {
+        assert(upper_bound == std::numeric_limits<T>::max());
+        find_previous();
+    }
+
 
     // prefix ++it
     const_iterator &operator++() {
         assert(upper_bound == std::numeric_limits<T>::max());
         find_next();
+        return *this;
+    }
+
+    // prefix --it
+    const_iterator &operator--() {
+        assert(upper_bound == std::numeric_limits<T>::max());
+        find_previous();
         return *this;
     }
 
@@ -803,7 +817,7 @@ private:
 
     // find the next entry in the sorted list (Can cross boundary of bucket)
     inline void find_next() {
-        if (reach_to_end()) return;
+        if (reach_end()) return;
         cur_index_++;
         if(cur_index_ == sorted_list_.size()){
             cur_buckID_++;
@@ -811,7 +825,7 @@ private:
             cur_index_ = 0;
             
             // find the next valid bucket
-            while(!reach_to_end()){
+            while(!reach_end()){
                 if(segment_->sbucket_list_[cur_buckID_].num_keys() == 0){
                     cur_buckID_++;
                 }
@@ -824,33 +838,33 @@ private:
         }
     }
 
-    // // find the previous entry in the sorted list (Can cross boundary of bucket)
-    // inline void find_previous() {
-    //     if (reach_to_begin()) return;
-    //     if (cur_index_ == 0) {
-    //         cur_buckID_--;
-    //         while(!reach_to_begin()){
-    //             if(segment_->sbucket_list_[cur_buckID_].num_keys() == 0){
-    //                 cur_buckID_--;
-    //             }
-    //             else{
-    //                 segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_); 
-    //                 sort(sorted_list_.begin(), sorted_list_.end());
-    //                 break;
-    //             }
-    //         }
-    //         cur_index_ = sorted_list_.size() - 1;
-    //     }
-    //     else {
-    //         cur_index_--;
-    //     }
-    // }
+    // find the previous entry in the sorted list (Can cross boundary of bucket)
+    inline void find_previous() {
+        if (reach_begin()) return;
+        if (cur_index_ == 0) {
+            cur_buckID_--;
+            while(!reach_begin()){
+                if(segment_->sbucket_list_[cur_buckID_].num_keys() == 0){
+                    cur_buckID_--;
+                }
+                else{
+                    segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_); 
+                    sort(sorted_list_.begin(), sorted_list_.end());
+                    break;
+                }
+            }
+            cur_index_ = sorted_list_.size() - 1;
+        }
+        else {
+            cur_index_--;
+        }
+    }
 
-    // bool reach_to_begin(){
-    //     return (cur_buckID_ == 0 && cur_index_ == 0);
-    // }
+    bool reach_begin(){
+        return (cur_buckID_ == 0 && cur_index_ == 0);
+    }
 
-    bool reach_to_end(){
+    bool reach_end(){
         return (cur_buckID_ == segment_->num_bucket_);
     }
 };
