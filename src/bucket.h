@@ -325,6 +325,12 @@ public:
         int bit_pos = pos % BITS_UINT64_T;
         bitmap_[bitmap_pos] &= ~(1ULL << bit_pos);
         num_keys_--;
+        
+        // TODO: if the invalidated position is the pivot, update the pivot
+        // how to propagate the pivot update to the upper levels?
+        // if (list_.at(pos).key_ == pivot_) {
+        //     pivot_ = find_kth_smallest(1).key_;
+        // }
     } 
 
     inline bool valid(int pos) const {

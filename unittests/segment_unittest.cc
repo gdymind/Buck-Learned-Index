@@ -537,7 +537,7 @@ namespace buckindex {
         EXPECT_EQ(100, kv.key_);
         EXPECT_EQ((uintptr_t)segs[5], kv.value_);
         EXPECT_EQ(kv2.key_, std::numeric_limits<key_t>::max());
-        EXPECT_TRUE(seg.batch_update(in_array[5], update_list, true));
+        EXPECT_TRUE(seg.batch_update(in_array[5], update_list));
 
         // 4 buckets, each bucket has 2 keys
         // Each bucket has 6 empty slots
@@ -623,7 +623,7 @@ namespace buckindex {
         EXPECT_EQ(100, kv.key_);
         EXPECT_EQ((uintptr_t)segs[5], kv.value_);
         EXPECT_EQ(kv2.key_, std::numeric_limits<key_t>::max());
-        EXPECT_TRUE(seg.batch_update(in_array[5], update_list, true));
+        EXPECT_TRUE(seg.batch_update(in_array[5], update_list));
         
 
         // 4 buckets, each bucket has 2 keys
@@ -647,6 +647,88 @@ namespace buckindex {
             seg.lb_lookup(keys[i], kv, kv2);
             EXPECT_EQ(keys[i], kv.key_);
             EXPECT_EQ(reinterpret_cast<uintptr_t>(segs[i]), kv.value_);
+            // TODO: ignore kv2 check for now
+        }
+
+        // delete all segments
+        for (size_t i = 0; i < length; i++) {
+            delete segs[i];
+        }
+    }
+
+    TEST(Segment, batch_update_old_seg_list_to_new_seg_list) {
+        using SegmentType = Segment<key_t,  8>;
+
+        key_t keys[] = {0,20,40,60,80,100,120,140};
+        std::vector<KeyValue<key_t, uintptr_t>> in_array;
+        size_t length = sizeof(keys)/sizeof(key_t);
+        SegmentType *segs[length];
+        for (size_t i = 0; i < length; i++) {
+            std::vector<KeyValue<key_t, uintptr_t>> pivot_list(1, KeyValue<key_t, uintptr_t>(keys[i], keys[i]));
+            segs[i] = new SegmentType(1, 1, LinearModel<key_t>(0, 0), pivot_list.begin(), pivot_list.end());
+            in_array.push_back(KeyValue<key_t, uintptr_t>(keys[i], reinterpret_cast<uintptr_t>(segs[i])));
+        }
+        // model is y=0.05x
+        LinearModel<key_t> model(0.05,0);
+        double fill_ratio = 0.25;
+        Segment<key_t,  8> seg(length, fill_ratio, model, in_array.begin(), in_array.end());
+        
+        // 4 buckets, each bucket has 2 keys and 2 empty slots
+        // Each bucket has 6 empty slots
+        EXPECT_EQ(4, seg.num_bucket_);
+        EXPECT_EQ(2, seg.sbucket_list_[0].num_keys()); // 0, 20
+        EXPECT_EQ(2, seg.sbucket_list_[1].num_keys()); // 40, 60
+        EXPECT_EQ(2, seg.sbucket_list_[2].num_keys()); // 80, 100
+        EXPECT_EQ(2, seg.sbucket_list_[3].num_keys()); // 120, 140
+
+        KeyValue<key_t, uintptr_t> kv;
+        KeyValue<key_t, uintptr_t> kv2;
+        // look up all inserted keys
+        uintptr_t value;
+        for (size_t i = 0; i < length; i++) {
+            EXPECT_TRUE(seg.lb_lookup(keys[i], kv, kv2));
+            EXPECT_EQ(keys[i], kv.key_);
+            EXPECT_EQ(reinterpret_cast<uintptr_t>(segs[i]), kv.value_);
+            // TODO: ignore kv2 check for now
+        }
+
+        // update 20, 40, 60, 80 to 20, 30, 75
+        const int len = 4;
+        const int len2 = 3;
+        key_t old_keys[len] = {20, 40, 60, 80};
+        key_t update_keys[len2] = {20, 30, 75};
+        std::vector<KeyValue<key_t, uintptr_t>>old_list;
+        std::vector<KeyValue<key_t, uintptr_t>>update_list;
+        for (size_t i = 0; i < len; i++) {
+            old_list.push_back(KeyValue<key_t, uintptr_t>(old_keys[i], old_keys[i]));
+        }
+        for (size_t i = 0; i < len2; i++) {
+            update_list.push_back(KeyValue<key_t, uintptr_t>(update_keys[i], update_keys[i] + 0xdeadbeefbbbb0000));
+        }
+        EXPECT_TRUE(seg.batch_update(old_list , update_list));
+        
+
+        // 4 buckets, each bucket has 2 keys
+        // Each bucket has 6 empty slots
+        EXPECT_EQ(4, seg.num_bucket_);
+        EXPECT_EQ(3, seg.sbucket_list_[0].num_keys()); // 0, 20, 30
+        EXPECT_EQ(1, seg.sbucket_list_[1].num_keys()); // 75
+        EXPECT_EQ(1, seg.sbucket_list_[2].num_keys()); // 100
+        EXPECT_EQ(2, seg.sbucket_list_[3].num_keys()); // 120, 140
+
+        // look up all updated entries: 20, 30, 75
+        for (size_t i = 0; i < len2; i++) {
+            seg.lb_lookup(update_keys[i], kv, kv2);
+            EXPECT_EQ(update_keys[i], kv.key_);
+            EXPECT_EQ(update_keys[i] + 0xdeadbeefbbbb0000, kv.value_);
+            // TODO: ignore kv2 check for now
+        }
+        // look up all old keys except 20
+        for (size_t i = 1; i < len; i++) {
+            seg.lb_lookup(old_keys[i], kv, kv2);
+            // check that old_keys[i] does not equal to kv.key_
+            EXPECT_NE(old_keys[i], kv.key_);
+            EXPECT_NE(reinterpret_cast<uintptr_t>(segs[i]), kv.value_);
             // TODO: ignore kv2 check for now
         }
 
@@ -697,7 +779,7 @@ namespace buckindex {
             update_list.push_back(KeyValue<key_t, uintptr_t>(update_keys[i], update_keys[i] + 0xdeadbeefbbbb0000));
         }
         EXPECT_TRUE(seg.lb_lookup(100, value));
-        EXPECT_TRUE(seg.batch_update(value, update_list, true));
+        EXPECT_TRUE(seg.batch_update(value, update_list));
 
         // 4 buckets, each bucket has 2 keys
         // Each bucket has 6 empty slots
@@ -778,7 +860,7 @@ namespace buckindex {
         EXPECT_EQ(reinterpret_cast<uintptr_t>(d_buckets[5]), kv.value_);
         EXPECT_EQ(kv2.key_, std::numeric_limits<key_t>::max());
 
-        EXPECT_TRUE(seg.batch_update(in_array[5], update_list, false));
+        EXPECT_TRUE(seg.batch_update(in_array[5], update_list));
 
 
         // 4 buckets, each bucket has 2 keys

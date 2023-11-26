@@ -220,10 +220,9 @@ public:
      * And the multi-bucket insertion overhead is small in the same bucket case
      * @param old_pivot: the old segment or d-bucket pointer to be replaced
      * @param new_pivots: the new pivots to be inserted
-     * @param is_segment: true if old_pivot is a segment, false if old_pivot is a d-bucket
      * @return true if success, false if fail
     */
-    bool batch_update(KeyValuePtrType old_pivot, std::vector<KeyValuePtrType> &new_pivots, bool is_segment) {
+    bool batch_update(KeyValuePtrType old_pivot, std::vector<KeyValuePtrType> &new_pivots) {
         T old_pivot_key = old_pivot.key_;
 
         // check if have enough space to insert new_pivots
@@ -251,7 +250,7 @@ public:
             if (left < cnt_current_bucket) { return false; }
         }
 
-        // insert new_pivots except the first one
+        // insert new_pivots except the first one. Because the first one should be updated instead of inserted
         if (new_pivots.size() > 1) current_buckID = locate_buck(new_pivots[1].key_);
         for (int i = 1; i < new_pivots.size(); i++) {
             while(current_buckID + 1 < num_bucket_ && sbucket_list_[current_buckID+1].get_pivot() <= new_pivots[i].key_){
@@ -261,22 +260,64 @@ public:
             assert(success);
         }
 
-        // insert the first pivot
+        // update the first pivot
         bool success;
         assert(old_pivot_key == new_pivots[0].key_);
-        if (old_pivot_key == new_pivots[0].key_) {  // update the first pivot
-            success = sbucket_list_[first_buckID].update(new_pivots[0]);
-            assert(success);
-        } else { // insert the first pivot, and invalidate the old pivot
-            success = sbucket_list_[first_buckID].insert(new_pivots[0], true, 0 /*hint*/);
-            assert(success);
+        success = sbucket_list_[first_buckID].update(new_pivots[0]);
+        assert(success);
+        
+        return true;
+    }
 
-            int buckID = locate_buck(old_pivot_key);
-            int pos = sbucket_list_[buckID].get_pos(old_pivot_key);
+    /**
+     * @brief replace a list of old segments pivots with new_pivots
+     * @param old_pivots: the old segments or d-bucket pointers to be replaced
+     * @param new_pivots: the new pivots to be inserted
+     * @return true if success, false if fail
+    */
+    bool batch_update(vector<KeyValuePtrType> &old_pivots, vector<KeyValuePtrType>& new_pivots) {
+        // check if have enough space to insert new_pivots to their predicted buckets
+        int cnt_current_bucket = 0;
+        int first_buckID = locate_buck(new_pivots[0].key_);
+        int current_buckID = first_buckID;
+        for (int i = 0; i < new_pivots.size(); i++) {
+            int buckID = current_buckID;
+            while(buckID + 1 < num_bucket_ && sbucket_list_[buckID+1].get_pivot() <= new_pivots[i].key_){
+                buckID++;
+            }
+
+            if (buckID == current_buckID) cnt_current_bucket++;
+            else {
+                int left = SBUCKET_SIZE - sbucket_list_[current_buckID].num_keys();
+                if (left < cnt_current_bucket) { return false; }
+                cnt_current_bucket = 1;
+                current_buckID = buckID;
+            }
+        }
+        if (cnt_current_bucket > 0) { // the last bucket has not been checked
+            int left = SBUCKET_SIZE - sbucket_list_[current_buckID].num_keys();
+            if (left < cnt_current_bucket) { return false; }
+        }
+
+        // insert new_pivots
+        current_buckID = locate_buck(new_pivots[0].key_);
+        for (int i = 0; i < new_pivots.size(); i++) {
+            while(current_buckID + 1 < num_bucket_ && sbucket_list_[current_buckID+1].get_pivot() <= new_pivots[i].key_){
+                // TBD: when invalidating the old pivots, do we need to re-select bucket pivots of the current segment?
+                current_buckID++;
+            }
+            bool success = sbucket_list_[current_buckID].insert(new_pivots[i], true, 0 /*hint*/);
+            assert(success);
+        }
+
+        // invalidate old_pivots
+        for (int i = 0; i < old_pivots.size(); i++) {
+            int buckID = locate_buck(old_pivots[i].key_);
+            int pos = sbucket_list_[buckID].get_pos(old_pivots[i].key_);
             assert(pos >= 0);
             sbucket_list_[buckID].invalidate(pos);
-        }  
-        
+        }
+
         return true;
     }
 
