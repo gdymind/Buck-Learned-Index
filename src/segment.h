@@ -299,6 +299,15 @@ public:
             if (left < cnt_current_bucket) { return false; }
         }
 
+        // get the positions of old_pivots
+        vector<pair<int, int>> old_positions; // <buckID, pos>
+        for (int i = 0; i < old_pivots.size(); i++) {
+            int buckID = locate_buck(old_pivots[i].key_);
+            int pos = sbucket_list_[buckID].get_pos(old_pivots[i].key_);
+            assert(pos >= 0);
+            old_positions.push_back(make_pair(buckID, pos));
+        }
+
         // insert new_pivots
         current_buckID = locate_buck(new_pivots[0].key_);
         for (int i = 0; i < new_pivots.size(); i++) {
@@ -311,11 +320,8 @@ public:
         }
 
         // invalidate old_pivots
-        for (int i = 0; i < old_pivots.size(); i++) {
-            int buckID = locate_buck(old_pivots[i].key_);
-            int pos = sbucket_list_[buckID].get_pos(old_pivots[i].key_);
-            assert(pos >= 0);
-            sbucket_list_[buckID].invalidate(pos);
+        for (pair<int, int> p : old_positions) {
+            sbucket_list_[p.first].invalidate(p.second);
         }
 
         return true;
@@ -706,6 +712,10 @@ class Segment<T, SBUCKET_SIZE>::const_iterator {
 public:
     using SegmentType = Segment<T, SBUCKET_SIZE>;
 
+    void print(){
+        std::cout<<"cur_buckID_: "<<cur_buckID_<<", cur_index_: "<<cur_index_<<std::endl;
+    }
+
     /*
     // explicit const_iterator(SegmentType *segment) : segment_(segment) {
     //     assert(segment_ != nullptr);
@@ -884,6 +894,7 @@ private:
         if (reach_begin()) return;
         if (cur_index_ == 0) {
             cur_buckID_--;
+            cur_index_ = segment_->sbucket_list_[cur_buckID_].num_keys() - 1;
             while(!reach_begin()){
                 if(segment_->sbucket_list_[cur_buckID_].num_keys() == 0){
                     cur_buckID_--;
