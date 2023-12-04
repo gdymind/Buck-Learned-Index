@@ -321,14 +321,15 @@ public:
 
     inline void invalidate(int pos) {
         assert(pos >= 0 && pos < SIZE);
+
+        if (list_.at(pos).key_ == pivot_ && pivot_ > std::numeric_limits<T>::min()) {
+            pivot_ = find_kth_smallest(1).key_;
+        }
+
         int bitmap_pos = pos / BITS_UINT64_T;
         int bit_pos = pos % BITS_UINT64_T;
         bitmap_[bitmap_pos] &= ~(1ULL << bit_pos);
         num_keys_--;
-        
-        if (list_.at(pos).key_ == pivot_ && pivot_ > std::numeric_limits<T>::min()) {
-            pivot_ = find_kth_smallest(1).key_;
-        }
     } 
 
     inline bool valid(int pos) const {
