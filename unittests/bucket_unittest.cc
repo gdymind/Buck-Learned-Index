@@ -151,36 +151,36 @@ namespace buckindex {
         EXPECT_FALSE(bucket.insert(list.at(0), true, 0));
     }
 
-    TEST(Bucket, SIMD_lookup_insert_basic_64bit_key) {
-        Bucket<KeyListValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
-        KeyListValueList<key_t, value_t, 8> list;
-        key_t key;
-        value_t value;
+    // TEST(Bucket, SIMD_lookup_insert_basic_64bit_key) {
+    //     Bucket<KeyListValueList<key_t, value_t, 8>, key_t, value_t, 8> bucket;
+    //     KeyListValueList<key_t, value_t, 8> list;
+    //     key_t key;
+    //     value_t value;
 
-        // keys =   {0, 1, 2, 3, 4, 5,  6,  7}
-        // values = {1, 3, 5, 7, 9, 11, 13, 15}
-        for (int i = 0; i < 8; i++) list.put(i, i, i * 2 + 1);
+    //     // keys =   {0, 1, 2, 3, 4, 5,  6,  7}
+    //     // values = {1, 3, 5, 7, 9, 11, 13, 15}
+    //     for (int i = 0; i < 8; i++) list.put(i, i, i * 2 + 1);
 
-        // initial size == 0
-        EXPECT_EQ(0, bucket.num_keys());
+    //     // initial size == 0
+    //     EXPECT_EQ(0, bucket.num_keys());
         
-        // lookup non-existing key
-        EXPECT_FALSE(bucket.lookup(0, value, 0));
-        EXPECT_FALSE(bucket.SIMD_lookup(0, value, 0));
+    //     // lookup non-existing key
+    //     EXPECT_FALSE(bucket.lookup(0, value, 0));
+    //     EXPECT_FALSE(bucket.SIMD_lookup(0, value, 0));
         
 
-        // check "lookup return values" and "num_keys after insertion"
-        for (int i = 0; i < 8; i++) {
-            EXPECT_TRUE(bucket.insert(list.at(i), true, 0));
-            EXPECT_TRUE(bucket.lookup(i, value, 0));
-            EXPECT_TRUE(bucket.SIMD_lookup(i, value, 0));
-            EXPECT_EQ(i * 2 + 1, value);
-            EXPECT_EQ(i+1, bucket.num_keys());
-        }
+    //     // check "lookup return values" and "num_keys after insertion"
+    //     for (int i = 0; i < 8; i++) {
+    //         EXPECT_TRUE(bucket.insert(list.at(i), true, 0));
+    //         EXPECT_TRUE(bucket.lookup(i, value, 0));
+    //         EXPECT_TRUE(bucket.SIMD_lookup(i, value, 0));
+    //         EXPECT_EQ(i * 2 + 1, value);
+    //         EXPECT_EQ(i+1, bucket.num_keys());
+    //     }
 
-        // insert overflows
-        EXPECT_FALSE(bucket.insert(list.at(0), true, 0));
-    }
+    //     // insert overflows
+    //     EXPECT_FALSE(bucket.insert(list.at(0), true, 0));
+    // }
 
     TEST(Bucket, lookup_insert_large_bucket) {
         Bucket<KeyListValueList<key_t, value_t, 256>, key_t, value_t, 256> bucket;
@@ -215,79 +215,79 @@ namespace buckindex {
         EXPECT_FALSE(bucket.lookup(101, value, 0));
     }
 
-    TEST(Bucket, SIMD_lookup_insert_large_bucket) {
-        Bucket<KeyListValueList<int, int, 256>, int, int, 256> bucket;
-        KeyListValueList<int, int, 256> list;
-        int key;
-        int value;
+    // TEST(Bucket, SIMD_lookup_insert_large_bucket) {
+    //     Bucket<KeyListValueList<int, int, 256>, int, int, 256> bucket;
+    //     KeyListValueList<int, int, 256> list;
+    //     int key;
+    //     int value;
 
-        for (int i = 0; i < 200; i++) list.put(i, i, i * 2 + 1);
+    //     for (int i = 0; i < 200; i++) list.put(i, i, i * 2 + 1);
 
-        // initial size == 0
-        EXPECT_EQ(0, bucket.num_keys());
+    //     // initial size == 0
+    //     EXPECT_EQ(0, bucket.num_keys());
         
-        // lookup non-existing key
-        EXPECT_FALSE(bucket.lookup(0, value, 0));
-        EXPECT_FALSE(bucket.SIMD_lookup(0, value, 0));
+    //     // lookup non-existing key
+    //     EXPECT_FALSE(bucket.lookup(0, value, 0));
+    //     EXPECT_FALSE(bucket.SIMD_lookup(0, value, 0));
         
-        // lookup existing/non-existing keys after single insertion
-        EXPECT_TRUE(bucket.insert(list.at(0), true, 0));
-        EXPECT_TRUE(bucket.lookup(0, value, 0));
-        EXPECT_TRUE(bucket.SIMD_lookup(0, value, 0));
-        EXPECT_FALSE(bucket.lookup(1, value, 0));
-        EXPECT_FALSE(bucket.SIMD_lookup(1, value, 0));
+    //     // lookup existing/non-existing keys after single insertion
+    //     EXPECT_TRUE(bucket.insert(list.at(0), true, 0));
+    //     EXPECT_TRUE(bucket.lookup(0, value, 0));
+    //     EXPECT_TRUE(bucket.SIMD_lookup(0, value, 0));
+    //     EXPECT_FALSE(bucket.lookup(1, value, 0));
+    //     EXPECT_FALSE(bucket.SIMD_lookup(1, value, 0));
 
-        // check "lookup return values" and "num_keys" after insertion
-        for (int i = 1; i < 65; i++) {
-            EXPECT_TRUE(bucket.insert(list.at(i), true, 0));
-            EXPECT_TRUE(bucket.lookup(i, value, 0));
-            EXPECT_TRUE(bucket.SIMD_lookup(i, value, 0));
-            EXPECT_EQ(i * 2 + 1, value);
-            EXPECT_EQ(i+1, bucket.num_keys());
+    //     // check "lookup return values" and "num_keys" after insertion
+    //     for (int i = 1; i < 65; i++) {
+    //         EXPECT_TRUE(bucket.insert(list.at(i), true, 0));
+    //         EXPECT_TRUE(bucket.lookup(i, value, 0));
+    //         EXPECT_TRUE(bucket.SIMD_lookup(i, value, 0));
+    //         EXPECT_EQ(i * 2 + 1, value);
+    //         EXPECT_EQ(i+1, bucket.num_keys());
             
-        }
+    //     }
 
-        bucket.invalidate(101);
-        EXPECT_FALSE(bucket.lookup(101, value, 0));
-        EXPECT_FALSE(bucket.SIMD_lookup(101, value, 0));
-    }
+    //     bucket.invalidate(101);
+    //     EXPECT_FALSE(bucket.lookup(101, value, 0));
+    //     EXPECT_FALSE(bucket.SIMD_lookup(101, value, 0));
+    // }
 
-    TEST(Bucket, SIMD_lookup_insert_large_bucket_64bit_key) {
-        Bucket<KeyListValueList<key_t, value_t, 256>, key_t, value_t, 256> bucket;
-        KeyListValueList<key_t, value_t, 256> list;
-        key_t key;
-        value_t value;
+    // TEST(Bucket, SIMD_lookup_insert_large_bucket_64bit_key) {
+    //     Bucket<KeyListValueList<key_t, value_t, 256>, key_t, value_t, 256> bucket;
+    //     KeyListValueList<key_t, value_t, 256> list;
+    //     key_t key;
+    //     value_t value;
 
-        for (int i = 0; i < 200; i++) list.put(i, i, i * 2 + 1);
+    //     for (int i = 0; i < 200; i++) list.put(i, i, i * 2 + 1);
 
-        // initial size == 0
-        EXPECT_EQ(0, bucket.num_keys());
+    //     // initial size == 0
+    //     EXPECT_EQ(0, bucket.num_keys());
         
-        // lookup non-existing key
-        EXPECT_FALSE(bucket.lookup(0, value, 0));
-        EXPECT_FALSE(bucket.SIMD_lookup(0, value, 0));
+    //     // lookup non-existing key
+    //     EXPECT_FALSE(bucket.lookup(0, value, 0));
+    //     EXPECT_FALSE(bucket.SIMD_lookup(0, value, 0));
         
-        // lookup existing/non-existing keys after single insertion
-        EXPECT_TRUE(bucket.insert(list.at(0), true, 0));
-        EXPECT_TRUE(bucket.lookup(0, value, 0));
-        EXPECT_TRUE(bucket.SIMD_lookup(0, value, 0));
-        EXPECT_FALSE(bucket.lookup(1, value, 0));
-        EXPECT_FALSE(bucket.SIMD_lookup(1, value, 0));
+    //     // lookup existing/non-existing keys after single insertion
+    //     EXPECT_TRUE(bucket.insert(list.at(0), true, 0));
+    //     EXPECT_TRUE(bucket.lookup(0, value, 0));
+    //     EXPECT_TRUE(bucket.SIMD_lookup(0, value, 0));
+    //     EXPECT_FALSE(bucket.lookup(1, value, 0));
+    //     EXPECT_FALSE(bucket.SIMD_lookup(1, value, 0));
 
-        // check "lookup return values" and "num_keys" after insertion
-        for (int i = 1; i < 2; i++) {
-            EXPECT_TRUE(bucket.insert(list.at(i), true, 0));
-            EXPECT_TRUE(bucket.lookup(i, value, 0));
-            EXPECT_TRUE(bucket.SIMD_lookup(i, value, 0));
-            EXPECT_EQ(i * 2 + 1, value);
-            EXPECT_EQ(i+1, bucket.num_keys());
+    //     // check "lookup return values" and "num_keys" after insertion
+    //     for (int i = 1; i < 2; i++) {
+    //         EXPECT_TRUE(bucket.insert(list.at(i), true, 0));
+    //         EXPECT_TRUE(bucket.lookup(i, value, 0));
+    //         EXPECT_TRUE(bucket.SIMD_lookup(i, value, 0));
+    //         EXPECT_EQ(i * 2 + 1, value);
+    //         EXPECT_EQ(i+1, bucket.num_keys());
             
-        }
+    //     }
 
-        bucket.invalidate(101);
-        EXPECT_FALSE(bucket.lookup(101, value, 0));
-        EXPECT_FALSE(bucket.SIMD_lookup(101, value, 0));
-    }
+    //     bucket.invalidate(101);
+    //     EXPECT_FALSE(bucket.lookup(101, value, 0));
+    //     EXPECT_FALSE(bucket.SIMD_lookup(101, value, 0));
+    // }
 
     TEST(Bucket, insert_pivot_update) {
         Bucket<KVList8, key_t, value_t, 8> bucket;

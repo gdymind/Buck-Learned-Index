@@ -28,8 +28,8 @@ public:
     using KeyValueType = KeyValue<KeyType, ValueType>;
     using KeyValuePtrType = KeyValue<KeyType, uintptr_t>;
 
-    BuckIndex(double initial_filled_ratio=0.7, int error_bound=8) {
-        init(initial_filled_ratio, error_bound);
+    BuckIndex(double initial_filled_ratio=0.7, int error_bound=8, int N_merge=1) {
+        init(initial_filled_ratio, error_bound, N_merge);
 #ifdef BUCKINDEX_DEBUG
         std::cout << "BLI: Debug mode" << std::endl;
 #else
@@ -66,7 +66,7 @@ public:
 #endif
     }
 
-    void init(double initial_filled_ratio, int error_bound){
+    void init(double initial_filled_ratio, int error_bound, int N_merge){
         root_ = NULL;
         num_levels_ = 0;
 
@@ -75,6 +75,9 @@ public:
 
         initial_filled_ratio_ = initial_filled_ratio;
         std::cout << "Initial fill ratio = " << initial_filled_ratio_ << std::endl;
+
+        // N_merge_ = N_merge;
+        // std::cout << "N_merge = " << N_merge_ << std::endl;
 
 #ifdef BUCKINDEX_DEBUG
         tn.init();
@@ -266,81 +269,116 @@ public:
 
         // if fail to insert, split the bucket, and add new kvptr on parent segment
         if (!success) {
-            std::vector<KeyValuePtrType> pivot_list[2]; // ping-pong list
-            int ping = 0, pong = 1;
+            std::vector<KeyValuePtrType> old_pivot_list[2]; // ping-pong list for the pivots that need to be invalidated
+            std::vector<KeyValuePtrType> new_pivot_list[2]; // ping-pong list for the parent that need to be inserted
+            int ping = 0, pong = 1; // ping is the current level, pong is the parent level
 
             // split d_bucket
             auto new_d_buckets = d_bucket->split_and_insert(kv);
-            pivot_list[ping].push_back(new_d_buckets.first);
-            pivot_list[ping].push_back(new_d_buckets.second);
-            KeyValuePtrType old_pivot = path[num_levels_-1];
+
+            // the old pivot list is to be replaced by the new pivot list
+            old_pivot_list[ping].push_back(path[num_levels_-1]); // the old d_bucket
+            new_pivot_list[ping].push_back(new_d_buckets.first);
+            new_pivot_list[ping].push_back(new_d_buckets.second);
+
+
+            // cout << "old_pivot_list[ping]: " << endl;
+            // for (auto kv_ptr : old_pivot_list[ping]) {
+            //     cout << "key = " << kv_ptr.key_ << ", value = " << kv_ptr.value_ << endl;
+            // }
+
+            // cout << "new_pivot_list[ping]: " << endl;
+            // for (auto kv_ptr : new_pivot_list[ping]) {
+            //     cout << "key = " << kv_ptr.key_ << ", value = " << kv_ptr.value_ << endl;
+            // }
 
             // propagate the insertion to the parent segments
             assert(num_levels_ >= 2); // insert into leaf segment
             int cur_level = num_levels_ - 2; // leaf_segment level
             while(cur_level >= 0) {
+
                 SegmentType* cur_segment = (SegmentType*)(path[cur_level].value_);
-                
-                bool is_segment = true;
-                if (cur_level == num_levels_ - 2) is_segment = false;
-                if (cur_segment->batch_update(old_pivot, pivot_list[ping], is_segment)) {
-                    pivot_list[ping].clear();
+                // try batch inserting new pivots first
+                if (cur_segment->batch_update(old_pivot_list[ping], new_pivot_list[ping])) {
+                    // empty new_pivot_list[ping] to indicate that the no further propagation is needed
+                    new_pivot_list[ping].clear(); 
                     success = true;
                     break;
                 }
 
-                pivot_list[pong].clear();
-                success = cur_segment->segment_and_batch_update(initial_filled_ratio_, pivot_list[ping], pivot_list[pong]);
-#ifdef BUCKINDEX_DEBUG
-                level_stats_[num_levels_ - 1 - cur_level] += (pivot_list[pong].size()-1);
-#endif
-                old_pivot = path[cur_level];
-                assert(success);
 
-                GC_segs.push_back((uintptr_t)cur_segment);
+                // if batch insertion fails, re-segment along with adjcent segs
+                // when performing re-segmentation, batch updating entries from old_pivot_list[ping] to new_pivot_list[ping] on the fly
+                old_pivot_list[pong].clear();
+                new_pivot_list[pong].clear();
+
+
+                KeyValuePtrType parent_seg_kvptr;
+                if (cur_level > 0)  parent_seg_kvptr = path[cur_level-1];
+                else parent_seg_kvptr = KeyValuePtrType(std::numeric_limits<KeyType>::min(), (uintptr_t)nullptr);
+
+                KeyValuePtrType cur_seg_kvptr = path[cur_level];
+
+                resegment_adjcent_segments(parent_seg_kvptr, cur_seg_kvptr,
+                                            N_merge_, N_merge_,
+                                            old_pivot_list[ping], new_pivot_list[ping], // current level
+                                            old_pivot_list[pong], new_pivot_list[pong]); // parent level
+                
+#ifdef BUCKINDEX_DEBUG
+                level_stats_[num_levels_ - 1 - cur_level] += (new_pivot_list[pong].size()-old_pivot_list[pong].size());
+#endif
+                // GC old pivots in the current level
+                if (cur_level != num_levels_ - 2) { // ensure not leaf segment
+                                                    // beacuase their old pivots are buckets rather than segments
+                    for (auto seg_ptr : old_pivot_list[ping]) {
+                        GC_segs.push_back((uintptr_t)seg_ptr.value_);
+                    }
+                }
                 cur_level--;
                 ping = 1 - ping;
                 pong = 1 - pong;
             }
 
             // add one more level
-            assert(pivot_list[ping].size() == 0 || cur_level == -1);
+            assert(new_pivot_list[ping].size() == 0 || cur_level == -1);
+
 
             // what if there is only one node
-            if (pivot_list[ping].size() > 1) {
+            if (new_pivot_list[ping].size() > 1) {
                 LinearModel<KeyType> model;
 #ifdef BUCKINDEX_USE_LINEAR_REGRESSION
                 std::vector<KeyType> keys;
-                for (auto kv_ptr : pivot_list[ping]) {
+                for (auto kv_ptr : new_pivot_list[ping]) {
                     keys.push_back(kv_ptr.key_);
                 }
                 model = LinearModel<KeyType>::get_regression_model(keys);
 #else
                 // TODO: instead of endpoints, use linear regression
-                double start_key = pivot_list[ping].front().key_;
-                double end_key = pivot_list[ping].back().key_;
+                double start_key = new_pivot_list[ping].front().key_;
+                double end_key = new_pivot_list[ping].back().key_;
                 double slope = 0.0, offset = 0.0;
-                if (pivot_list[ping].size() > 1) {
-                    slope = (long double)pivot_list[ping].size() / (long double)(end_key - start_key);
+                if (new_pivot_list[ping].size() > 1) {
+                    slope = (long double)new_pivot_list[ping].size() / (long double)(end_key - start_key);
                     offset = -slope * start_key;
                 }
                 model = LinearModel<KeyType>(slope, offset);
 #endif
-                root_ = new SegmentType(pivot_list[ping].size(), initial_filled_ratio_, model, 
-                                    pivot_list[ping].begin(), pivot_list[ping].end());
+                root_ = new SegmentType(new_pivot_list[ping].size(), initial_filled_ratio_, model, 
+                                    new_pivot_list[ping].begin(), new_pivot_list[ping].end());
 #ifdef BUCKINDEX_DEBUG
                 level_stats_[num_levels_] = 1;
 #endif
 
                 num_levels_++;
-            } else if (pivot_list[ping].size() == 1){
+            } else if (new_pivot_list[ping].size() == 1){
                 // GC_segs.push_back((uintptr_t)root_);
                 // TODO: original root is not deleted
-                root_ = (void*)(SegmentType*)pivot_list[ping][0].value_;
+                root_ = (void*)(SegmentType*)new_pivot_list[ping][0].value_;
             }
 #ifdef BUCKINDEX_DEBUG
             num_data_buckets_++;
             level_stats_[0]++;
+            success = true;
 #endif
 
             // GC
@@ -352,7 +390,6 @@ public:
 #ifdef BUCKINDEX_DEBUG
             insert_stats_.num_of_SMO++;
 #endif
-
         }
 
 #ifdef BUCKINDEX_DEBUG
@@ -605,6 +642,7 @@ private:
         for (int i = 1; i < num_levels_; i++) {
             SegmentType* segment = (SegmentType*)path[i-1].value_;
             success &= segment->lb_lookup(key, path[i], kvptr_next);
+            assert(success);
             assert((void *)path[i].value_ != nullptr);
         }
 #ifdef HINT_MODEL_PREDICT
@@ -742,6 +780,168 @@ private:
         }
     }
 
+    /**
+     * @brief Resegment including adjecent segments
+     * @param parent_seg_kvptr the parent segment of the cur seg. It is used to find adjcent segments of the cur seg.
+     * @param cur_seg_kvptr the current segment to be resegmented
+     * @param N1 the number of left segments to be merged
+     * @param N2 the number of right segments to be merged
+     * @param cur_old_seg_pivots the old pivots of the current segment, which will be replaced by cur_new_seg_pivots
+     * @param cur_new_seg_pivots the new pivots of the current segment, which will replace cur_old_seg_pivots
+     * @param par_old_seg_pivots the old pivots of the parent segment, which will be replaced in the parent segment
+     * @param par_new_seg_pivots the new pivots of the parent segment, which will replace par_old_seg_pivots in the parent segment
+    */
+    bool resegment_adjcent_segments(KeyValuePtrType &parent_seg_kvptr, KeyValuePtrType &cur_seg_kvptr, 
+                                int N1, int N2,
+                                std::vector<KeyValuePtrType> &cur_old_seg_pivots,
+                                std::vector<KeyValuePtrType> &cur_new_seg_pivots,
+                                std::vector<KeyValuePtrType> &par_old_seg_pivots,
+                                std::vector<KeyValuePtrType> &par_new_seg_pivots
+                                ) {
+
+
+        // TODO: if N1 and N2 are zero, call segment_and_xx directly
+        // output entries in cur_old_seg_pivots and cur_new_seg_pivots
+        // cout << "cur_old_seg_pivots: ";
+        // for (auto it = cur_old_seg_pivots.begin(); it != cur_old_seg_pivots.end(); it++) {
+        //     cout << it->key_ << " " << it->value_ << ", ";
+        // }
+        // cout << endl;
+        // cout << "cur_new_seg_pivots: ";
+        // for (auto it = cur_new_seg_pivots.begin(); it != cur_new_seg_pivots.end(); it++) {
+        //     cout << it->key_ << " " << it->value_ << ", ";
+        // }
+        // cout << endl;
+
+        SegmentType* parent_seg = (SegmentType*)parent_seg_kvptr.value_;
+        SegmentType* cur_seg = (SegmentType*)cur_seg_kvptr.value_;
+        
+        KeyType cur_seg_pivot = cur_seg_kvptr.key_;
+        // cout << "resegment_adjcent_segments: cur_seg_pivot = " << cur_seg_pivot << endl;
+
+        std::vector<KeyValuePtrType> all_entries;
+
+        // // iterate over parent_seg
+        // if (parent_seg != nullptr) {
+        //     cout << "parent_seg entries: ";
+        //     for (auto it = parent_seg->cbegin(); it != parent_seg->cend(); it++) {
+        //         cout << it->key_ << " " << it->value_ << ", ";
+        //     }
+        //     cout << endl << flush;
+        //     cout << endl << flush;   
+        // }
+
+        // get the left N1 segment pivots
+        if (parent_seg != nullptr) {
+            auto it = parent_seg->lower_bound(cur_seg_pivot);
+            // cout << "it(init):"; it.print();
+            for (int i = 0; i < N1; i++) {
+                if (it == parent_seg->cbegin()) break;
+                it--;
+                // cout << "it left:"; it.print();
+                par_old_seg_pivots.push_back(*it);
+
+                // get all the entries in the segment to be merged
+                SegmentType* segment = (SegmentType*)it->value_;
+                for (auto it2 = segment->cbegin(); it2 != segment->cend(); it2++) {
+                    all_entries.push_back(*it2);
+                }
+            }
+        }
+
+        // // output all_entries at this point
+        // cout << "all_entries(after include left N1 segs): ";
+        // for (auto it = all_entries.begin(); it != all_entries.end(); it++) {
+        //     cout << it->key_ << " " << it->value_ << ", ";
+        // }
+        // cout << endl << flush;
+        // cout << endl << flush;
+
+
+        // get the current segment
+        par_old_seg_pivots.push_back(cur_seg_kvptr);
+        // get all the entries in the current segment
+        // replace entries in cur_old_seg_pivots to cur_new_seg_pivots on the fly
+        KeyType start_key = cur_old_seg_pivots.front().key_;
+        KeyType end_key = cur_old_seg_pivots.back().key_;
+        auto it2 = cur_seg->cbegin();
+        // get entries before start_key
+        for (; it2 != cur_seg->cend() && it2->key_ < start_key; it2++) {
+            all_entries.push_back(*it2);
+        }
+        // skip entries in cur_old_seg_pivots
+        int cnt = 0;
+        for (; it2 != cur_seg->cend() && it2->key_ <= end_key; it2++) {
+            cnt++;
+        }
+        assert(cnt == cur_old_seg_pivots.size());
+        // insert entries in cur_new_seg_pivots
+        for (auto it3 = cur_new_seg_pivots.begin(); it3 != cur_new_seg_pivots.end(); it3++) {
+            all_entries.push_back(*it3);
+        }
+        // get entries after end_key
+        for (; it2 != cur_seg->cend(); it2++) {
+            all_entries.push_back(*it2);
+        }
+
+
+        // get the right N2 segment pivots
+        if (parent_seg != nullptr) {
+            auto it = parent_seg->lower_bound(cur_seg_pivot);
+            for (int i = 0; i < N2; i++) {
+                if (it == parent_seg->cend()) break;
+                it++;
+                if (it == parent_seg->cend()) break;
+                par_old_seg_pivots.push_back(*it);
+
+                // get all the entries in the segment to be merged
+                SegmentType* segment = (SegmentType*)it->value_;
+                for (auto it2 = segment->cbegin(); it2 != segment->cend(); it2++) {
+                    all_entries.push_back(*it2);
+                }
+            }
+        }
+
+        // // output all_entries at this point
+        // cout << "all_entries(after include right N2 segs): ";
+        // for (auto it = all_entries.begin(); it != all_entries.end(); it++) {
+        //     cout << it->key_ << " " << it->value_ << ", ";
+        // }
+        // cout << endl << flush;
+        // cout << endl << flush;
+
+        // run the segmentation algorithm
+        vector<Cut<KeyType>> out_cuts;
+        vector<LinearModel<KeyType>> out_models;
+        out_cuts.clear();
+        out_models.clear();
+        Segmentation<vector<KeyValuePtrType>, KeyType>::compute_dynamic_segmentation(all_entries, out_cuts, out_models, error_bound_);
+
+        // cout << "out_cuts.size() = " << out_cuts.size() << endl;
+
+        // generate new segments based on the cuts
+        for (int i = 0; i < out_cuts.size(); i++) {
+            uint64_t start_idx = out_cuts[i].start_;
+            uint64_t length = out_cuts[i].size_;
+
+            SegmentType* segment = new SegmentType(length, initial_filled_ratio_, out_models[i],
+                                                   all_entries.begin() + start_idx, all_entries.begin() + start_idx + length);
+            par_new_seg_pivots.push_back(KeyValuePtrType(out_cuts[i].start_key_, (uintptr_t)segment));
+        }
+
+        // // iterate over parent_seg
+        // if (parent_seg != nullptr) {
+        //     cout << "parent_seg entries: ";
+        //     for (auto it = parent_seg->cbegin(); it != parent_seg->cend(); it++) {
+        //         cout << it->key_ << " " << it->value_ << ", ";
+        //     }
+        //     cout << endl << flush;
+        //     cout << endl << flush;   
+        // }
+
+        return true;
+    }
+
     //The root segment of the learned index.
     void* root_;
     //Learned index constants
@@ -749,6 +949,7 @@ private:
     double initial_filled_ratio_;
 
     int error_bound_;
+    int N_merge_;
     
     //Statistics
     

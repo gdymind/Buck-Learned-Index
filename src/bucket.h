@@ -326,11 +326,9 @@ public:
         bitmap_[bitmap_pos] &= ~(1ULL << bit_pos);
         num_keys_--;
         
-        // TODO: if the invalidated position is the pivot, update the pivot
-        // how to propagate the pivot update to the upper levels?
-        // if (list_.at(pos).key_ == pivot_) {
-        //     pivot_ = find_kth_smallest(1).key_;
-        // }
+        if (list_.at(pos).key_ == pivot_ && pivot_ > std::numeric_limits<T>::min()) {
+            pivot_ = find_kth_smallest(1).key_;
+        }
     } 
 
     inline bool valid(int pos) const {
@@ -621,12 +619,6 @@ public:
         assert(pos >= 0 && pos <= valid_kvs_.size());
         cur_pos_ = pos;
         sort(valid_kvs_.begin(), valid_kvs_.end());
-#ifdef BUCKINDEX_DEBUG
-        std::cout << "In SortedIterator: valid_kvs_.size() = " << valid_kvs_.size() << " pos = " << pos << std::endl;
-        if (valid_kvs_.size() > 0) {
-            std::cout << "In SortedIterator: min = " << valid_kvs_.front().key_ << ", max = " << valid_kvs_.back().key_ << std::endl;
-        }
-#endif
     }
 
     SortedIterator(BucketType *bucket, int pos, std::vector<KeyValueType> &valid_kvs) : bucket_(bucket), valid_kvs_(valid_kvs) {

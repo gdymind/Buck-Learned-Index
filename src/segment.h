@@ -591,6 +591,10 @@ bool Segment<T, SBUCKET_SIZE>::lb_lookup(T key, KeyValuePtrType &kvptr, KeyValue
     assert(num_bucket_>0);
     unsigned int buckID = locate_buck(key);
     bool success = sbucket_list_[buckID].lb_lookup(key, kvptr, next_kvptr);
+    if (!success && buckID > 0) {
+        success = sbucket_list_[buckID-1].lb_lookup(key, kvptr, next_kvptr);
+        buckID--;
+    }
     
     // predict -> search within bucket ---if fail----> locate -> search (put a flag) (deferred)
     return success;
