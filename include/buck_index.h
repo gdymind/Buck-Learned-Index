@@ -461,6 +461,7 @@ public:
         //     std::cout << "    " << it->first << ": " << it->second << std::endl;
         // }
 
+        cout << " Number of resegment: " << times_resegment_ << endl;
 
     }
 
@@ -813,6 +814,8 @@ private:
         // }
         // cout << endl;
 
+        times_resegment_++;
+
         SegmentType* parent_seg = (SegmentType*)parent_seg_kvptr.value_;
         SegmentType* cur_seg = (SegmentType*)cur_seg_kvptr.value_;
         
@@ -950,6 +953,8 @@ private:
 
     int error_bound_;
     int N_merge_;
+
+    int times_resegment_ = 0;
     
     //Statistics
     
