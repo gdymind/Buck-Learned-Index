@@ -452,4 +452,37 @@ namespace buckindex {
 
         bli.dump();
     }
+
+    TEST(BuckIndex, iterator){
+        BuckIndex<uint64_t, uint64_t, 8, 128> bli(0.5, 4);
+        vector<KeyValue<uint64_t, uint64_t>> in_kv_array;
+
+        for (int i = 0; i < 100000; i ++) {
+            KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(i, i * 2 + 5);
+            in_kv_array.push_back(kv);
+        }
+
+        bli.bulk_load(in_kv_array);
+
+
+        // lookup_path() definition: bool lookup_path(KeyType key, std::vector<KeyValuePtrType> &path, LinearModel<KeyType> &model)
+        // find the path to the data bucket that contains the key 640
+        std::vector<KeyValue<uint64_t, uintptr_t>> path(2);
+        LinearModel<uint64_t> model;
+        bli.lookup_path(640, path, model);
+
+
+        // declare an iterator
+        auto it = BuckIndex<uint64_t, uint64_t, 8, 128>::const_iterator(path);
+        uint64_t expected_key = 640;
+        int cnt = 0;
+        for (; !it.reach_to_end(); it++) {
+            const Bucket<KeyValueList<uint64_t, uint64_t, 128>,
+                            uint64_t, uint64_t, 128> *bucket = *it;
+            EXPECT_EQ(bucket->get_pivot(), expected_key);
+            expected_key += 64;
+            cnt++;
+        }
+        cout << "cnt = " << cnt << endl;
+    }
 }

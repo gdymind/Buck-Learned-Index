@@ -665,6 +665,12 @@ class Segment<T, SBUCKET_SIZE>::const_iterator {
 public:
     using SegmentType = Segment<T, SBUCKET_SIZE>;
 
+    const_iterator() {
+        segment_ = nullptr;
+        cur_buckID_ = 0;
+        cur_index_ = 0;
+    }
+
     /*
     // explicit const_iterator(SegmentType *segment) : segment_(segment) {
     //     assert(segment_ != nullptr);

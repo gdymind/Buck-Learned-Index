@@ -4,6 +4,7 @@
 #include "bucket.h"
 #include "segment.h"
 #include "segmentation.h"
+#include "greedy_error_corridor.h"
 #include "util.h"
 
 /**
@@ -585,11 +586,9 @@ public:
         // std::cout<<"Num of fail_predict: "<< SegmentType::fail_predict_bulk<<std::endl;
         // std::cout<<"avg fail distance: "<< (double)SegmentType::fail_distance/SegmentType::fail_predict_bulk<<std::endl;
         // std::cout<<"Num of success_predict: "<< SegmentType::success_predict_bulk<<std::endl;
-\
 
 #endif
     }
-private:
 
     /**
      * Lookup function, traverse the index to the leaf D-Bucket, and record the path
@@ -618,6 +617,122 @@ private:
         assert(success);
         return success;
     }
+
+    class const_iterator {
+    public:
+        // num of bucket to indicate the end
+        const_iterator(std::vector<KeyValuePtrType> &path): path_(path){
+            num_levels_ = path_.size();
+            lca_level_ = num_levels_ - 2; // leaf_segment level
+
+            seg_iter_list_.resize(num_levels_-1); // level of Segments = num_levels_ - 1
+            seg_iter_list_[lca_level_] = ((SegmentType*)path_[lca_level_].value_)->lower_bound(path_[lca_level_+1].key_);
+        }
+
+        void operator++(int) {
+            find_next();
+        }
+
+        // void operator--(int) {
+        //     assert(upper_bound = std::numeric_limits<T>::max());
+        //     find_previous();
+        // }
+
+        // prefix ++it
+        const_iterator &operator++() {
+            find_next();
+            return *this;
+        }
+
+        // *it
+        const DataBucketType* operator*() const {
+            return (DataBucketType*)path_[num_levels_-1].value_;
+        }
+
+        // if rhs is an upper bound iterator, then it will return true, if cur_key > upper bound
+        bool operator==(const const_iterator& rhs) const {
+            return path_[num_levels_-1].key_ == rhs.path_[num_levels_-1].key_;
+        }
+
+        bool operator!=(const const_iterator& rhs) const { 
+            return !(*this == rhs);
+        }
+
+        bool reach_to_end(){
+            return lca_level_ == 0 && seg_iter_list_[0] == ((SegmentType*)path_[0].value_)->cend();
+        }
+    private:
+        std::vector<KeyValuePtrType> path_;
+        using SegIterType = typename Segment<KeyType, SEGMENT_BUCKET_SIZE>::const_iterator;
+        std::vector<SegIterType> seg_iter_list_;
+        int lca_level_;
+        int num_levels_;
+
+        // find the next entry in the sorted list (Can cross boundary of bucket)
+        inline bool find_next() {
+            auto &leaf_seg_iter = seg_iter_list_[num_levels_-2];
+            if (leaf_seg_iter == ((SegmentType*)path_[num_levels_-2].value_)->cend()) {
+                // find the next segment using parent segment's iterator; if not found, go to the upper level
+                int cur_level = num_levels_ - 3; // parent of leaf_segment
+                if (cur_level > lca_level_) {
+                    seg_iter_list_[cur_level] = ((SegmentType*)path_[cur_level].value_)->lower_bound(path_[cur_level+1].key_);
+                    lca_level_ = cur_level;
+                }
+                while(cur_level > 0 && seg_iter_list_[cur_level] == ((SegmentType*)path_[cur_level].value_)->cend()) {
+                    cur_level--;
+                    seg_iter_list_[cur_level] = ((SegmentType*)path_[cur_level].value_)->lower_bound(path_[cur_level+1].key_);
+                    lca_level_ = cur_level;
+                }
+                if (cur_level == 0 && seg_iter_list_[0] == ((SegmentType*)path_[0].value_)->cend()) {
+                    // reach the end
+                    return false;
+                }
+                // update the lower-level path and iterators
+                while(cur_level < num_levels_ - 2) {
+                    path_[cur_level+1] = *(seg_iter_list_[cur_level]);
+                    SegmentType* next_segment = (SegmentType*)path_[cur_level+1].value_;
+                    seg_iter_list_[cur_level+1] = next_segment->cbegin();
+                    cur_level++;
+                }
+            } else {
+                leaf_seg_iter++;
+                path_[num_levels_-1] = *(leaf_seg_iter);
+            }
+
+            return true;
+        }
+
+        // // find the previous entry in the sorted list (Can cross boundary of bucket)
+        // inline void find_previous() {
+        //     if (reach_to_begin()) return;
+        //     if (cur_index_ == 0) {
+        //         cur_buckID_--;
+        //         while(!reach_to_begin()){
+        //             if(segment_->sbucket_list_[cur_buckID_].num_keys() == 0){
+        //                 cur_buckID_--;
+        //             }
+        //             else{
+        //                 segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_); 
+        //                 sort(sorted_list_.begin(), sorted_list_.end());
+        //                 break;
+        //             }
+        //         }
+        //         cur_index_ = sorted_list_.size() - 1;
+        //     }
+        //     else {
+        //         cur_index_--;
+        //     }
+        // }
+
+        // bool reach_to_begin(){
+        //     return (cur_buckID_ == 0 && cur_index_ == 0);
+        // }
+    };
+
+
+private:
+
+
 
     /**
      * Helper function for scan() to find the next D-Bucket
@@ -741,6 +856,52 @@ private:
                                                    (uintptr_t)segment));
         }
     }
+
+    // /**
+    //  * Helper function to merge neighboring data buckets
+    //  * @param path: the path from root to the leaf D-Bucket. This is used to find the neighboring data buckets in both directions
+    //  * @param old_lca: the old LCA of all the data buckets to be merged. This is a return value of the function
+    //  * @param new_lca: the new LCA that will replace the old LCA. This is a return value of the function
+    //  * @param lca_level: the level of the LCA. This is a return value of the function
+    //  */
+    // bool dbuck_merge(std::vector<KeyValuePtrType> &path, KeyValuePtrType &old_lca, KeyValuePtrType &new_lca, int &lca_level) {
+    //     DataBucketType *center_dbuck = path[num_levels_-1].value_;
+    //     auto center_pivot = center_dbuck->get_pivot();
+        
+    //     // Use GreedyErrorCorridor
+    //     GreedyErrorCorridor<KeyType> gec;
+    //     gec.init(center_pivot.key_, error_bound_);
+    //     // Keep adding the right neighbor buckets until gec stops
+    //             assert(path.size() == num_levels_);
+
+    //     lca_level = num_levels_ - 2; // leaf_segment level
+    //     assert(lca_level >= 0);
+
+    //     while(lca_level >= 0) {
+    //         SegmentType* cur_segment = (SegmentType*)(path[lca_level].value_);
+    //         auto seg_iter = cur_segment->lower_bound(path[lca_level+1].key_); // find the key of the next level
+    //         if (seg_iter != cur_segment->cend() && (*seg_iter).key_ == path[lca_level+1].key_) { // find the one after path[lca_level+1]
+    //             seg_iter++;
+    //         }
+    //         if (seg_iter != cur_segment->cend()) { // found the next entry
+    //             path[lca_level+1] = *seg_iter; // update to the next entry
+
+    //             // update the lower-level path
+    //             int tranverse_down_level = lca_level + 1;
+    //             while(tranverse_down_level < num_levels_ - 1) {
+    //                 SegmentType* segment = (SegmentType*)path[tranverse_down_level].value_;
+    //                 seg_iter = segment->cbegin();
+    //                 path[tranverse_down_level+1] = *seg_iter;
+    //                 tranverse_down_level++;
+    //             }
+
+    //         } else { // not found, go to the upper level
+    //             lca_level--;
+    //         }
+    //     }
+    // }
+
+
 
     //The root segment of the learned index.
     void* root_;
