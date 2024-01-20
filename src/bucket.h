@@ -23,7 +23,7 @@ namespace buckindex {
 constexpr unsigned int BITS_UINT64_T = sizeof(uint64_t) * 8;;
 
 //debug only
-// static std::map<int, int> hint_dist_count; // <distance, count>
+static std::map<int, int> hint_dist_count; // <distance, count>
 
 
 /**
@@ -382,6 +382,9 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value, size_t hint) c
 #ifdef BUCKINDEX_USE_SIMD
     return SIMD_lookup(key, value, hint);
 #else
+#ifdef BUCKINDEX_DEBUG
+    int search_count = 0;
+#endif
     for (int i = 0, l = hint; i < SIZE; i++, l = (l+1) % SIZE) {
         // if (list_.at(l).key_ == key) {
         if (valid(l) && list_.at(l).key_ == key) {
@@ -389,7 +392,13 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value, size_t hint) c
             value = list_.at(l).value_;
             return true;
         }
+#ifdef BUCKINDEX_DEBUG
+        search_count++;
+#endif
     }
+#ifdef BUCKINDEX_DEBUG
+    hint_dist_count[search_count]++;
+#endif
 
     return false;
 #endif
