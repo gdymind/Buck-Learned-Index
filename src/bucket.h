@@ -390,6 +390,9 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value, size_t hint) c
         if (valid(l) && list_.at(l).key_ == key) {
         // if (list_.at(l).key_ == key && valid(l)) {
             value = list_.at(l).value_;
+#ifdef BUCKINDEX_DEBUG
+            hint_dist_count[search_count]++;
+#endif
             return true;
         }
 #ifdef BUCKINDEX_DEBUG
@@ -399,6 +402,7 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lookup(const T &key, V &value, size_t hint) c
 #ifdef BUCKINDEX_DEBUG
     hint_dist_count[search_count]++;
 #endif
+
 
     return false;
 #endif
