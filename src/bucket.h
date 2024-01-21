@@ -442,6 +442,9 @@ bool Bucket<LISTTYPE, T, V, SIZE>::lb_lookup(const T &key, KeyValueType &lb_kv, 
 template<class LISTTYPE, typename T, typename V, size_t SIZE>
 bool Bucket<LISTTYPE, T, V, SIZE>::insert(const KeyValueType &kv, bool update_pivot, size_t hint) {
     int pos = find_empty_slot(hint);
+#ifdef BUCKINDEX_DEBUG
+    hint_dist_count[(pos - hint + SIZE) % SIZE]++;
+#endif
     if (pos == -1 || pos >= SIZE) return false; // return false if the Bucket is already full
     list_.put(pos, kv.key_, kv.value_);
     validate(pos);
