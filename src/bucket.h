@@ -23,7 +23,7 @@ namespace buckindex {
 constexpr unsigned int BITS_UINT64_T = sizeof(uint64_t) * 8;;
 
 //debug only
-static std::map<int, int> hint_dist_count; // <distance, count>
+static std::map<int, long long> hint_dist_count; // <distance, count>
 
 
 /**

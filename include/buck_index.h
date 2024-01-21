@@ -420,14 +420,14 @@ public:
 #ifdef BUCKINDEX_DEBUG
         // compute the average hint error distance and 99th percentile hint error distance using static std::map<int, int> DataBucketType::hint_dist_count
         int total_count = 0;
-        int total_dist = 0;
+        long long total_dist = 0;
         for (auto it = hint_dist_count.begin(); it != hint_dist_count.end(); it++) {
             total_count += it->second;
             total_dist += it->first * it->second;
         }
         float avg_dist = (float)total_dist / total_count;
         std::cout << "Average hint error distance: " << avg_dist << std::endl;
-        int percentile99_tail = total_count - (int)(total_count * 0.99);
+        long long percentile99_tail = total_count - (int)(total_count * 0.99);
         for (auto it = hint_dist_count.rbegin(); it != hint_dist_count.rend(); it++) {
             percentile99_tail -= it->second;
             if (percentile99_tail <= 0) {
