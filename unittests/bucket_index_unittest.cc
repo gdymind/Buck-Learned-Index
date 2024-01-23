@@ -457,30 +457,48 @@ namespace buckindex {
         BuckIndex<uint64_t, uint64_t, 8, 128> bli(0.5, 4);
         vector<KeyValue<uint64_t, uint64_t>> in_kv_array;
 
-        for (int i = 0; i < 100000; i ++) {
-            KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(i, i * 2 + 5);
+        srand (2333);
+        unordered_set<uint64_t> keys_set;
+        for (int i = 0; i < 1000000; i ++) {
+            uint64_t key = rand() % 10000000;
+            while (keys_set.find(key) != keys_set.end()) {
+                key = rand() % 10000000;
+            }
+            keys_set.insert(key);
+            KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(key, key * 2 + 5);
             in_kv_array.push_back(kv);
         }
 
+        sort(in_kv_array.begin(), in_kv_array.end());
         bli.bulk_load(in_kv_array);
+
+        auto first_key = in_kv_array[0].key_;
 
 
         // lookup_path() definition: bool lookup_path(KeyType key, std::vector<KeyValuePtrType> &path, LinearModel<KeyType> &model)
-        // find the path to the data bucket that contains the key 640
-        std::vector<KeyValue<uint64_t, uintptr_t>> path(2);
+        // find the path to the data bucket that contains the first key
+        std::vector<KeyValue<uint64_t, uintptr_t>> path(3);
         LinearModel<uint64_t> model;
-        bli.lookup_path(640, path, model);
+        bli.lookup_path(first_key, path, model);
 
+        //output path
+        cout << "path: ";
+        for (auto &kv: path) {
+            cout << kv.key_ << " ";
+        }
+        cout << endl;
 
         // declare an iterator
         auto it = BuckIndex<uint64_t, uint64_t, 8, 128>::const_iterator(path);
-        uint64_t expected_key = 640;
+        uint64_t expected_key = first_key;
+        int expected_key_idx = 0;
         int cnt = 0;
         for (; !it.reach_to_end(); it++) {
             const Bucket<KeyValueList<uint64_t, uint64_t, 128>,
                             uint64_t, uint64_t, 128> *bucket = *it;
             EXPECT_EQ(bucket->get_pivot(), expected_key);
-            expected_key += 64;
+            expected_key_idx += 64;
+            expected_key = in_kv_array[expected_key_idx].key_;
             cnt++;
         }
         cout << "cnt = " << cnt << endl;

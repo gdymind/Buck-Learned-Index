@@ -575,17 +575,34 @@ public:
             lca_level_ = num_levels_ - 2; // leaf_segment level
 
             seg_iter_list_.resize(num_levels_-1); // level of Segments = num_levels_ - 1
-            seg_iter_list_[lca_level_] = ((SegmentType*)path_[lca_level_].value_)->lower_bound(path_[lca_level_+1].key_);
+            for (int l = lca_level_; l >= 0; l--) {
+                SegmentType* segment = (SegmentType*)path_[l].value_;
+                seg_iter_list_[l] = segment->lower_bound(path_[l+1].key_);
+            }
+
+            // output infos
+            std::cout << "BLI iterator: num_levels_: " << num_levels_ << std::endl;
+            std::cout << "BLI iterator: lca_level_: " << lca_level_ << std::endl;
+            std::cout << "BLI iterator: path_: ";
+            for (int i = 0; i < num_levels_; i++) {
+                std::cout << path_[i].key_ << " ";
+            }
+            std::cout << std::endl;
         }
 
         void operator++(int) {
             find_next();
         }
 
-        // void operator--(int) {
-        //     assert(upper_bound = std::numeric_limits<T>::max());
-        //     find_previous();
-        // }
+        void operator--(int) {
+            find_previous();
+        }
+
+        // prefix --it
+        const_iterator &operator--() {
+            find_previous();
+            return *this;
+        }
 
         // prefix ++it
         const_iterator &operator++() {
@@ -598,7 +615,6 @@ public:
             return (DataBucketType*)path_[num_levels_-1].value_;
         }
 
-        // if rhs is an upper bound iterator, then it will return true, if cur_key > upper bound
         bool operator==(const const_iterator& rhs) const {
             return path_[num_levels_-1].key_ == rhs.path_[num_levels_-1].key_;
         }
@@ -624,22 +640,56 @@ public:
         // find the next entry in the sorted list (Can cross boundary of bucket)
         inline bool find_next() {
             auto &leaf_seg_iter = seg_iter_list_[num_levels_-2];
+            bool has_next = true;
+            leaf_seg_iter++;
             if (leaf_seg_iter == ((SegmentType*)path_[num_levels_-2].value_)->cend()) {
                 // find the next segment using parent segment's iterator; if not found, go to the upper level
                 int cur_level = num_levels_ - 3; // parent of leaf_segment
-                if (cur_level > lca_level_) {
-                    seg_iter_list_[cur_level] = ((SegmentType*)path_[cur_level].value_)->lower_bound(path_[cur_level+1].key_);
-                    lca_level_ = cur_level;
-                }
+                lca_level_ = min(lca_level_, cur_level);
                 while(cur_level > 0 && seg_iter_list_[cur_level] == ((SegmentType*)path_[cur_level].value_)->cend()) {
                     cur_level--;
                     seg_iter_list_[cur_level] = ((SegmentType*)path_[cur_level].value_)->lower_bound(path_[cur_level+1].key_);
-                    lca_level_ = cur_level;
+                    lca_level_ = min(lca_level_, cur_level);
                 }
                 if (cur_level == 0 && seg_iter_list_[0] == ((SegmentType*)path_[0].value_)->cend()) {
                     // reach the end
                     return false;
                 }
+                seg_iter_list_[cur_level]++;
+                // update the lower-level path and iterators
+                while(cur_level < num_levels_ - 2) {
+                    path_[cur_level+1] = *(seg_iter_list_[cur_level]);
+                    SegmentType* next_segment = (SegmentType*)path_[cur_level+1].value_;
+                    seg_iter_list_[cur_level+1] = next_segment->cbegin();
+                    if (cur_level+1 == 1) {
+                        DataBucketType* d_bucket = (DataBucketType*)path_[cur_level+1].value_;
+                    }
+                    cur_level++;
+                }
+                path_[num_levels_-1] = *(seg_iter_list_[num_levels_-2]);
+            } else {
+                path_[num_levels_-1] = *(leaf_seg_iter);
+            }
+
+            return true;
+        }
+
+        // find the previous entry in the sorted list (Can cross boundary of bucket)
+        inline bool find_previous() {
+            auto &leaf_seg_iter = seg_iter_list_[num_levels_-2];
+            if (leaf_seg_iter == ((SegmentType*)path_[num_levels_-2].value_)->cbegin()) {
+                // find the previous segment using parent segment's iterator; if not found, go to the upper level
+                int cur_level = num_levels_ - 3; // parent of leaf_segment
+                while(cur_level > 0 && seg_iter_list_[cur_level] == ((SegmentType*)path_[cur_level].value_)->cbegin()) {
+                    cur_level--;
+                    seg_iter_list_[cur_level] = ((SegmentType*)path_[cur_level].value_)->lower_bound(path_[cur_level+1].key_);
+                    lca_level_ = cur_level;
+                }
+                if (cur_level == 0 && seg_iter_list_[0] == ((SegmentType*)path_[0].value_)->cbegin()) {
+                    // reach the end
+                    return false;
+                }
+                seg_iter_list_[cur_level]--;
                 // update the lower-level path and iterators
                 while(cur_level < num_levels_ - 2) {
                     path_[cur_level+1] = *(seg_iter_list_[cur_level]);
@@ -648,34 +698,12 @@ public:
                     cur_level++;
                 }
             } else {
-                leaf_seg_iter++;
+                leaf_seg_iter--;
                 path_[num_levels_-1] = *(leaf_seg_iter);
             }
 
             return true;
         }
-
-        // // find the previous entry in the sorted list (Can cross boundary of bucket)
-        // inline void find_previous() {
-        //     if (reach_to_begin()) return;
-        //     if (cur_index_ == 0) {
-        //         cur_buckID_--;
-        //         while(!reach_to_begin()){
-        //             if(segment_->sbucket_list_[cur_buckID_].num_keys() == 0){
-        //                 cur_buckID_--;
-        //             }
-        //             else{
-        //                 segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_); 
-        //                 sort(sorted_list_.begin(), sorted_list_.end());
-        //                 break;
-        //             }
-        //         }
-        //         cur_index_ = sorted_list_.size() - 1;
-        //     }
-        //     else {
-        //         cur_index_--;
-        //     }
-        // }
 
         // bool reach_to_begin(){
         //     return (cur_buckID_ == 0 && cur_index_ == 0);
@@ -828,6 +856,20 @@ private:
 
         // store all D-bucket entries in the left and right directions
         std::vector<KeyValuePtrType> left_dbucks, right_dbucks;
+
+        // Intialize an iterator for the right neighbors
+        const_iterator left_iter(path);
+        while (true) {
+            left_iter--;
+            if (left_iter.reach_to_end()) break;
+            auto left_dbuck = *left_iter;
+            auto left_pivot = left_dbuck->get_pivot();
+            if (gec.is_bounded(left_pivot)) {
+                left_dbucks.push_back(KeyValuePtrType(left_pivot, (uintptr_t)left_dbuck));
+            } else {
+                break;
+            }
+        }
         
         // Intialize an iterator for the right neighbors
         const_iterator right_iter(path);
@@ -843,11 +885,16 @@ private:
             }
         }
 
-        BuckIndex<KeyType, ValueType, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE> *right_index = new BuckIndex<KeyType, ValueType, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE>(initial_filled_ratio_, error_bound_);
-        right_index->bulk_load(right_dbucks);
-        old_lca = path[right_iter.get_lca_level()];
-        SegmentType* root = (SegmentType*)right_index->get_root();
-        new_lca = KeyValuePtrType(root->get_pivot(), (uintptr_t)root);
+        if (right_dbucks.size() > 0) {
+            BuckIndex<KeyType, ValueType, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE> *right_index = new BuckIndex<KeyType, ValueType, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE>(initial_filled_ratio_, error_bound_);
+            right_index->bulk_load(right_dbucks);
+            old_lca = path[right_iter.get_lca_level()];
+            SegmentType* root = (SegmentType*)right_index->get_root();
+            new_lca = KeyValuePtrType(root->get_pivot(), (uintptr_t)root);
+            return true;
+        }
+
+        return false;
     }
 
 
