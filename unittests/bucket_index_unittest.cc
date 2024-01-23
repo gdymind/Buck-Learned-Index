@@ -460,9 +460,9 @@ namespace buckindex {
         srand (2333);
         unordered_set<uint64_t> keys_set;
         for (int i = 0; i < 1000000; i ++) {
-            uint64_t key = rand() % 10000000;
+            uint64_t key = rand() % 100000000;
             while (keys_set.find(key) != keys_set.end()) {
-                key = rand() % 10000000;
+                key = rand() % 100000000;
             }
             keys_set.insert(key);
             KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(key, key * 2 + 5);
@@ -501,6 +501,31 @@ namespace buckindex {
             expected_key = in_kv_array[expected_key_idx].key_;
             cnt++;
         }
-        cout << "cnt = " << cnt << endl;
+        EXPECT_EQ(cnt, in_kv_array.size()/64);        
+
+        auto last_key = in_kv_array[in_kv_array.size()-64].key_;
+        bli.lookup_path(last_key, path, model);
+
+        //output path
+        cout << "path: ";
+        for (auto &kv: path) {
+            cout << kv.key_ << " ";
+        }
+        cout << endl;
+
+        it = BuckIndex<uint64_t, uint64_t, 8, 128>::const_iterator(path);
+        expected_key = last_key;
+        expected_key_idx = in_kv_array.size()-64;
+        cnt = 0;
+        for (; ; it--) {
+            const Bucket<KeyValueList<uint64_t, uint64_t, 128>,
+                            uint64_t, uint64_t, 128> *bucket = *it;
+            EXPECT_EQ(bucket->get_pivot(), expected_key);
+            expected_key_idx -= 64;
+            expected_key = in_kv_array[expected_key_idx].key_;
+            cnt++;
+            if (it.reach_to_begin()) break;
+        }
+        EXPECT_EQ(cnt, in_kv_array.size()/64);
     }
 }

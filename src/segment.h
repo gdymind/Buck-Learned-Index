@@ -768,7 +768,7 @@ public:
         }
     }
 
-    // disable upper bound iterator to be increased or deferenced 
+    // disable upper bound iterator to be increased/decresed or deferenced 
 
     void operator++(int) {
         assert(upper_bound == std::numeric_limits<T>::max());
@@ -846,9 +846,11 @@ private:
 
     // find the previous entry in the sorted list (Can cross boundary of bucket)
     inline void find_previous() {
+        // cout << "seg.find_previous() for :" << cur_buckID_ << ", " << cur_index_ << endl;
         if (reach_to_begin()) return;
         if (cur_index_ == 0) {
             cur_buckID_--;
+            cur_index_ = segment_->sbucket_list_[cur_buckID_].num_keys() - 1;
             while(!reach_to_begin()){
                 if(segment_->sbucket_list_[cur_buckID_].num_keys() == 0){
                     cur_buckID_--;
@@ -856,10 +858,10 @@ private:
                 else{
                     segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_); 
                     sort(sorted_list_.begin(), sorted_list_.end());
+                    cur_index_ = sorted_list_.size() - 1;
                     break;
                 }
             }
-            cur_index_ = sorted_list_.size() - 1;
         }
         else {
             cur_index_--;

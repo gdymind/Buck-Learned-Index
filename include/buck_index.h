@@ -357,7 +357,7 @@ public:
         std::cout << "  Number of Layers: " << num_levels_ << std::endl;
 #ifdef BUCKINDEX_DEBUG
         for (auto i = 0; i < num_levels_; i++) {
-            std::cout << "    Layer " << i << " size: " << level_stats_[i] << std::endl;
+            std::cout << "    Layer " << i << " size: " << level_stats_[i] << std::endl << std::flush;
         }
 #endif
 
@@ -579,15 +579,6 @@ public:
                 SegmentType* segment = (SegmentType*)path_[l].value_;
                 seg_iter_list_[l] = segment->lower_bound(path_[l+1].key_);
             }
-
-            // output infos
-            std::cout << "BLI iterator: num_levels_: " << num_levels_ << std::endl;
-            std::cout << "BLI iterator: lca_level_: " << lca_level_ << std::endl;
-            std::cout << "BLI iterator: path_: ";
-            for (int i = 0; i < num_levels_; i++) {
-                std::cout << path_[i].key_ << " ";
-            }
-            std::cout << std::endl;
         }
 
         void operator++(int) {
@@ -627,6 +618,15 @@ public:
             return lca_level_ == 0 && seg_iter_list_[0] == ((SegmentType*)path_[0].value_)->cend();
         }
 
+        bool reach_to_begin(){
+            for (int i = 0; i < num_levels_-1; i++) {
+                if (seg_iter_list_[i] != ((SegmentType*)path_[i].value_)->cbegin()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         int get_lca_level(){
             return lca_level_;
         }
@@ -640,7 +640,6 @@ public:
         // find the next entry in the sorted list (Can cross boundary of bucket)
         inline bool find_next() {
             auto &leaf_seg_iter = seg_iter_list_[num_levels_-2];
-            bool has_next = true;
             leaf_seg_iter++;
             if (leaf_seg_iter == ((SegmentType*)path_[num_levels_-2].value_)->cend()) {
                 // find the next segment using parent segment's iterator; if not found, go to the upper level
@@ -661,9 +660,6 @@ public:
                     path_[cur_level+1] = *(seg_iter_list_[cur_level]);
                     SegmentType* next_segment = (SegmentType*)path_[cur_level+1].value_;
                     seg_iter_list_[cur_level+1] = next_segment->cbegin();
-                    if (cur_level+1 == 1) {
-                        DataBucketType* d_bucket = (DataBucketType*)path_[cur_level+1].value_;
-                    }
                     cur_level++;
                 }
                 path_[num_levels_-1] = *(seg_iter_list_[num_levels_-2]);
@@ -680,13 +676,14 @@ public:
             if (leaf_seg_iter == ((SegmentType*)path_[num_levels_-2].value_)->cbegin()) {
                 // find the previous segment using parent segment's iterator; if not found, go to the upper level
                 int cur_level = num_levels_ - 3; // parent of leaf_segment
+                lca_level_ = min(lca_level_, cur_level);
                 while(cur_level > 0 && seg_iter_list_[cur_level] == ((SegmentType*)path_[cur_level].value_)->cbegin()) {
                     cur_level--;
                     seg_iter_list_[cur_level] = ((SegmentType*)path_[cur_level].value_)->lower_bound(path_[cur_level+1].key_);
-                    lca_level_ = cur_level;
+                    lca_level_ = min(lca_level_, cur_level);
                 }
                 if (cur_level == 0 && seg_iter_list_[0] == ((SegmentType*)path_[0].value_)->cbegin()) {
-                    // reach the end
+                    // reach the begin
                     return false;
                 }
                 seg_iter_list_[cur_level]--;
@@ -694,9 +691,11 @@ public:
                 while(cur_level < num_levels_ - 2) {
                     path_[cur_level+1] = *(seg_iter_list_[cur_level]);
                     SegmentType* next_segment = (SegmentType*)path_[cur_level+1].value_;
-                    seg_iter_list_[cur_level+1] = next_segment->cbegin();
+                    seg_iter_list_[cur_level+1] = next_segment->cend();
+                    seg_iter_list_[cur_level+1]--;
                     cur_level++;
                 }
+                path_[num_levels_-1] = *(seg_iter_list_[num_levels_-2]);
             } else {
                 leaf_seg_iter--;
                 path_[num_levels_-1] = *(leaf_seg_iter);
@@ -704,10 +703,6 @@ public:
 
             return true;
         }
-
-        // bool reach_to_begin(){
-        //     return (cur_buckID_ == 0 && cur_index_ == 0);
-        // }
     };
 
 
