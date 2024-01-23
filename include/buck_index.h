@@ -267,78 +267,23 @@ public:
 
         // if fail to insert, split the bucket, and add new kvptr on parent segment
         if (!success) {
-            std::vector<KeyValuePtrType> pivot_list[2]; // ping-pong list
-            int ping = 0, pong = 1;
-
             // split d_bucket
             auto new_d_buckets = d_bucket->split_and_insert(kv);
-            pivot_list[ping].push_back(new_d_buckets.first);
-            pivot_list[ping].push_back(new_d_buckets.second);
-            KeyValuePtrType old_pivot = path[num_levels_-1];
-
-            // propagate the insertion to the parent segments
-            assert(num_levels_ >= 2); // insert into leaf segment
-            int cur_level = num_levels_ - 2; // leaf_segment level
-            while(cur_level >= 0) {
-                SegmentType* cur_segment = (SegmentType*)(path[cur_level].value_);
-                
-                bool is_segment = true;
-                if (cur_level == num_levels_ - 2) is_segment = false;
-                if (cur_segment->batch_update(old_pivot, pivot_list[ping], is_segment)) {
-                    pivot_list[ping].clear();
-                    success = true;
-                    break;
-                }
-
-                pivot_list[pong].clear();
-                success = cur_segment->segment_and_batch_update(initial_filled_ratio_, pivot_list[ping], pivot_list[pong]);
-#ifdef BUCKINDEX_DEBUG
-                level_stats_[num_levels_ - 1 - cur_level] += (pivot_list[pong].size()-1);
-#endif
-                old_pivot = path[cur_level];
-                assert(success);
-
-                GC_segs.push_back((uintptr_t)cur_segment);
-                cur_level--;
-                ping = 1 - ping;
-                pong = 1 - pong;
+            auto old_pivot = path[num_levels_-1];
+            std::vector<KeyValuePtrType> new_pivots;
+            new_pivots.push_back(new_d_buckets.first);
+            new_pivots.push_back(new_d_buckets.second);
+            
+            SegmentType* leaf_segment = (SegmentType*)(path[num_levels_ - 2].value_);
+            if (!leaf_segment->batch_update(old_pivot, new_pivots, false/*is_segment*/)) {
+                KeyValuePtrType old_lca, new_lca;
+                int lca_level;
+                success = dbuck_merge(new_d_buckets, path, old_lca, new_lca, lca_level);
+                SegmentType* parent_segment = (SegmentType*)(path[lca_level-1].value_);
+                parent_segment->update(old_lca, new_lca);
             }
+        
 
-            // add one more level
-            assert(pivot_list[ping].size() == 0 || cur_level == -1);
-
-            // what if there is only one node
-            if (pivot_list[ping].size() > 1) {
-                LinearModel<KeyType> model;
-#ifdef BUCKINDEX_USE_LINEAR_REGRESSION
-                std::vector<KeyType> keys;
-                for (auto kv_ptr : pivot_list[ping]) {
-                    keys.push_back(kv_ptr.key_);
-                }
-                model = LinearModel<KeyType>::get_regression_model(keys);
-#else
-                // TODO: instead of endpoints, use linear regression
-                double start_key = pivot_list[ping].front().key_;
-                double end_key = pivot_list[ping].back().key_;
-                double slope = 0.0, offset = 0.0;
-                if (pivot_list[ping].size() > 1) {
-                    slope = (long double)pivot_list[ping].size() / (long double)(end_key - start_key);
-                    offset = -slope * start_key;
-                }
-                model = LinearModel<KeyType>(slope, offset);
-#endif
-                root_ = new SegmentType(pivot_list[ping].size(), initial_filled_ratio_, model, 
-                                    pivot_list[ping].begin(), pivot_list[ping].end());
-#ifdef BUCKINDEX_DEBUG
-                level_stats_[num_levels_] = 1;
-#endif
-
-                num_levels_++;
-            } else if (pivot_list[ping].size() == 1){
-                // GC_segs.push_back((uintptr_t)root_);
-                // TODO: original root is not deleted
-                root_ = (void*)(SegmentType*)pivot_list[ping][0].value_;
-            }
 #ifdef BUCKINDEX_DEBUG
             num_data_buckets_++;
             level_stats_[0]++;
@@ -535,6 +480,10 @@ public:
 #endif
     }
 
+    SegmentType* get_root() const {
+        return (SegmentType*)root_;
+    }
+
     /**
      * Helper function to get the number of keys in the index
      *
@@ -660,6 +609,10 @@ public:
 
         bool reach_to_end(){
             return lca_level_ == 0 && seg_iter_list_[0] == ((SegmentType*)path_[0].value_)->cend();
+        }
+
+        int get_lca_level(){
+            return lca_level_;
         }
     private:
         std::vector<KeyValuePtrType> path_;
@@ -857,50 +810,45 @@ private:
         }
     }
 
-    // /**
-    //  * Helper function to merge neighboring data buckets
-    //  * @param path: the path from root to the leaf D-Bucket. This is used to find the neighboring data buckets in both directions
-    //  * @param old_lca: the old LCA of all the data buckets to be merged. This is a return value of the function
-    //  * @param new_lca: the new LCA that will replace the old LCA. This is a return value of the function
-    //  * @param lca_level: the level of the LCA. This is a return value of the function
-    //  */
-    // bool dbuck_merge(std::vector<KeyValuePtrType> &path, KeyValuePtrType &old_lca, KeyValuePtrType &new_lca, int &lca_level) {
-    //     DataBucketType *center_dbuck = path[num_levels_-1].value_;
-    //     auto center_pivot = center_dbuck->get_pivot();
+    /**
+     * Helper function to merge neighboring data buckets
+     * @param new_d_buckets: the new data buckets to be merged; they are the result of splitting the old data bucket
+     * @param path: the path from root to the leaf D-Bucket. This is used to find the neighboring data buckets in both directions
+     * @param old_lca: the old LCA of all the data buckets to be merged. This is a return value of the function
+     * @param new_lca: the new LCA that will replace the old LCA. This is a return value of the function
+     * @param lca_level: the level of the LCA. This is a return value of the function
+     */
+    bool dbuck_merge(std::pair<KeyValuePtrType, KeyValuePtrType> new_d_buckets, ::vector<KeyValuePtrType> &path, KeyValuePtrType &old_lca, KeyValuePtrType &new_lca, int &lca_level) {
+        DataBucketType *center_dbuck = (DataBucketType*)path[num_levels_-1].value_;
+        auto center_pivot = center_dbuck->get_pivot();
         
-    //     // Use GreedyErrorCorridor
-    //     GreedyErrorCorridor<KeyType> gec;
-    //     gec.init(center_pivot.key_, error_bound_);
-    //     // Keep adding the right neighbor buckets until gec stops
-    //             assert(path.size() == num_levels_);
+        // Use GreedyErrorCorridor
+        GreedyErrorCorridor<KeyType> gec;
+        gec.init(center_pivot, error_bound_);
 
-    //     lca_level = num_levels_ - 2; // leaf_segment level
-    //     assert(lca_level >= 0);
+        // store all D-bucket entries in the left and right directions
+        std::vector<KeyValuePtrType> left_dbucks, right_dbucks;
+        
+        // Intialize an iterator for the right neighbors
+        const_iterator right_iter(path);
+        while (true) {
+            right_iter++;
+            if (right_iter.reach_to_end()) break;
+            auto right_dbuck = *right_iter;
+            auto right_pivot = right_dbuck->get_pivot();
+            if (gec.is_bounded(right_pivot)) {
+                right_dbucks.push_back(KeyValuePtrType(right_pivot, (uintptr_t)right_dbuck));
+            } else {
+                break;
+            }
+        }
 
-    //     while(lca_level >= 0) {
-    //         SegmentType* cur_segment = (SegmentType*)(path[lca_level].value_);
-    //         auto seg_iter = cur_segment->lower_bound(path[lca_level+1].key_); // find the key of the next level
-    //         if (seg_iter != cur_segment->cend() && (*seg_iter).key_ == path[lca_level+1].key_) { // find the one after path[lca_level+1]
-    //             seg_iter++;
-    //         }
-    //         if (seg_iter != cur_segment->cend()) { // found the next entry
-    //             path[lca_level+1] = *seg_iter; // update to the next entry
-
-    //             // update the lower-level path
-    //             int tranverse_down_level = lca_level + 1;
-    //             while(tranverse_down_level < num_levels_ - 1) {
-    //                 SegmentType* segment = (SegmentType*)path[tranverse_down_level].value_;
-    //                 seg_iter = segment->cbegin();
-    //                 path[tranverse_down_level+1] = *seg_iter;
-    //                 tranverse_down_level++;
-    //             }
-
-    //         } else { // not found, go to the upper level
-    //             lca_level--;
-    //         }
-    //     }
-    // }
-
+        BuckIndex<KeyType, ValueType, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE> *right_index = new BuckIndex<KeyType, ValueType, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE>(initial_filled_ratio_, error_bound_);
+        right_index->bulk_load(right_dbucks);
+        old_lca = path[right_iter.get_lca_level()];
+        SegmentType* root = (SegmentType*)right_index->get_root();
+        new_lca = KeyValuePtrType(root->get_pivot(), (uintptr_t)root);
+    }
 
 
     //The root segment of the learned index.

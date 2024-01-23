@@ -150,6 +150,10 @@ public:
     // return the iterator of the smallest element > key
     const_iterator upper_bound(T key);
 
+    T get_pivot() const{
+        assert(num_bucket_>0);
+        return sbucket_list_[0].get_pivot();
+    }
 
     // TODO: change to member variable?
     /**
@@ -211,6 +215,16 @@ public:
     // assumption: error bound is the sbucket_size
     // NOTE: the SBUCKET_SIZE of new segments is the same as the old one
     // bool scale_and_segmentation(double fill_ratio, std::vector<KeyValue<T,uintptr_t>> &new_segs);
+
+    bool update(KeyValuePtrType &old_entry, KeyValuePtrType &new_entry) {
+        T old_key = old_entry.key_;
+        T new_key = new_entry.key_;
+        assert(old_key == new_key);
+        unsigned int buckID = locate_buck(old_key);
+        bool success = sbucket_list_[buckID].update(new_entry);
+        assert(success);
+        return success;
+    }
 
     /**
      * @brief replace the old segment with new_pivots
@@ -761,10 +775,10 @@ public:
         find_next();
     }
 
-    // void operator--(int) {
-    //     assert(upper_bound == std::numeric_limits<T>::max());
-    //     find_previous();
-    // }
+    void operator--(int) {
+        assert(upper_bound == std::numeric_limits<T>::max());
+        find_previous();
+    }
 
     // prefix ++it
     const_iterator &operator++() {
@@ -830,31 +844,31 @@ private:
         }
     }
 
-    // // find the previous entry in the sorted list (Can cross boundary of bucket)
-    // inline void find_previous() {
-    //     if (reach_to_begin()) return;
-    //     if (cur_index_ == 0) {
-    //         cur_buckID_--;
-    //         while(!reach_to_begin()){
-    //             if(segment_->sbucket_list_[cur_buckID_].num_keys() == 0){
-    //                 cur_buckID_--;
-    //             }
-    //             else{
-    //                 segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_); 
-    //                 sort(sorted_list_.begin(), sorted_list_.end());
-    //                 break;
-    //             }
-    //         }
-    //         cur_index_ = sorted_list_.size() - 1;
-    //     }
-    //     else {
-    //         cur_index_--;
-    //     }
-    // }
+    // find the previous entry in the sorted list (Can cross boundary of bucket)
+    inline void find_previous() {
+        if (reach_to_begin()) return;
+        if (cur_index_ == 0) {
+            cur_buckID_--;
+            while(!reach_to_begin()){
+                if(segment_->sbucket_list_[cur_buckID_].num_keys() == 0){
+                    cur_buckID_--;
+                }
+                else{
+                    segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_); 
+                    sort(sorted_list_.begin(), sorted_list_.end());
+                    break;
+                }
+            }
+            cur_index_ = sorted_list_.size() - 1;
+        }
+        else {
+            cur_index_--;
+        }
+    }
 
-    // bool reach_to_begin(){
-    //     return (cur_buckID_ == 0 && cur_index_ == 0);
-    // }
+    bool reach_to_begin(){
+        return (cur_buckID_ == 0 && cur_index_ == 0);
+    }
 
     bool reach_to_end(){
         return (cur_buckID_ == segment_->num_bucket_);
