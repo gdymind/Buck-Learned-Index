@@ -69,7 +69,6 @@ public:
 
     void init(double initial_filled_ratio, int error_bound){
         root_ = NULL;
-        num_levels_ = 0;
 
         error_bound_ = error_bound;
         std::cout << "Segmeantation error bound = " << error_bound_ << std::endl;
@@ -93,6 +92,8 @@ public:
     bool lookup(KeyType key, ValueType &value) {
         if (!root_) return false;
 
+        // cout << "in lookup: root_ = " << (uint64_t)root_ << endl << flush;
+
         //auto start = std::chrono::high_resolution_clock::now();
 
 #ifdef BUCKINDEX_DEBUG
@@ -100,14 +101,15 @@ public:
 #endif
         
 
-        uint64_t layer_idx = num_levels_ - 1;
         uintptr_t seg_ptr = (uintptr_t)root_;
         bool result = false;
         value = 0;
         KeyValuePtrType kv_ptr;
         KeyValuePtrType kv_ptr_next;
-        while (layer_idx > 0) {
+        int level = 0;
+        while (true) {
             SegmentType* segment = (SegmentType*)seg_ptr;
+            // cout << "before lb_lookup: level = " << level << ", key = " << key << ", seg_ptr = " << seg_ptr << endl << flush;
             result = segment->lb_lookup(key, kv_ptr, kv_ptr_next);
             seg_ptr = kv_ptr.value_;
 #ifdef BUCKINDEX_DEBUG
@@ -116,7 +118,13 @@ public:
                 return false;
             }
 #endif
-            layer_idx--;
+            if (segment->is_bottom_seg()) {
+                // cout << "bottom segment found:" << seg_ptr << endl << flush;
+                break;
+            } else {
+                // cout << "level = " << level << ", key = " << key << ", kv_ptr.key_ = " << kv_ptr.key_ << ", kv_ptr.value_ = " << kv_ptr.value_ << endl << flush;
+                level++;
+            }
         }
 
 #ifdef BUCKINDEX_DEBUG
@@ -173,15 +181,18 @@ public:
     size_t scan(KeyType start_key, size_t num_to_scan, std::pair<KeyType, ValueType> *kvs) {
         if (!root_) return 0;
 
+        // TODO: rewrite using const_dbuck_iterator
+
         int num_scanned = 0;
 
         // traverse to leaf and record the path
-        std::vector<KeyValuePtrType> path(num_levels_);//root-to-leaf path, including the data bucket
+        std::vector<KeyValuePtrType> path;//root-to-leaf path, including the data bucket
         LinearModel<KeyType> dummy_model;
         bool success = lookup_path(start_key, path, dummy_model);
+        int num_levels = path.size();
 
         // get the d-bucket iterator
-        DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
+        DataBucketType* d_bucket = (DataBucketType *)(path[num_levels-1]).value_;
         auto dbuck_iter = d_bucket->lower_bound(start_key);
 
         while (num_scanned < num_to_scan) {
@@ -197,7 +208,7 @@ public:
             if (num_scanned < num_to_scan) {
                 do {
                     if (!find_next_d_bucket(path)) return num_scanned;
-                    d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
+                    d_bucket = (DataBucketType *)(path[num_levels-1]).value_;
                     dbuck_iter = d_bucket->begin();
                 } while (dbuck_iter == d_bucket->end()); // empty d-bucket, visit the next one
             }
@@ -223,13 +234,23 @@ public:
             kvs.push_back(kv1);
             kvs.push_back(kv);
             bulk_load(kvs);
+            cout << "inserted key " << kv.key_ << " into empty index" << endl;
             return true;
         }
 
         // traverse to the leaf D-Bucket, and record the path
-        std::vector<KeyValuePtrType> path(num_levels_);//root-to-leaf path, including the  data bucket
+        std::vector<KeyValuePtrType> path;//root-to-leaf path, including the  data bucket
         LinearModel<KeyType> model;
         bool success = lookup_path(kv.key_, path, model);
+        int num_levels = path.size();
+
+        // // outuput path
+        // cout << "path: ";
+        // for (auto kvptr : path) {
+        //     cout << "(" << kvptr.key_ << ", " << kvptr.value_ << ") ";
+        // }
+        // cout << endl;
+
         assert(success);
         size_t hint = 0;
 #ifdef HINT_MOD_HASH
@@ -249,10 +270,11 @@ public:
 #endif
 
         hint = std::min(hint, DATA_BUCKET_SIZE - 1);
-        DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1].value_);
-        if(kv.key_ == 0) {
+        DataBucketType* d_bucket = (DataBucketType *)(path[num_levels-1].value_);
+        if(kv.key_ == std::numeric_limits<KeyType>::min()) {
+            std::cout << "update key==" << std::numeric_limits<KeyType>::min() << std::endl << std::flush;
             success = d_bucket->update(kv);
-            //std::cout << "update key==0" << std::endl;
+            assert(success);
             return success;
         }
         else {
@@ -262,25 +284,46 @@ public:
 #ifdef BUCKINDEX_DEBUG
         auto insert_finish_time = tn.rdtsc();
 #endif
-        // TODO: need to implement the GC
-        std::vector<uintptr_t> GC_segs;
 
         // if fail to insert, split the bucket, and add new kvptr on parent segment
         if (!success) {
+            // cout << "failed to insert key " << kv.key_ << " into d-bucket " << path[num_levels-1].key_ << endl << flush;
+            std::vector<uintptr_t> GC_segs; // TODO: need to implement the GC
+
             // split d_bucket
             auto new_d_buckets = d_bucket->split_and_insert(kv);
-            auto old_pivot = path[num_levels_-1];
+            auto old_pivot = path[num_levels-1];
+
+            // cout << "splitting d-bucket to (" << new_d_buckets.first.key_ << ", " << new_d_buckets.first.value_ << ") and (" << new_d_buckets.second.key_ << ", " << new_d_buckets.second.value_ << ")" << endl << flush;
+            // cout << "all entries in the new d-buckets: " << endl;
+            // DataBucketType* dbuck2 = (DataBucketType*)new_d_buckets.second.value_;
+            // for (auto it = dbuck2->begin(); it != dbuck2->end(); it++) {
+            //     cout << "(" << (*it).key_ << ", " << (*it).value_ << ") ";
+            // }
+            // cout << endl;
+
+            // cout << "new_d_buckets.second: " << new_d_buckets.second.key_ << ", " << new_d_buckets.second.value_ << endl;
+
             std::vector<KeyValuePtrType> new_pivots;
             new_pivots.push_back(new_d_buckets.first);
             new_pivots.push_back(new_d_buckets.second);
             
-            SegmentType* leaf_segment = (SegmentType*)(path[num_levels_ - 2].value_);
+            SegmentType* leaf_segment = (SegmentType*)(path[num_levels - 2].value_);
             if (!leaf_segment->batch_update(old_pivot, new_pivots, false/*is_segment*/)) {
+                // cout << "failed to batch update: old_pivot = (" << old_pivot.key_ << ", " << old_pivot.value_ << "), new_pivots = (" << new_pivots[0].key_ << ", " << new_pivots[0].value_ << "), (" << new_pivots[1].key_ << ", " << new_pivots[1].value_ << ")" << endl;
                 KeyValuePtrType old_lca, new_lca;
                 int lca_level;
                 success = dbuck_merge(new_d_buckets, path, old_lca, new_lca, lca_level);
-                SegmentType* parent_segment = (SegmentType*)(path[lca_level-1].value_);
-                parent_segment->update(old_lca, new_lca);
+                assert(success);
+                if (lca_level == 0) {
+                    root_ = (void *)new_lca.value_;
+                    // delete (SegmentType *)old_lca.value_;
+                } else {
+                    SegmentType* parent_segment = (SegmentType*)(path[lca_level-1].value_);
+                    parent_segment->update(old_lca, new_lca);
+                }
+            } else {
+                success = true;
             }
         
 
@@ -291,6 +334,7 @@ public:
 
             // GC
             delete d_bucket;
+            // TODO: GC
             for (auto seg_ptr : GC_segs) { // TODO: support MRSW
                 SegmentType* seg = (SegmentType*)seg_ptr;
                 delete seg;
@@ -298,7 +342,9 @@ public:
 #ifdef BUCKINDEX_DEBUG
             insert_stats_.num_of_SMO++;
 #endif
-
+            assert(success);
+        } else {
+            // cout << "inserted key " << kv.key_ << " into d-bucket " << path[num_levels-1].key_ << endl;
         }
 
 #ifdef BUCKINDEX_DEBUG
@@ -308,6 +354,7 @@ public:
         insert_stats_.num_of_insert++;
         num_keys_++;
 #endif
+        assert(success);
         return success;
     }
 
@@ -316,35 +363,47 @@ public:
      * @param kvs: list of user key value to be loaded onto the learned index
      */
     void bulk_load(vector<KeyValueType> &kvs) { // TODO: change to model-based insertion for d-buckets
+        cout << "bulk load" << endl << flush;
         vector<KeyValuePtrType> kvptr_array[2];
         uint64_t ping = 0, pong = 1;
-        num_levels_ = 0;
         run_data_layer_segmentation(kvs,
                                     kvptr_array[ping]);
+
+        // cout << "d-buckets: ";
+        // for (auto kvptr : kvptr_array[ping]) {
+        //     cout << "(" << kvptr.key_ << ", " << kvptr.value_ << ") ";
+        // }
+        // cout << endl << flush;
         #ifdef BUCKINDEX_DEBUG
             num_keys_ = kvs.size();
             num_data_buckets_ = kvptr_array[ping].size();
-            level_stats_[num_levels_] = num_data_buckets_;
         #endif
-        num_levels_++;
 
         assert(kvptr_array[ping].size() > 0);
 
+        bool is_bottom_seg = true;
         do { // at least one model layer
             run_model_layer_segmentation(kvptr_array[ping],
-                                            kvptr_array[pong]);
+                                            kvptr_array[pong], is_bottom_seg);
+            is_bottom_seg = false;
+            // cout << "segments: ";
+            // for (auto kvptr : kvptr_array[pong]) {
+            //     cout << "(" << kvptr.key_ << ", " << kvptr.value_ << ", ";
+            //     // output the number of s-buckets in the segment
+            //     SegmentType* segment = (SegmentType*)kvptr.value_;
+            //     cout << segment->num_bucket_ << ") ";
+            // }
+            // cout << endl << flush;
+
             ping = (ping +1) % 2;
             pong = (pong +1) % 2;
             kvptr_array[pong].clear();
-            #ifdef BUCKINDEX_DEBUG
-                level_stats_[num_levels_] = kvptr_array[ping].size();
-            #endif
-            num_levels_++;
         } while (kvptr_array[ping].size() > 1);
         
         // Build the root
         KeyValuePtrType& kv_ptr = kvptr_array[ping][0];
         root_ = (void *)kv_ptr.value_;
+        cout << "bulk load is done. root_ is " << (uint64_t)root_ << endl << flush;
         dump();
 
     }
@@ -353,14 +412,6 @@ public:
      * Helper function to dump the index structure
      */
     void dump() {
-        std::cout << "Index Structure" << std::endl;
-        std::cout << "  Number of Layers: " << num_levels_ << std::endl;
-#ifdef BUCKINDEX_DEBUG
-        for (auto i = 0; i < num_levels_; i++) {
-            std::cout << "    Layer " << i << " size: " << level_stats_[i] << std::endl << std::flush;
-        }
-#endif
-
         dump_fanout();
 
         // print all element from DataBucketType::hint_dist_count using iterator
@@ -377,46 +428,49 @@ public:
      * Helper function to get inner node fanout statistics
     */
     void dump_fanout() {
-        std::vector<int> fanouts[num_levels_ - 1];
+        // std::vector<int> fanouts[max_levels_ - 1];
+        // int num_levels = 1;
 
-        // Traverse the tree to visit each segment
-        std::queue<std::pair<void *, int>> q; // <segment, level> pairs
-        q.push(std::make_pair(root_, 0));
-        while (!q.empty()) {
-            auto cur = q.front();
-            q.pop();
+        // // Traverse the tree to visit each segment
+        // std::queue<std::pair<void *, int>> q; // <segment, level> pairs
+        // q.push(std::make_pair(root_, 0));
+        // while (!q.empty()) {
+        //     auto cur = q.front();
+        //     q.pop();
 
-            if (cur.second < num_levels_ - 1) {
-                SegmentType *segment = (SegmentType *)cur.first;
+        //     SegmentType *segment = (SegmentType *)cur.first;
+        //     if (!segment->is_bottom_seg()) {
+        //         int cnt = 0;   
+        //         for (auto it = segment->cbegin(); it != segment->cend(); it++) {
+        //             q.push(std::make_pair((void *)it->value_, cur.second + 1));
+        //             cnt++;
+        //         }
+        //         fanouts[cur.second].push_back(cnt);  
+        //     } else {
+        //         num_levels = max(num_levels, cur.second + 1);
+        //     }
+        // }
 
-                int cnt = 0;   
-                for (auto it = segment->cbegin(); it != segment->cend(); it++) {
-                    q.push(std::make_pair((void *)it->value_, cur.second + 1));
-                    cnt++;
-                }
-                fanouts[cur.second].push_back(cnt);  
-            }
-        }
 
-        std::cout << "Fanout Statistics:" << std::endl;
-        for (int i = 0; i < num_levels_ - 1; i++) {
-            auto &fanout_cur = fanouts[i];
-            sort(fanout_cur.begin(), fanout_cur.end());
-            // get the average fanout
-            int sum = 0;
-            for (auto fanout : fanout_cur) {
-                sum += fanout;
-            }
+        // std::cout << "Fanout Statistics:" << std::endl;
+        // for (int i = 0; i < num_levels - 1; i++) {
+        //     auto &fanout_cur = fanouts[i];
+        //     sort(fanout_cur.begin(), fanout_cur.end());
+        //     // get the average fanout
+        //     int sum = 0;
+        //     for (auto fanout : fanout_cur) {
+        //         sum += fanout;
+        //     }
 
-            std::cout << "Level #" << i << ": ";
-            std::cout << "Size = " << fanout_cur.size() << ", ";
-            std::cout << "[Average, median, 99th percentile, min, max fanout] fanout = [";
-            std::cout << (double)sum / fanout_cur.size() << ", ";
-            std::cout << fanout_cur[fanout_cur.size() / 2] << ", ";
-            std::cout << fanout_cur[(double)fanout_cur.size() * 99 / 100] << ", ";
-            std::cout << fanout_cur[0] << ", ";
-            std::cout << fanout_cur[fanout_cur.size() - 1] << "]" << std::endl;
-        }
+        //     std::cout << "Level #" << i << ": ";
+        //     std::cout << "Size = " << fanout_cur.size() << ", ";
+        //     std::cout << "[Average, median, 99th percentile, min, max fanout] fanout = [";
+        //     std::cout << (double)sum / fanout_cur.size() << ", ";
+        //     std::cout << fanout_cur[fanout_cur.size() / 2] << ", ";
+        //     std::cout << fanout_cur[(double)fanout_cur.size() * 99 / 100] << ", ";
+        //     std::cout << fanout_cur[0] << ", ";
+        //     std::cout << fanout_cur[fanout_cur.size() - 1] << "]" << std::endl;
+        // }
     }
 
 
@@ -437,8 +491,8 @@ public:
             auto cur = q.front();
             q.pop();
 
-            if (cur.second < num_levels_ - 1) {
-                SegmentType *segment = (SegmentType *)cur.first;
+            SegmentType *segment = (SegmentType *)cur.first;
+            if (!segment->is_bottom_seg()) {
                 mem_size += segment->mem_size(); 
                 for (auto it = segment->cbegin(); it != segment->cend(); it++) {
                     q.push(std::make_pair((void *)it->value_, cur.second + 1));
@@ -464,7 +518,7 @@ public:
      * @return the number of levels in the index
      */
     uint64_t get_num_levels() {
-        return num_levels_;
+        return 0;
     }
 
     /**
@@ -499,14 +553,15 @@ public:
      * @return the number of keys in the index
      */
     uint64_t get_level_stat(int level) {
-#ifdef BUCKINDEX_DEBUG
-        if(level >= num_levels_ || level < 0){
-            return 0;
-        }
-        return level_stats_[level];
-#else
+// #ifdef BUCKINDEX_DEBUG
+//         if(level >= num_levels_ || level < 0){
+//             return 0;
+//         }
+//         return level_stats_[level];
+// #else
+//         return 0;
+// #endif
         return 0;
-#endif
     }
 
     /**
@@ -548,15 +603,23 @@ public:
     bool lookup_path(KeyType key, std::vector<KeyValuePtrType> &path, LinearModel<KeyType> &model) {
         // traverse the index to the leaf D-Bucket, and record the path
         bool success = true;
-        path[0] = KeyValuePtrType(std::numeric_limits<KeyType>::min(), (uintptr_t)root_);
+        path.clear();
+        path.push_back(KeyValuePtrType(std::numeric_limits<KeyType>::min(), (uintptr_t)root_));
         KeyValuePtrType kvptr_next; // TODO: change to the next key
-        for (int i = 1; i < num_levels_; i++) {
+        int i = 1;
+        while (true) {
             SegmentType* segment = (SegmentType*)path[i-1].value_;
+            path.push_back(KeyValuePtrType(0, 0));
             success &= segment->lb_lookup(key, path[i], kvptr_next);
             assert((void *)path[i].value_ != nullptr);
+            if (segment->is_bottom_seg()) {
+                break;
+            }
+            i++;
         }
 #ifdef HINT_MODEL_PREDICT
-        KeyType start_key = path[num_levels_-1].key_;
+        int num_levels = path.size();
+        KeyType start_key = path[num_levels-1].key_;
         KeyType end_key = kvptr_next.key_;
         assert(end_key > start_key);
         double slope = (long double)DATA_BUCKET_SIZE / (long double)(end_key - start_key);
@@ -567,10 +630,9 @@ public:
         return success;
     }
 
-    class const_iterator {
+    class const_dbuck_iterator {
     public:
-        // num of bucket to indicate the end
-        const_iterator(std::vector<KeyValuePtrType> &path): path_(path){
+        const_dbuck_iterator(std::vector<KeyValuePtrType> &path): path_(path){
             num_levels_ = path_.size();
             lca_level_ = num_levels_ - 2; // leaf_segment level
 
@@ -578,6 +640,8 @@ public:
             for (int l = lca_level_; l >= 0; l--) {
                 SegmentType* segment = (SegmentType*)path_[l].value_;
                 seg_iter_list_[l] = segment->lower_bound(path_[l+1].key_);
+                // cout << "segment [" << l << "] pivot: " << segment->get_pivot() << endl << flush;
+                // cout << endl;
             }
         }
 
@@ -590,27 +654,29 @@ public:
         }
 
         // prefix --it
-        const_iterator &operator--() {
+        const_dbuck_iterator &operator--() {
             find_previous();
             return *this;
         }
 
         // prefix ++it
-        const_iterator &operator++() {
+        const_dbuck_iterator &operator++() {
             find_next();
             return *this;
         }
 
         // *it
         const DataBucketType* operator*() const {
+            // cout << "in const_dbuck_iterator::operator*(): path_[num_levels_-1].key_ = " << path_[num_levels_-1].key_ << ", path_[num_levels_-1].pivot = " << ((DataBucketType*)path_[num_levels_-1].value_)->get_pivot() << ", path_[num_levels_-1].value_ = " << path_[num_levels_-1].value_ << endl << flush;
+            assert(path_[num_levels_-1].key_ == ((DataBucketType*)path_[num_levels_-1].value_)->get_pivot());
             return (DataBucketType*)path_[num_levels_-1].value_;
         }
 
-        bool operator==(const const_iterator& rhs) const {
+        bool operator==(const const_dbuck_iterator& rhs) const {
             return path_[num_levels_-1].key_ == rhs.path_[num_levels_-1].key_;
         }
 
-        bool operator!=(const const_iterator& rhs) const { 
+        bool operator!=(const const_dbuck_iterator& rhs) const { 
             return !(*this == rhs);
         }
 
@@ -644,8 +710,11 @@ public:
             if (leaf_seg_iter == ((SegmentType*)path_[num_levels_-2].value_)->cend()) {
                 // find the next segment using parent segment's iterator; if not found, go to the upper level
                 int cur_level = num_levels_ - 3; // parent of leaf_segment
+                if (cur_level < 0) {
+                    return false;
+                }
                 lca_level_ = min(lca_level_, cur_level);
-                while(cur_level > 0 && seg_iter_list_[cur_level] == ((SegmentType*)path_[cur_level].value_)->cend()) {
+                while(cur_level > 0 && !seg_iter_list_[cur_level].has_next()){
                     cur_level--;
                     seg_iter_list_[cur_level] = ((SegmentType*)path_[cur_level].value_)->lower_bound(path_[cur_level+1].key_);
                     lca_level_ = min(lca_level_, cur_level);
@@ -676,8 +745,11 @@ public:
             if (leaf_seg_iter == ((SegmentType*)path_[num_levels_-2].value_)->cbegin()) {
                 // find the previous segment using parent segment's iterator; if not found, go to the upper level
                 int cur_level = num_levels_ - 3; // parent of leaf_segment
+                if (cur_level < 0) {
+                    return false;
+                }
                 lca_level_ = min(lca_level_, cur_level);
-                while(cur_level > 0 && seg_iter_list_[cur_level] == ((SegmentType*)path_[cur_level].value_)->cbegin()) {
+                while(cur_level > 0 && !seg_iter_list_[cur_level].has_prev()) {
                     cur_level--;
                     seg_iter_list_[cur_level] = ((SegmentType*)path_[cur_level].value_)->lower_bound(path_[cur_level+1].key_);
                     lca_level_ = min(lca_level_, cur_level);
@@ -716,9 +788,9 @@ private:
      * @return true if the next D-Bucket is found, else false
     */
     bool find_next_d_bucket(std::vector<KeyValuePtrType> &path) {
-        assert(path.size() == num_levels_);
+        int num_levels = path.size();
 
-        int cur_level = num_levels_ - 2; // leaf_segment level
+        int cur_level = num_levels - 2; // leaf_segment level
         assert(cur_level >= 0);
 
         while(cur_level >= 0) {
@@ -734,7 +806,7 @@ private:
 
                 // update the lower-level path
                 int tranverse_down_level = cur_level + 1;
-                while(tranverse_down_level < num_levels_ - 1) {
+                while(tranverse_down_level < num_levels - 1) {
                     SegmentType* segment = (SegmentType*)path[tranverse_down_level].value_;
                     seg_iter = segment->cbegin();
                     path[tranverse_down_level+1] = *seg_iter;
@@ -816,7 +888,7 @@ private:
      * @return out_kv_array: list of anchors for the sub-segments.
      */
     void run_model_layer_segmentation(vector<KeyValuePtrType>& in_kv_array,
-                                      vector<KeyValuePtrType>& out_kv_array) {
+                                      vector<KeyValuePtrType>& out_kv_array, bool is_bottom_seg) {
         vector<Cut<KeyType>> out_cuts;
         vector<LinearModel<KeyType>> out_models;
         Segmentation<vector<KeyValuePtrType>, KeyType>::compute_dynamic_segmentation(in_kv_array,
@@ -827,7 +899,7 @@ private:
             uint64_t length = out_cuts[i].size_;
 
             SegmentType* segment = new SegmentType(length, initial_filled_ratio_, out_models[i],
-                                                   in_kv_array.begin() + start_idx, in_kv_array.begin() + start_idx + length);
+                                                   in_kv_array.begin() + start_idx, in_kv_array.begin() + start_idx + length, is_bottom_seg);
             out_kv_array.push_back(KeyValuePtrType(in_kv_array[start_idx].key_,
                                                    (uintptr_t)segment));
         }
@@ -841,55 +913,154 @@ private:
      * @param new_lca: the new LCA that will replace the old LCA. This is a return value of the function
      * @param lca_level: the level of the LCA. This is a return value of the function
      */
-    bool dbuck_merge(std::pair<KeyValuePtrType, KeyValuePtrType> new_d_buckets, ::vector<KeyValuePtrType> &path, KeyValuePtrType &old_lca, KeyValuePtrType &new_lca, int &lca_level) {
-        DataBucketType *center_dbuck = (DataBucketType*)path[num_levels_-1].value_;
+    bool dbuck_merge(std::pair<KeyValuePtrType, KeyValuePtrType> new_d_buckets, std::vector<KeyValuePtrType> &path, KeyValuePtrType &old_lca, KeyValuePtrType &new_lca, int &lca_level) {
+        // cout << "calling dbuck_merge:" << endl << flush;
+
+        lca_level = path.size() - 1;
+
+        // // output path
+        // cout << "path: ";
+        // for (auto kvptr : path) {
+        //     cout << "(" << kvptr.key_ << ", " << kvptr.value_ << ") ";
+        // }
+        // cout << endl;
+
+        int num_levels = path.size();
+        DataBucketType *center_dbuck = (DataBucketType*)path[num_levels-1].value_;
         auto center_pivot = center_dbuck->get_pivot();
-        
         // Use GreedyErrorCorridor
         GreedyErrorCorridor<KeyType> gec;
         gec.init(center_pivot, error_bound_);
 
-        // store all D-bucket entries in the left and right directions
-        std::vector<KeyValuePtrType> left_dbucks, right_dbucks;
+        // cout << "center_pivot: " << center_pivot << endl;
+
+        // cout << "left neighbors: ";
 
         // Intialize an iterator for the right neighbors
-        const_iterator left_iter(path);
-        while (true) {
+        const_dbuck_iterator left_iter(path);
+        while (!left_iter.reach_to_begin()) {
             left_iter--;
-            if (left_iter.reach_to_end()) break;
+            if (left_iter.reach_to_begin()) break;
             auto left_dbuck = *left_iter;
             auto left_pivot = left_dbuck->get_pivot();
             if (gec.is_bounded(left_pivot)) {
-                left_dbucks.push_back(KeyValuePtrType(left_pivot, (uintptr_t)left_dbuck));
+                // cout << "(" << left_pivot << ", " << (uintptr_t)left_dbuck << ") ";
             } else {
+                // cout << endl;
                 break;
             }
         }
+        lca_level = left_iter.get_lca_level();
+        // cout << "lca_level: " << lca_level << endl;
         
+
+        // cout << "right neighbors:";
         // Intialize an iterator for the right neighbors
-        const_iterator right_iter(path);
-        while (true) {
+        const_dbuck_iterator right_iter(path);
+        while (!right_iter.reach_to_end()) {
             right_iter++;
             if (right_iter.reach_to_end()) break;
             auto right_dbuck = *right_iter;
             auto right_pivot = right_dbuck->get_pivot();
             if (gec.is_bounded(right_pivot)) {
-                right_dbucks.push_back(KeyValuePtrType(right_pivot, (uintptr_t)right_dbuck));
+                // cout << "(" << right_pivot << ", " << (uintptr_t)right_dbuck << ") ";
             } else {
+                // cout << endl;
                 break;
             }
         }
+        lca_level = min(lca_level, right_iter.get_lca_level());
+        // cout << "lca_level: " << lca_level << endl;
 
-        if (right_dbucks.size() > 0) {
-            BuckIndex<KeyType, ValueType, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE> *right_index = new BuckIndex<KeyType, ValueType, SEGMENT_BUCKET_SIZE, DATA_BUCKET_SIZE>(initial_filled_ratio_, error_bound_);
-            right_index->bulk_load(right_dbucks);
-            old_lca = path[right_iter.get_lca_level()];
-            SegmentType* root = (SegmentType*)right_index->get_root();
-            new_lca = KeyValuePtrType(root->get_pivot(), (uintptr_t)root);
-            return true;
+
+        vector<KeyValuePtrType> path2;
+        path2.resize(num_levels - lca_level);
+        path2[0] = path[lca_level];
+        for (int i = 1; i < num_levels - lca_level; i++) {
+            SegmentType* segment = (SegmentType*)path2[i-1].value_;
+            path2[i] = *(segment->cbegin());
         }
 
-        return false;
+        // cout << "lca-to-leaf path: ";
+        // for (auto kvptr : path2) {
+        //     cout << "(" << kvptr.key_ << ", " << kvptr.value_ << ") ";
+        // }
+
+        const_dbuck_iterator it_all_dbucks(path2);
+        std::vector<KeyValuePtrType> all_dbucks;
+        for (; !it_all_dbucks.reach_to_end(); it_all_dbucks++) {
+            const DataBucketType* dbuck = *it_all_dbucks;
+            if (dbuck->get_pivot() == new_d_buckets.first.key_) {
+                all_dbucks.push_back(new_d_buckets.first);
+                all_dbucks.push_back(new_d_buckets.second);
+            } else {
+                all_dbucks.push_back(KeyValuePtrType(dbuck->get_pivot(), (uintptr_t)dbuck));
+            }
+        }
+
+        // cout << "all_dbucks: ";
+        // for (auto kvptr : all_dbucks) {
+        //     cout << "(" << kvptr.key_ << ", " << kvptr.value_ << ") ";
+        // }
+        // cout << endl;
+
+
+        if (all_dbucks.size() <= 1) {
+            cout << "all_dbucks: ";
+            for (auto kvptr : all_dbucks) {
+                cout << "(" << kvptr.key_ << ", " << kvptr.value_ << ") ";
+            }
+            cout << endl;
+            return false;
+        }
+
+        // partial bulk load
+        vector<KeyValuePtrType> kvptr_array[2];
+        uint64_t ping = 0, pong = 1;
+        kvptr_array[ping] = all_dbucks;
+
+        bool is_bottom_seg = true;
+        int left = path.size() - lca_level -1;
+        do { // at least one model layer
+            run_model_layer_segmentation(kvptr_array[ping],
+                                            kvptr_array[pong], is_bottom_seg);
+            is_bottom_seg = false;
+            ping = (ping +1) % 2;
+            pong = (pong +1) % 2;
+            kvptr_array[pong].clear();
+            left--;
+        } while (kvptr_array[ping].size() > 1 && left > 0);
+
+        if (kvptr_array[ping].size() > 1) { // TBD: merge all entries of all segments in kvptr_array[ping] into one segment
+            std::vector<KeyValuePtrType> all_entries;
+            for (auto kvptr : kvptr_array[ping]) {
+                SegmentType* segment = (SegmentType*)kvptr.value_;
+                for (auto it = segment->cbegin(); it != segment->cend(); it++) {
+                    all_entries.push_back(*it);
+                }
+            }
+            // new a segment
+            kvptr_array[ping].clear();
+            LinearModel<KeyType> model;
+            // initialize the model: using the first and last key in all_entries to compute the slope and offset
+            KeyType start_key = all_entries[0].key_;
+            KeyType end_key = all_entries[all_entries.size()-1].key_;
+            assert(end_key > start_key);
+            double slope = (long double)DATA_BUCKET_SIZE / (long double)(end_key - start_key);
+            double offset = -slope * start_key;
+            model = LinearModel<KeyType>(slope, offset);
+            bool is_bottom_seg = (path.size() == 2);
+            SegmentType* segment = new SegmentType(all_entries.size(), initial_filled_ratio_, model, all_entries.begin(), all_entries.end(), is_bottom_seg);
+            kvptr_array[ping].push_back(KeyValuePtrType(all_entries[0].key_, (uintptr_t)segment));  
+        } 
+        
+        old_lca = path[lca_level];
+        new_lca = kvptr_array[ping][0];
+
+        // LinearModel<KeyType> model;
+        // lookup_path(key, path[num_levels-1].key_, model);
+
+        return true;
     }
 
 
@@ -906,9 +1077,9 @@ private:
     uint64_t num_keys_; // the number of keys in the index 
     // NOTE: may include the dummy key 
 
-    uint64_t num_levels_; // the number of layers including model layers and the data layer
+    // uint64_t num_levels_; // the number of layers including model layers and the data layer
 
-    #ifdef BUCKINDEX_DEBUG
+#ifdef BUCKINDEX_DEBUG
     uint64_t num_data_buckets_; // the number of data buckets in the data layer
     uint64_t level_stats_[max_levels_]; // the number of buckets in each layer
     // NOTE: level_stats_[0] is the number of data buckets in the data layer

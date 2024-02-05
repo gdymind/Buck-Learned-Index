@@ -292,10 +292,6 @@ namespace buckindex {
     TEST(Bucket, insert_pivot_update) {
         Bucket<KVList8, key_t, value_t, 8> bucket;
 
-        KeyListValueList<key_t, value_t, 8> list;
-        key_t key;
-        value_t value;
-
         // test initial pivot
         EXPECT_EQ(ULLONG_MAX, bucket.get_pivot());
         EXPECT_EQ(0, bucket.num_keys());

@@ -6,7 +6,7 @@ find_package(TBB REQUIRED)
 include_directories(${TBB_INCLUDE_DIRS})
 
 set(CMAKE_CXX_STANDARD 17)
-add_compile_options(-mavx -mavx2)
+add_compile_options(-mavx -mavx2 -g)
 
 add_compile_options(-mpclmul)
 
