@@ -245,6 +245,73 @@ namespace buckindex {
         bli.dump();
     }
 
+    TEST(BuckIndex, bulk_load_and_insert_random_order) {
+        srand (2333);
+
+        BuckIndex<uint64_t, uint64_t, 2, 8> bli;
+
+        uint64_t key;
+        uint64_t value;
+
+        const int N = 1e5;
+
+        std::unordered_set<uint64_t> keys_set;
+        std::vector<uint64_t> keys(N);
+        keys.push_back(0);
+        keys_set.insert(0);
+        for (int i = 0; i < N; i++) {
+            int key = rand();
+            while (keys_set.find(key) != keys_set.end()) {
+                key = rand();
+            }
+            keys[i] = (key);
+        }
+
+        sort(keys.begin(), keys.end());
+
+        // define a key-value array based on the keys
+        std::vector<KeyValue<uint64_t, uint64_t>> kv_array;
+        for (auto key: keys) {
+            kv_array.push_back(KeyValue<uint64_t, uint64_t>(key, key / 2 + 5));
+        }
+
+        bli.bulk_load(kv_array);
+
+        for (auto key: keys) {
+            uint64_t value;
+            EXPECT_TRUE(bli.lookup(key, value));
+            EXPECT_EQ(key / 2 + 5, value);
+            if (value != key / 2 + 5) break;
+            // std::cout << std::endl << std::flush;
+        }
+
+        keys.clear();
+        kv_array.clear();
+        for (int i = 0; i < N; i++) {
+            int key = rand();
+            while (keys_set.find(key) != keys_set.end()) {
+                key = rand();
+            }
+            keys.push_back(key);
+        }
+
+        for (auto key: keys) {
+            // std::cout << "Inserting key = " << key << "\n" << std::flush;
+            KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(key, key / 2 + 5);
+            EXPECT_TRUE(bli.insert(kv));
+            EXPECT_TRUE(bli.lookup(key, value));
+            EXPECT_EQ(key / 2 + 5, value);
+            if (value != key / 2 + 5) break;
+            // std::cout << std::endl << std::flush;
+        }
+
+        // for (auto key: keys) {
+        //     EXPECT_TRUE(bli.lookup(key, value));
+        //     EXPECT_EQ(key / 2 + 5, value);
+        // }
+
+        bli.dump();
+    }
 
     TEST(BuckIndex, scan_one_segment) {
         BuckIndex<uint64_t, uint64_t, 8, 64> bli(0.5);
