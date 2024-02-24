@@ -673,6 +673,7 @@ template<typename T, size_t SBUCKET_SIZE>
 class Segment<T, SBUCKET_SIZE>::const_iterator {
 public:
     using SegmentType = Segment<T, SBUCKET_SIZE>;
+    SegmentType *segment_;
 
     const_iterator() {
         segment_ = nullptr;
@@ -784,11 +785,19 @@ public:
 
     bool has_next() const {
         if (reach_to_end()) return false;
-        return cur_buckID_ < segment_->num_bucket_ || (cur_buckID_ == segment_->num_bucket_ && cur_index_ < sorted_list_.size());
+        return cur_buckID_ < segment_->num_bucket_-1 || (cur_buckID_ == segment_->num_bucket_-1 && cur_index_ < sorted_list_.size()-1);
     }
 
     bool has_prev() const {
         return !reach_to_begin();
+    }
+
+    bool reach_to_begin() const {
+        return (cur_buckID_ == 0 && cur_index_ == 0);
+    }
+
+    bool reach_to_end() const{
+        return (cur_buckID_ == segment_->num_bucket_);
     }
 
     // *it
@@ -816,7 +825,7 @@ public:
     }
 
 private:
-    SegmentType *segment_;
+
     //int cur_pos_ = 0;  // current position in the sbucket list, 
     size_t cur_buckID_ = 0;
     size_t cur_index_ = 0;
@@ -870,14 +879,6 @@ private:
         else {
             cur_index_--;
         }
-    }
-
-    bool reach_to_begin() const {
-        return (cur_buckID_ == 0 && cur_index_ == 0);
-    }
-
-    bool reach_to_end() const{
-        return (cur_buckID_ == segment_->num_bucket_);
     }
 };
 

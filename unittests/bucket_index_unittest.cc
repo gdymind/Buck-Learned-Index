@@ -295,6 +295,7 @@ namespace buckindex {
             keys.push_back(key);
         }
 
+        int cnt = 0;
         for (auto key: keys) {
             // std::cout << "Inserting key = " << key << "\n" << std::flush;
             KeyValue<uint64_t, uint64_t> kv = KeyValue<uint64_t, uint64_t>(key, key / 2 + 5);
@@ -520,7 +521,9 @@ namespace buckindex {
 
         srand (2333);
         unordered_set<uint64_t> keys_set;
-        for (int i = 0; i < 1000000; i ++) {
+        keys_set.insert(0);
+        in_kv_array.push_back(KeyValue<uint64_t, uint64_t>(0, 5));
+        for (int i = 0; i < 1000000-1; i ++) {
             uint64_t key = rand() % 100000000;
             while (keys_set.find(key) != keys_set.end()) {
                 key = rand() % 100000000;
@@ -559,6 +562,10 @@ namespace buckindex {
             const Bucket<KeyValueList<uint64_t, uint64_t, 128>,
                             uint64_t, uint64_t, 128> *bucket = *it;
             EXPECT_EQ(bucket->get_pivot(), expected_key);
+            if (bucket->get_pivot() != expected_key) {
+                cout << "bucket->get_pivot() = " << bucket->get_pivot() << " expected_key = " << expected_key << endl;
+                cout << "bucket->get_pivot() = " << bucket->get_pivot() << " expected_key = " << expected_key << endl;
+            }
             cnt++;
             if (it.reach_to_end()) break;
             expected_key_idx += 64;
@@ -585,6 +592,7 @@ namespace buckindex {
             const Bucket<KeyValueList<uint64_t, uint64_t, 128>,
                             uint64_t, uint64_t, 128> *bucket = *it;
             EXPECT_EQ(bucket->get_pivot(), expected_key);
+            if (bucket->get_pivot() != expected_key) break;
             cnt++;
             if (it.reach_to_begin()) break;
             expected_key_idx -= 64;
