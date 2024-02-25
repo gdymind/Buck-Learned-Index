@@ -783,14 +783,14 @@ public:
         return *this;
     }
 
-    bool has_next() const {
-        if (reach_to_end()) return false;
-        return cur_buckID_ < segment_->num_bucket_-1 || (cur_buckID_ == segment_->num_bucket_-1 && cur_index_ < sorted_list_.size()-1);
-    }
+    // bool has_next() const {
+    //     if (reach_to_end()) return false;
+    //     return cur_buckID_ < segment_->num_bucket_-1 || (cur_buckID_ == segment_->num_bucket_-1 && cur_index_ < sorted_list_.size()-1);
+    // }
 
-    bool has_prev() const {
-        return !reach_to_begin();
-    }
+    // bool has_prev() const {
+    //     return !reach_to_begin();
+    // }
 
     bool reach_to_begin() const {
         return (cur_buckID_ == 0 && cur_index_ == 0);
