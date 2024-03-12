@@ -419,6 +419,7 @@ public:
      */
     void dump() {
         dump_fanout();
+        dump_depth();
 
         // print all element from DataBucketType::hint_dist_count using iterator
         // std::cout << "  Hint Distribution Count (distance = actual - predict): " << std::endl;
@@ -434,49 +435,91 @@ public:
      * Helper function to get inner node fanout statistics
     */
     void dump_fanout() {
-        // std::vector<int> fanouts[max_levels_ - 1];
-        // int num_levels = 1;
+        std::vector<int> fanouts[max_levels_ - 1];
+        int num_levels = 1;
 
-        // // Traverse the tree to visit each segment
-        // std::queue<std::pair<void *, int>> q; // <segment, level> pairs
-        // q.push(std::make_pair(root_, 0));
-        // while (!q.empty()) {
-        //     auto cur = q.front();
-        //     q.pop();
+        // Traverse the tree to visit each segment
+        std::queue<std::pair<void *, int>> q; // <segment, level> pairs
+        q.push(std::make_pair(root_, 0));
+        while (!q.empty()) {
+            auto cur = q.front();
+            q.pop();
 
-        //     SegmentType *segment = (SegmentType *)cur.first;
-        //     if (!segment->is_bottom_seg()) {
-        //         int cnt = 0;   
-        //         for (auto it = segment->cbegin(); it != segment->cend(); it++) {
-        //             q.push(std::make_pair((void *)it->value_, cur.second + 1));
-        //             cnt++;
-        //         }
-        //         fanouts[cur.second].push_back(cnt);  
-        //     } else {
-        //         num_levels = max(num_levels, cur.second + 1);
-        //     }
-        // }
+            SegmentType *segment = (SegmentType *)cur.first;
+            int cnt = 0;
+            for (auto it = segment->cbegin(); it != segment->cend(); it++) {
+                cnt++;
+            }
+            fanouts[cur.second].push_back(cnt);  
+
+            if (!segment->is_bottom_seg()) {
+                for (auto it = segment->cbegin(); it != segment->cend(); it++) {
+                    q.push(std::make_pair((void *)it->value_, cur.second + 1));
+                }
+            } else {
+                num_levels = max(num_levels, cur.second + 2);
+            }
+        }
 
 
-        // std::cout << "Fanout Statistics:" << std::endl;
-        // for (int i = 0; i < num_levels - 1; i++) {
-        //     auto &fanout_cur = fanouts[i];
-        //     sort(fanout_cur.begin(), fanout_cur.end());
-        //     // get the average fanout
-        //     int sum = 0;
-        //     for (auto fanout : fanout_cur) {
-        //         sum += fanout;
-        //     }
+        std::cout << "Fanout Statistics:" << std::endl;
+        for (int i = 0; i < num_levels - 1; i++) {
+            auto &fanout_cur = fanouts[i];
+            sort(fanout_cur.begin(), fanout_cur.end());
+            // get the average fanout
+            int sum = 0;
+            for (auto fanout : fanout_cur) {
+                sum += fanout;
+            }
 
-        //     std::cout << "Level #" << i << ": ";
-        //     std::cout << "Size = " << fanout_cur.size() << ", ";
-        //     std::cout << "[Average, median, 99th percentile, min, max fanout] fanout = [";
-        //     std::cout << (double)sum / fanout_cur.size() << ", ";
-        //     std::cout << fanout_cur[fanout_cur.size() / 2] << ", ";
-        //     std::cout << fanout_cur[(double)fanout_cur.size() * 99 / 100] << ", ";
-        //     std::cout << fanout_cur[0] << ", ";
-        //     std::cout << fanout_cur[fanout_cur.size() - 1] << "]" << std::endl;
-        // }
+            std::cout << "Level #" << i << ": ";
+            std::cout << "Size = " << fanout_cur.size() << ", ";
+            std::cout << "[Average, median, 99th percentile, min, max fanout] fanout = [";
+            std::cout << (double)sum / fanout_cur.size() << ", ";
+            std::cout << fanout_cur[fanout_cur.size() / 2] << ", ";
+            std::cout << fanout_cur[(double)fanout_cur.size() * 99 / 100] << ", ";
+            std::cout << fanout_cur[0] << ", ";
+            std::cout << fanout_cur[fanout_cur.size() - 1] << "]" << std::endl;
+        }
+    }
+
+    void dump_depth() {
+        int depth[max_levels_ - 1] = {0};
+        int num_levels = 1;
+
+        // Traverse the tree to visit each segment
+        std::queue<std::pair<void *, int>> q; // <segment, level> pairs
+        q.push(std::make_pair(root_, 0));
+        while (!q.empty()) {
+            auto cur = q.front();
+            q.pop();
+
+            SegmentType *segment = (SegmentType *)cur.first;
+            if (!segment->is_bottom_seg()) {
+                int cnt = 0;   
+                for (auto it = segment->cbegin(); it != segment->cend(); it++) {
+                    q.push(std::make_pair((void *)it->value_, cur.second + 1));
+                }
+            } else {
+                num_levels = max(num_levels, cur.second + 2);
+                for (auto it = segment->cbegin(); it != segment->cend(); it++) {
+                    depth[cur.second+1]++; 
+                }
+            }
+        }
+
+        cout << "max levels: " << num_levels << endl;
+
+
+        std::cout << "# of dbuck in each level:" << std::endl;
+        int sum_depth = 0;
+        int num_dbuck = 0;
+        for (int i = 0; i < num_levels; i++) {
+            cout << "level " << i << ": " << depth[i] << endl;
+            sum_depth += i * depth[i];
+            num_dbuck += depth[i];
+        }
+        cout << "Average depth: " << (double)sum_depth / num_dbuck << endl;
     }
 
 
