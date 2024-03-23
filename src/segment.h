@@ -721,7 +721,8 @@ public:
         }
 
         // inside the bucket, locate the index
-        segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_); 
+        segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_);
+        assert(sorted_list_.size() > 0);
         sort(sorted_list_.begin(), sorted_list_.end());
         cur_index_ = pos;
     }
@@ -869,7 +870,8 @@ private:
                     cur_buckID_--;
                 }
                 else{
-                    segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_); 
+                    segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_);
+                    assert(sorted_list_.size() > 0);
                     sort(sorted_list_.begin(), sorted_list_.end());
                     cur_index_ = sorted_list_.size() - 1;
                     break;
