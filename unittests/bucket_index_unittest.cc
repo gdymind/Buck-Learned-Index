@@ -526,7 +526,7 @@ namespace buckindex {
 
         srand (2333);
         unordered_set<uint64_t> keys_set;
-        keys_set.insert(0);
+        // keys_set.insert(0);
         in_kv_array.push_back(KeyValue<uint64_t, uint64_t>(0, 5));
         for (int i = 0; i < 1000000-1; i ++) {
             uint64_t key = rand() % 100000000;
