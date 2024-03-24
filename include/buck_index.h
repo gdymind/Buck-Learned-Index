@@ -727,23 +727,24 @@ public:
         }
 
         bool reach_to_begin(){
-            std::stack<SegIterType> tmp_path;
-            while (cur_path_.size() > 0) {
-                if (!cur_path_.top().reach_to_begin()) {
-                    while (tmp_path.size() > 0) {
-                        cur_path_.push(tmp_path.top());
-                        tmp_path.pop();
-                    }
-                    return false;
-                }
-                tmp_path.push(cur_path_.top());
-                cur_path_.pop();
-            }
+            return (cur_path_.size() == 0) || (*cur_path_.top()).key_ == std::numeric_limits<KeyType>::min();
+            // std::stack<SegIterType> tmp_path;
+            // while (cur_path_.size() > 0) {
+            //     if (!cur_path_.top().reach_to_begin()) {
+            //         while (tmp_path.size() > 0) {
+            //             cur_path_.push(tmp_path.top());
+            //             tmp_path.pop();
+            //         }
+            //         return false;
+            //     }
+            //     tmp_path.push(cur_path_.top());
+            //     cur_path_.pop();
+            // }
 
-            while (tmp_path.size() > 0) {
-                cur_path_.push(tmp_path.top());
-                tmp_path.pop();
-            }
+            // while (tmp_path.size() > 0) {
+            //     cur_path_.push(tmp_path.top());
+            //     tmp_path.pop();
+            // }
 
             return true;
         }

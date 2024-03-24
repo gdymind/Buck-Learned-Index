@@ -721,7 +721,7 @@ public:
         }
 
         // inside the bucket, locate the index
-        segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_);
+        segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_); 
         assert(sorted_list_.size() > 0);
         sort(sorted_list_.begin(), sorted_list_.end());
         cur_index_ = pos;
@@ -763,6 +763,7 @@ public:
             cur_index_--;
             find_next();
         }
+        assert(reach_to_end() || sorted_list_.size() > 0);
     }
 
     // disable upper bound iterator to be increased/decresed or deferenced 
@@ -856,31 +857,25 @@ private:
                 }
             }
         }
+        assert(reach_to_end() || sorted_list_.size() > 0);
     }
 
     // find the previous entry in the sorted list (Can cross boundary of bucket)
     inline void find_previous() {
-        // cout << "seg.find_previous() for :" << cur_buckID_ << ", " << cur_index_ << endl;
         if (reach_to_begin()) return;
         if (cur_index_ == 0) {
             cur_buckID_--;
-            cur_index_ = segment_->sbucket_list_[cur_buckID_].num_keys() - 1;
-            while(!reach_to_begin()){
-                if(segment_->sbucket_list_[cur_buckID_].num_keys() == 0){
-                    cur_buckID_--;
-                }
-                else{
-                    segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_);
-                    assert(sorted_list_.size() > 0);
-                    sort(sorted_list_.begin(), sorted_list_.end());
-                    cur_index_ = sorted_list_.size() - 1;
-                    break;
-                }
+            while(!reach_to_begin() && segment_->sbucket_list_[cur_buckID_].num_keys() == 0){
+                cur_buckID_--;
             }
+            cur_index_ = segment_->sbucket_list_[cur_buckID_].num_keys() - 1;
+            segment_->sbucket_list_[cur_buckID_].get_valid_kvs(sorted_list_); 
+            sort(sorted_list_.begin(), sorted_list_.end());
         }
         else {
             cur_index_--;
         }
+        assert(reach_to_end() || sorted_list_.size() > 0);
     }
 };
 
