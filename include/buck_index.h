@@ -13,6 +13,8 @@
  * Index configurations
  */
 #define DEFAULT_FILLED_RATIO 0.6
+#define MERGE_N_SMO_THRESHOLD 2
+#define MERGE_WINDOW_SIZE 2
 
 namespace buckindex {
 
@@ -311,18 +313,102 @@ public:
             new_pivots.push_back(new_d_buckets.second);
             
             SegmentType* leaf_segment = (SegmentType*)(path[num_levels - 2].value_);
-            if (!leaf_segment->batch_update(old_pivot, new_pivots, false/*is_segment*/)) {
+            if (!leaf_segment->batch_update(old_pivot, new_pivots)) {
                 // cout << "failed to batch update: old_pivot = (" << old_pivot.key_ << ", " << old_pivot.value_ << "), new_pivots = (" << new_pivots[0].key_ << ", " << new_pivots[0].value_ << "), (" << new_pivots[1].key_ << ", " << new_pivots[1].value_ << ")" << endl;
-                KeyValuePtrType old_lca, new_lca;
-                int lca_level;
-                success = dbuck_merge(new_d_buckets, path, old_lca, new_lca, lca_level);
-                assert(success);
-                if (lca_level == 0) {
-                    root_ = (void *)new_lca.value_;
-                    // delete (SegmentType *)old_lca.value_;
+                
+                // compute the indicator to decide whether to merge neighbors or not
+                SegmentType* parent_segment;
+                double avg_smo = 0.0;
+
+                if (num_levels > 2) {
+                    parent_segment = (SegmentType*)(path[num_levels-3].value_);
+                    avg_smo = get_avg_smo_in_window(leaf_segment, parent_segment, MERGE_WINDOW_SIZE);
+                }
+
+                if (num_levels > 2 && avg_smo >= MERGE_N_SMO_THRESHOLD) { // neighbor merge; TODO: include other factors determining whether merge or not
+                    n_merging_++;
+                    KeyValuePtrType old_lca, new_lca;
+                    int lca_level;
+                    success = dbuck_merge(new_d_buckets, path, old_lca, new_lca, lca_level);
+                    assert(success);
+                    if (lca_level == 0) {
+                        root_ = (void *)new_lca.value_;
+                        // delete (SegmentType *)old_lca.value_;
+                    } else {
+                        SegmentType* parent_segment = (SegmentType*)(path[lca_level-1].value_);
+                        parent_segment->update(old_lca, new_lca);
+                    }
                 } else {
-                    SegmentType* parent_segment = (SegmentType*)(path[lca_level-1].value_);
-                    parent_segment->update(old_lca, new_lca);
+                    n_non_merging_++;
+                    std::vector<KeyValuePtrType> pivot_list[2]; // ping-pong list
+                    int ping = 0, pong = 1;
+
+                    pivot_list[ping].push_back(new_d_buckets.first);
+                    pivot_list[ping].push_back(new_d_buckets.second);
+
+                    // propagate the insertion to the parent segments
+                    assert(num_levels >= 2); // insert into leaf segment
+                    int cur_level = num_levels - 2; // leaf_segment level
+                    while(cur_level >= 0) {
+                        SegmentType* cur_segment = (SegmentType*)(path[cur_level].value_);
+                        
+                        if (cur_segment->batch_update(old_pivot, pivot_list[ping])) {
+                            pivot_list[ping].clear();
+                            success = true;
+                            break;
+                        }
+
+                        pivot_list[pong].clear();
+                        success = cur_segment->segment_and_batch_update(initial_filled_ratio_, pivot_list[ping], pivot_list[pong]);
+
+                        old_pivot = path[cur_level];
+                        assert(success);
+
+                        GC_segs.push_back((uintptr_t)cur_segment);
+                        cur_level--;
+                        ping = 1 - ping;
+                        pong = 1 - pong;
+                    }
+
+                    // add one more level
+                    assert(pivot_list[ping].size() == 0 || cur_level == -1);
+
+                    // what if there is only one node
+                    if (pivot_list[ping].size() > 1) {
+                        LinearModel<KeyType> model;
+                    #ifdef BUCKINDEX_USE_LINEAR_REGRESSION
+                        std::vector<KeyType> keys;
+                        for (auto kv_ptr : pivot_list[ping]) {
+                            keys.push_back(kv_ptr.key_);
+                        }
+                        model = LinearModel<KeyType>::get_regression_model(keys);
+                    #else
+                        // TODO: instead of endpoints, use linear regression
+                        double start_key = pivot_list[ping].front().key_;
+                        double end_key = pivot_list[ping].back().key_;
+                        double slope = 0.0, offset = 0.0;
+                        if (pivot_list[ping].size() > 1) {
+                            slope = (long double)pivot_list[ping].size() / (long double)(end_key - start_key);
+                            offset = -slope * start_key;
+                        }
+                        model = LinearModel<KeyType>(slope, offset);
+                    #endif
+                        root_ = new SegmentType(pivot_list[ping].size(), initial_filled_ratio_, model, 
+                                            pivot_list[ping].begin(), pivot_list[ping].end(), false);
+
+
+                    } else if (pivot_list[ping].size() == 1){
+                        // GC_segs.push_back((uintptr_t)root_);
+                        // TODO: original root is not deleted
+                        root_ = (void*)(SegmentType*)pivot_list[ping][0].value_;
+                    }
+
+                    // GC
+                    // delete d_bucket;
+                    // for (auto seg_ptr : GC_segs) { // TODO: support MRSW
+                    //     SegmentType* seg = (SegmentType*)seg_ptr;
+                    //     delete seg;
+                    // }
                 }
             } else {
                 success = true;
@@ -418,6 +504,8 @@ public:
      * Helper function to dump the index structure
      */
     void dump() {
+        cout << "n_merging = " << n_merging_ << ", n_non_merging = " << n_non_merging_ << endl;
+
         dump_fanout();
         dump_depth();
 
@@ -930,6 +1018,38 @@ private:
     }
 
     /**
+     * Helper function to get the average SMO in the window of the leaf segment
+     * @param leaf_segment: the leaf segment
+     * @param parent_segment: the parent of the leaf segment
+     * @param window_size: the number of neighboring segments to be considered
+     * @return the average SMO in the window
+     */
+    double get_avg_smo_in_window(SegmentType *leaf_segment, SegmentType *parent_segment, int window_size) {
+        KeyType leaf_segment_key = leaf_segment->get_pivot();
+        double neighbor_sum_smo = 0;
+        double n_neighbor = 1;
+        if (leaf_segment->get_n_smo() >= MERGE_N_SMO_THRESHOLD) {
+            auto pivot_iter = parent_segment->lower_bound(leaf_segment_key);
+            for (int i = 0; i < window_size && pivot_iter != parent_segment->cend(); i++) {
+                SegmentType* neighbor_segment = (SegmentType*)pivot_iter->value_;
+                neighbor_sum_smo += neighbor_segment->get_n_smo();
+                n_neighbor++;
+                pivot_iter++;
+            }
+            pivot_iter = parent_segment->lower_bound(leaf_segment_key);
+            for (int i = 0; i < window_size; i++) {
+                SegmentType* neighbor_segment = (SegmentType*)pivot_iter->value_;
+                neighbor_sum_smo += neighbor_segment->get_n_smo();
+                n_neighbor++;
+                if (pivot_iter == parent_segment->cbegin()) break;
+                pivot_iter--;
+            }
+        }
+        neighbor_sum_smo -= leaf_segment->get_n_smo();
+        return  neighbor_sum_smo / n_neighbor;
+    }
+
+    /**
      * Helper function to merge neighboring data buckets
      * @param new_d_buckets: the new data buckets to be merged; they are the result of splitting the old data bucket
      * @param path: the path from root to the leaf D-Bucket. This is used to find the neighboring data buckets in both directions
@@ -1071,6 +1191,10 @@ private:
     //Statistics
     
     uint64_t num_keys_; // the number of keys in the index 
+
+    uint64_t n_merging_ = 0; // the number of merging cases when batch update fails
+    uint64_t n_non_merging_ = 0; // the number of non-merging cases when batch update fails
+
     // NOTE: may include the dummy key 
 
     // uint64_t num_levels_; // the number of layers including model layers and the data layer

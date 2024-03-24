@@ -537,7 +537,7 @@ namespace buckindex {
         EXPECT_EQ(100, kv.key_);
         EXPECT_EQ((uintptr_t)segs[5], kv.value_);
         EXPECT_EQ(kv2.key_, std::numeric_limits<key_t>::max());
-        EXPECT_TRUE(seg.batch_update(in_array[5], update_list, true));
+        EXPECT_TRUE(seg.batch_update(in_array[5], update_list));
 
         // 4 buckets, each bucket has 2 keys
         // Each bucket has 6 empty slots
@@ -623,7 +623,7 @@ namespace buckindex {
         EXPECT_EQ(100, kv.key_);
         EXPECT_EQ((uintptr_t)segs[5], kv.value_);
         EXPECT_EQ(kv2.key_, std::numeric_limits<key_t>::max());
-        EXPECT_TRUE(seg.batch_update(in_array[5], update_list, true));
+        EXPECT_TRUE(seg.batch_update(in_array[5], update_list));
         
 
         // 4 buckets, each bucket has 2 keys
@@ -697,7 +697,7 @@ namespace buckindex {
             update_list.push_back(KeyValue<key_t, uintptr_t>(update_keys[i], update_keys[i] + 0xdeadbeefbbbb0000));
         }
         EXPECT_TRUE(seg.lb_lookup(100, value));
-        EXPECT_TRUE(seg.batch_update(value, update_list, true));
+        EXPECT_TRUE(seg.batch_update(value, update_list));
 
         // 4 buckets, each bucket has 2 keys
         // Each bucket has 6 empty slots
@@ -778,7 +778,7 @@ namespace buckindex {
         EXPECT_EQ(reinterpret_cast<uintptr_t>(d_buckets[5]), kv.value_);
         EXPECT_EQ(kv2.key_, std::numeric_limits<key_t>::max());
 
-        EXPECT_TRUE(seg.batch_update(in_array[5], update_list, false));
+        EXPECT_TRUE(seg.batch_update(in_array[5], update_list));
 
 
         // 4 buckets, each bucket has 2 keys

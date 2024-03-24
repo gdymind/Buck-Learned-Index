@@ -159,6 +159,15 @@ public:
         return sbucket_list_[0].get_pivot();
     }
 
+    unsigned int get_n_smo() const{
+        return n_smo_;
+    }
+
+    bool set_n_smo(unsigned int n_smo){
+        n_smo_ = n_smo;
+        return true;
+    }
+
     // TODO: change to member variable?
     /**
      * @brief return the number of key-value pairs in the segment
@@ -238,10 +247,9 @@ public:
      * And the multi-bucket insertion overhead is small in the same bucket case
      * @param old_pivot: the old segment or d-bucket pointer to be replaced
      * @param new_pivots: the new pivots to be inserted
-     * @param is_segment: true if old_pivot is a segment, false if old_pivot is a d-bucket
      * @return true if success, false if fail
     */
-    bool batch_update(KeyValuePtrType old_pivot, std::vector<KeyValuePtrType> &new_pivots, bool is_segment) {
+    bool batch_update(KeyValuePtrType old_pivot, std::vector<KeyValuePtrType> &new_pivots) {
         T old_pivot_key = old_pivot.key_;
 
         // check if have enough space to insert new_pivots
@@ -298,20 +306,22 @@ public:
         return true;
     }
 
-    // /**
-    // * scale the segment and batch insert the new keys, and remove the entries within the new keys range
-    // * @param fill_ratio: the fill ratio of the new segment
-    // * @param insert_anchors: the new keys to be inserted; keys are sorted
-    // * @param new_segs: the new segments after scale and batch insert
-    // * @return true if scale and batch insert success, false otherwise
-    // * NOTE: the SBUCKET_SIZE of new segments is the same as the old one
-    // * NOTE: the new segments are not inserted into the tree index and old segment is not destroyed
-    // */
-    // bool segment_and_batch_update(double fill_ratio, const std::vector<KeyValue<T,uintptr_t>> &insert_anchors,std::vector<KeyValue<T,uintptr_t>> &new_segs);
+    /**
+    * scale the segment and batch insert the new keys, and remove the entries within the new keys range
+    * @param fill_ratio: the fill ratio of the new segment
+    * @param insert_anchors: the new keys to be inserted; keys are sorted
+    * @param new_segs: the new segments after scale and batch insert
+    * @return true if scale and batch insert success, false otherwise
+    * NOTE: the SBUCKET_SIZE of new segments is the same as the old one
+    * NOTE: the new segments are not inserted into the tree index and old segment is not destroyed
+    */
+    bool segment_and_batch_update(double fill_ratio, const std::vector<KeyValue<T,uintptr_t>> &insert_anchors,std::vector<KeyValue<T,uintptr_t>> &new_segs);
 
 private:
     LinearModel<T> model_;
     bool is_bottom_seg_;
+
+    unsigned int n_smo_ = 0; // number of SMO operations; used to decide merge or split
 
     // TODO: TBD-do we explicitly store x_sum, y_sum, xx_sum and xy_sum
 
@@ -409,65 +419,66 @@ bool Segment<T, SBUCKET_SIZE>::scale_and_segmentation(double fill_ratio, std::ve
 */
 
 
-// template<typename T, size_t SBUCKET_SIZE>
-// bool Segment<T, SBUCKET_SIZE>::segment_and_batch_update(
-//     double fill_ratio, 
-//     const std::vector<KeyValue<T,uintptr_t>> &input_pivots,
-//     std::vector<KeyValue<T,uintptr_t>> &new_segs){
+template<typename T, size_t SBUCKET_SIZE>
+bool Segment<T, SBUCKET_SIZE>::segment_and_batch_update(
+    double fill_ratio, 
+    const std::vector<KeyValue<T,uintptr_t>> &input_pivots,
+    std::vector<KeyValue<T,uintptr_t>> &new_segs){
 
-//     // the error_bound should be less than 1/2 of the bucket size.
-//     uint64_t error_bound = 0.5 * SBUCKET_SIZE;
+    // the error_bound should be less than 1/2 of the bucket size.
+    uint64_t error_bound = 0.5 * SBUCKET_SIZE;
 
-//     // collect all the valid keys (sorted)
-//     std::vector<KeyValue<T,uintptr_t>> list;
-//     T input_min = input_pivots.front().key_;
-//     T input_max = input_pivots.back().key_;
-//     auto it = this->cbegin();
-//     // current segment: insert entries before the input_pivots range
-//     for(;it!=this->cend();it++){ 
-//         KeyValue<T,uintptr_t> kv = *it;
-//         if(kv.key_ >= input_min) break;
-//         list.push_back(kv);
-//     }
-//     assert(it == this->cend() || input_min == (*it).key_);
-//     // current segment: skip entries in the input_pivots range
-//     for(;it!=this->cend();it++){
-//         KeyValue<T,uintptr_t> kv = *it;
-//         if((*it).key_ > input_max) break;
-//     }
-//     // input_pivots: insert the input_pivots range
-//     for(auto it2 = input_pivots.begin(); it2 != input_pivots.end(); it2++){
-//         list.push_back(*it2);
-//     }
-//     // current segment: insert entries after the input_pivots range
-//     for(;it!=this->cend();it++){ 
-//         KeyValue<T,uintptr_t> kv = *it;
-//         list.push_back(*it);
-//     }
+    // collect all the valid keys (sorted)
+    std::vector<KeyValue<T,uintptr_t>> list;
+    T input_min = input_pivots.front().key_;
+    T input_max = input_pivots.back().key_;
+    auto it = this->cbegin();
+    // current segment: insert entries before the input_pivots range
+    for(;it!=this->cend();it++){ 
+        KeyValue<T,uintptr_t> kv = *it;
+        if(kv.key_ >= input_min) break;
+        list.push_back(kv);
+    }
+    assert(it == this->cend() || input_min == (*it).key_);
+    // current segment: skip entries in the input_pivots range
+    for(;it!=this->cend();it++){
+        KeyValue<T,uintptr_t> kv = *it;
+        if((*it).key_ > input_max) break;
+    }
+    // input_pivots: insert the input_pivots range
+    for(auto it2 = input_pivots.begin(); it2 != input_pivots.end(); it2++){
+        list.push_back(*it2);
+    }
+    // current segment: insert entries after the input_pivots range
+    for(;it!=this->cend();it++){ 
+        KeyValue<T,uintptr_t> kv = *it;
+        list.push_back(*it);
+    }
 
-//     // sort(list.begin(), list.end());
+    // sort(list.begin(), list.end());
 
-//     // run the segmentation algorithm
-//     std::vector<Cut<T>> out_cuts;
-//     out_cuts.clear();
+    // run the segmentation algorithm
+    std::vector<Cut<T>> out_cuts;
+    out_cuts.clear();
 
-//     vector<LinearModel<T>> out_models;
-//     Segmentation<std::vector<KeyValue<T,uintptr_t>>, T>::compute_dynamic_segmentation(list, out_cuts, out_models, error_bound);
+    vector<LinearModel<T>> out_models;
+    Segmentation<std::vector<KeyValue<T,uintptr_t>>, T>::compute_dynamic_segmentation(list, out_cuts, out_models, error_bound);
 
-//     // put result of segmentation into multiple segments
-//     size_t start_pos = 0;
-//     for(size_t i = 0;i<out_cuts.size();i++){
-//         // using dynamic allocation in case the segment is destroyed after the loop
-//         // SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), list.begin() + start_pos, list.begin() + start_pos+out_cuts[i].size_);
-//         SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_models[i], list.begin() + start_pos, list.begin() + start_pos+out_cuts[i].size_);
-//         T key = out_cuts[i].start_key_;
-//         KeyValue<T,uintptr_t> kv(key, (uintptr_t)seg);
-//         new_segs.push_back(kv);
-//         start_pos += out_cuts[i].size_;
-//     }
-//     assert(start_pos == list.size());
-//     return true;
-// }
+    // put result of segmentation into multiple segments
+    size_t start_pos = 0;
+    for(size_t i = 0;i<out_cuts.size();i++){
+        // using dynamic allocation in case the segment is destroyed after the loop
+        // SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_cuts[i].get_model(), list.begin() + start_pos, list.begin() + start_pos+out_cuts[i].size_);
+        SegmentType* seg = new SegmentType(out_cuts[i].size_, fill_ratio, out_models[i], list.begin() + start_pos, list.begin() + start_pos+out_cuts[i].size_, this->is_bottom_seg_);
+        seg->set_n_smo(this->get_n_smo() + 1);
+        T key = out_cuts[i].start_key_;
+        KeyValue<T,uintptr_t> kv(key, (uintptr_t)seg);
+        new_segs.push_back(kv);
+        start_pos += out_cuts[i].size_;
+    }
+    assert(start_pos == list.size());
+    return true;
+}
 
 template<typename T, size_t SBUCKET_SIZE>
 bool Segment<T, SBUCKET_SIZE>::bucket_rebalance(unsigned int buckID) { // re-balance between adjcent bucket
