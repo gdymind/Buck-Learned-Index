@@ -243,6 +243,7 @@ public:
      * @param v: the vector to store the key-value pairs
     */
     void get_valid_kvs(std::vector<KeyValueType> &v) const {
+        v.clear();
         // read bitmap
         // get all valid kvs
         // check the bitmap again, read everything again until bitmap matches

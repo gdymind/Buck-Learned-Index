@@ -13,8 +13,6 @@
  * Index configurations
  */
 #define DEFAULT_FILLED_RATIO 0.6
-#define MERGE_N_SMO_THRESHOLD 2
-#define MERGE_WINDOW_SIZE 2
 
 namespace buckindex {
 
@@ -33,8 +31,8 @@ public:
     using KeyValueType = KeyValue<KeyType, ValueType>;
     using KeyValuePtrType = KeyValue<KeyType, uintptr_t>;
 
-    BuckIndex(double initial_filled_ratio=0.7, int error_bound=8) {
-        init(initial_filled_ratio, error_bound);
+    BuckIndex(double initial_filled_ratio, int error_bound, int merge_n_smo_threshold, int merge_window_size) {
+        init(initial_filled_ratio, error_bound, merge_n_smo_threshold, merge_window_size);
 #ifdef BUCKINDEX_DEBUG
         std::cout << "BLI: Debug mode" << std::endl;
 #else
@@ -71,7 +69,7 @@ public:
 #endif
     }
 
-    void init(double initial_filled_ratio, int error_bound){
+    void init(double initial_filled_ratio, int error_bound, int merge_n_smo_threshold, int merge_window_size) {
         root_ = NULL;
 
         error_bound_ = error_bound;
@@ -322,10 +320,10 @@ public:
 
                 if (num_levels > 2) {
                     parent_segment = (SegmentType*)(path[num_levels-3].value_);
-                    avg_smo = get_avg_smo_in_window(leaf_segment, parent_segment, MERGE_WINDOW_SIZE);
+                    avg_smo = get_avg_smo_in_window(leaf_segment, parent_segment, merge_window_size_);
                 }
 
-                if (num_levels > 2 && avg_smo >= MERGE_N_SMO_THRESHOLD) { // neighbor merge; TODO: include other factors determining whether merge or not
+                if (num_levels > 2 && avg_smo >= merge_n_smo_threshold_) { // neighbor merge; TODO: include other factors determining whether merge or not
                     n_merging_++;
                     KeyValuePtrType old_lca, new_lca;
                     int lca_level;
@@ -425,7 +423,7 @@ public:
             // TODO: GC
             for (auto seg_ptr : GC_segs) { // TODO: support MRSW
                 SegmentType* seg = (SegmentType*)seg_ptr;
-                delete seg;
+                // delete seg;
             }
 #ifdef BUCKINDEX_DEBUG
             insert_stats_.num_of_SMO++;
@@ -1028,7 +1026,7 @@ private:
         KeyType leaf_segment_key = leaf_segment->get_pivot();
         double neighbor_sum_smo = 0;
         double n_neighbor = 1;
-        if (leaf_segment->get_n_smo() >= MERGE_N_SMO_THRESHOLD) {
+        if (leaf_segment->get_n_smo() >= merge_n_smo_threshold_) {
             auto pivot_iter = parent_segment->lower_bound(leaf_segment_key);
             for (int i = 0; i < window_size && pivot_iter != parent_segment->cend(); i++) {
                 SegmentType* neighbor_segment = (SegmentType*)pivot_iter->value_;
@@ -1194,6 +1192,9 @@ private:
 
     uint64_t n_merging_ = 0; // the number of merging cases when batch update fails
     uint64_t n_non_merging_ = 0; // the number of non-merging cases when batch update fails
+
+    int merge_n_smo_threshold_ = 2; // the threshold of the number of SMOs in the leaf segment to trigger merging
+    int merge_window_size_ = 2; // the number of neighboring leaf segments to be considered for triggering merging
 
     // NOTE: may include the dummy key 
 

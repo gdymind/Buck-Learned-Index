@@ -10,8 +10,7 @@
 namespace buckindex {
 
     TEST(BuckIndex, bulk_load_basic) {
-        BuckIndex<uint64_t, uint64_t, 2, 4> bli;
-        bli.init(0.5, 4);
+        BuckIndex<uint64_t, uint64_t, 2, 4> bli(0.5, 4, 2, 2);
         vector<KeyValue<uint64_t, uint64_t>> in_kv_array;
         uint64_t keys[] = {1,2,3,4,5,6,7,8,9,10};
         uint64_t values[] = {11, 12, 13, 14, 15, 16, 17, 18, 19,20};
@@ -39,8 +38,7 @@ namespace buckindex {
     }
 
     TEST(BuckIndex, bulk_load_multiple_segments) {
-        BuckIndex<uint64_t, uint64_t, 2, 4> bli;
-        bli.init(0.5, 4);
+        BuckIndex<uint64_t, uint64_t, 2, 4> bli(0.5, 4, 2, 2);
         vector<KeyValue<uint64_t, uint64_t>> in_kv_array;
         uint64_t keys[] = {1,2,3,100,110,200,210,300,305,1000,1200,1300,1400}; // 13 keys
         uint64_t values[] = {10,20,30,1000,1100,2000,2100,3000,3050,10000,12000,13000,14000};
@@ -79,7 +77,7 @@ namespace buckindex {
     }
 
     TEST(BuckIndex, bulk_load_multiple_model_layers) {
-        BuckIndex<uint64_t, uint64_t, 2, 4> bli;
+        BuckIndex<uint64_t, uint64_t, 2, 4> bli(0.6, 4, 2, 2);
         vector<KeyValue<uint64_t, uint64_t>> in_kv_array;
         uint64_t keys[] = {1,2,3,100,110,200,210,300,305,1000,1200,1300,1400,10000, 10001, 10002, 10003}; // 17 keys
         uint64_t values[] = {10,20,30,1000,1100,2000,2100,3000,3050,10000,12000,13000,14000,100000,100010,100020,100030};
@@ -99,7 +97,7 @@ namespace buckindex {
     }
 
     TEST(BuckIndex, insert_from_empty) {
-        BuckIndex<uint64_t, uint64_t, 2, 4> bli;
+        BuckIndex<uint64_t, uint64_t, 2, 4> bli(0.5, 4, 2, 2);
 
         uint64_t keys[] = {3, 5};
         uint64_t values[] = {32, 52};
@@ -124,7 +122,7 @@ namespace buckindex {
         bli.dump();
     }
     TEST(BuckIndex, insert_perfectly_linear_keys) {
-        BuckIndex<uint64_t, uint64_t, 2, 4> bli;
+        BuckIndex<uint64_t, uint64_t, 2, 4> bli(0.6, 4, 2, 2);
 
         uint64_t key;
         uint64_t value;
@@ -141,7 +139,7 @@ namespace buckindex {
     }
 
     TEST(BuckIndex, insert_multi_segments) {
-        BuckIndex<uint64_t, uint64_t, 2, 4> bli;
+        BuckIndex<uint64_t, uint64_t, 2, 4> bli(0.6, 4, 2, 2);
 
         uint64_t key;
         uint64_t value;
@@ -184,7 +182,7 @@ namespace buckindex {
 
 
     TEST(BuckIndex, insert_reverse_order) {
-        BuckIndex<uint64_t, uint64_t, 2, 4> bli;
+        BuckIndex<uint64_t, uint64_t, 2, 4> bli(0.6, 4, 2, 2);
 
         uint64_t key;
         uint64_t value;
@@ -204,7 +202,7 @@ namespace buckindex {
     TEST(BuckIndex, insert_random_order) {
         srand (2333);
 
-        BuckIndex<uint64_t, uint64_t, 2, 128> bli;
+        BuckIndex<uint64_t, uint64_t, 2, 128> bli(0.7, 8, 2, 2);
 
         uint64_t key;
         uint64_t value;
@@ -248,7 +246,7 @@ namespace buckindex {
     TEST(BuckIndex, bulk_load_and_insert_random_order) {
         srand (2333);
 
-        BuckIndex<uint64_t, uint64_t, 2, 8> bli;
+        BuckIndex<uint64_t, uint64_t, 2, 8> bli(0.6, 4, 2, 2);
 
         uint64_t key;
         uint64_t value;
@@ -320,7 +318,7 @@ namespace buckindex {
     }
 
     TEST(BuckIndex, scan_one_segment) {
-        BuckIndex<uint64_t, uint64_t, 8, 64> bli(0.5);
+        BuckIndex<uint64_t, uint64_t, 8, 64> bli(0.5, 4, 2, 2);
         std::pair<uint64_t, uint64_t> *result;
         result = new std::pair<uint64_t, uint64_t>[1000];
         int n_result = 0;
@@ -371,7 +369,7 @@ namespace buckindex {
     }
 
     TEST(BuckIndex, scan_multi_segment) {
-        BuckIndex<uint64_t, uint64_t, 8, 16> bli(0.5);
+        BuckIndex<uint64_t, uint64_t, 8, 16> bli(0.5, 4, 2, 2);
         std::pair<uint64_t, uint64_t> *result;
         result = new std::pair<uint64_t, uint64_t>[1000];
         int n_result = 0;
@@ -463,7 +461,7 @@ namespace buckindex {
     }
 
     TEST(BuckIndex, level_stat){
-        BuckIndex<uint64_t, uint64_t, 8, 16> bli(0.5);
+        BuckIndex<uint64_t, uint64_t, 8, 16> bli(0.5, 4, 2, 2);
         std::pair<uint64_t, uint64_t> *result;
         result = new std::pair<uint64_t, uint64_t>[1000];
         int n_result = 0;
@@ -521,7 +519,7 @@ namespace buckindex {
     // }
 
     TEST(BuckIndex, iterator){
-        BuckIndex<uint64_t, uint64_t, 8, 128> bli(0.5, 4);
+        BuckIndex<uint64_t, uint64_t, 8, 128> bli(0.5, 4, 2, 2);
         vector<KeyValue<uint64_t, uint64_t>> in_kv_array;
 
         srand (2333);
