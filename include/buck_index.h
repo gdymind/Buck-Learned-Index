@@ -31,7 +31,7 @@ public:
     using KeyValueType = KeyValue<KeyType, ValueType>;
     using KeyValuePtrType = KeyValue<KeyType, uintptr_t>;
 
-    BuckIndex(double initial_filled_ratio, int error_bound, int merge_n_smo_threshold, int merge_window_size) {
+    BuckIndex(double initial_filled_ratio=0.6, int error_bound=4, int merge_n_smo_threshold=2, int merge_window_size=2) {
         init(initial_filled_ratio, error_bound, merge_n_smo_threshold, merge_window_size);
 #ifdef BUCKINDEX_DEBUG
         std::cout << "BLI: Debug mode" << std::endl;
