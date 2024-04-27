@@ -78,6 +78,12 @@ public:
         initial_filled_ratio_ = initial_filled_ratio;
         std::cout << "Initial fill ratio = " << initial_filled_ratio_ << std::endl;
 
+        merge_n_smo_threshold_ = merge_n_smo_threshold;
+        std::cout << "Merge neighbor smo threshold = " << merge_n_smo_threshold_ << std::endl;
+
+        merge_window_size_ = merge_window_size;
+        std::cout << "Merge window size = " << merge_window_size_ << std::endl;
+
 #ifdef BUCKINDEX_DEBUG
         tn.init();
 #endif
@@ -324,6 +330,7 @@ public:
                 }
 
                 if (num_levels > 2 && avg_smo >= merge_n_smo_threshold_) { // neighbor merge; TODO: include other factors determining whether merge or not
+                    cout << "neighbor merge: avg_smo = " << avg_smo << ", merge_n_smo_threshold = " << merge_n_smo_threshold_ << ", merge_window_size = " << merge_window_size_ << endl;
                     n_merging_++;
                     KeyValuePtrType old_lca, new_lca;
                     int lca_level;
@@ -1147,6 +1154,8 @@ private:
         //     cout << "(" << kvptr.key_ << ", " << kvptr.value_ << ") ";
         // }
         // cout << endl;
+
+        cout << "node merge with " << all_dbucks.size() << " dbucks" << endl;
 
 
         if (all_dbucks.size() <= 1) {
