@@ -27,6 +27,7 @@ public:
     using SegmentType = Segment<KeyType, SEGMENT_BUCKET_SIZE>;
     using KeyValueType = KeyValue<KeyType, ValueType>;
     using KeyValuePtrType = KeyValue<KeyType, uintptr_t>;
+    int n_scan_ = 0;
 
     BuckIndex(double initial_filled_ratio=0.7, int error_bound=8) {
         init(initial_filled_ratio, error_bound);
@@ -172,6 +173,8 @@ public:
     size_t scan(KeyType start_key, size_t num_to_scan, std::pair<KeyType, ValueType> *kvs) {
         if (!root_) return 0;
 
+        n_scan_++;
+
         int num_scanned = 0;
 
         // traverse to leaf and record the path
@@ -185,7 +188,7 @@ public:
 
         while (num_scanned < num_to_scan) {
             // scan keys in the d-bucket
-            while(num_scanned < num_to_scan && dbuck_iter != d_bucket->end()) {
+            while(num_scanned < num_to_scan && dbuck_iter.has_next()) {
                 KeyValueType kv = (*dbuck_iter);
                 kvs[num_scanned] = std::make_pair(kv.key_, kv.value_);
                 num_scanned++;
@@ -198,7 +201,7 @@ public:
                     if (!find_next_d_bucket(path)) return num_scanned;
                     d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
                     dbuck_iter = d_bucket->begin();
-                } while (dbuck_iter == d_bucket->end()); // empty d-bucket, visit the next one
+                } while (!dbuck_iter.has_next()); // empty d-bucket, visit the next one
             }
         }
         
