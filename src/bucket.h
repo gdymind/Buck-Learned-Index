@@ -225,7 +225,7 @@ public:
 
     class SortedIterator;
     SortedIterator begin() {return SortedIterator(this, 0); }
-    SortedIterator end() {return SortedIterator(this, num_keys()); }
+    // SortedIterator end() {return SortedIterator(this, num_keys()); }
 
     // points to the first key that is >= key
     SortedIterator lower_bound(const T &key) {
@@ -646,6 +646,10 @@ public:
     }
 
     bool operator!=(const SortedIterator& rhs) const { return !(*this == rhs); };
+
+    bool has_next() {
+        return cur_pos_ < valid_kvs_.size();
+    }
 
 private:
     BucketType *bucket_;

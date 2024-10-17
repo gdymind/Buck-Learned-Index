@@ -380,7 +380,7 @@ namespace buckindex {
         }
 
 
-        // test begin(), end(), opreator* and it++
+        // test begin(), opreator* and it++
         int i = 0;
         for (auto it = bucket.begin_unsort(); it != bucket.end_unsort(); it++) {
             KeyValue<key_t, value_t> kv = *it;
@@ -434,7 +434,7 @@ namespace buckindex {
         list.put(4, 67, 12345678);
 
         // test empty bucket
-        EXPECT_TRUE(bucket.begin() == bucket.end());
+        EXPECT_TRUE(bucket.begin().has_next() == false);
 
         for (int i = 0; i < 5; i++) {
             EXPECT_TRUE(bucket.insert(list.at(i), true, 0));
@@ -449,9 +449,9 @@ namespace buckindex {
         list_sorted.put(3, 67, 12345678);
         list_sorted.put(4, 98, 12);  
 
-        // test begin(), end(), opreator* and it++
+        // test begin(), opreator* and it++
         int i = 0;
-        for (auto it = bucket.begin(); it != bucket.end(); it++) {
+        for (auto it = bucket.begin(); it.has_next(); it++) {
             KeyValue<key_t, value_t> kv = *it;
             EXPECT_EQ(list_sorted.at(i).key_, kv.key_);
             // EXPECT_EQ(list_sorted.at(i).value_, kv.value_);
@@ -461,7 +461,7 @@ namespace buckindex {
 
         // test ++it basic usage
         i = 0;
-        for (auto it = bucket.begin(); it != bucket.end(); ++it) {
+        for (auto it = bucket.begin(); it.has_next(); ++it) {
             KeyValue<key_t, value_t> kv = *it;
             EXPECT_EQ(list_sorted.at(i).key_, kv.key_);
             EXPECT_EQ(list_sorted.at(i).value_, kv.value_);
@@ -472,20 +472,13 @@ namespace buckindex {
 
         // test ++it return value
         i = 1;
-        for (auto it = bucket.begin(); it != bucket.end() && i < 4;) {
+        for (auto it = bucket.begin(); it.has_next() && i < 4;) {
             KeyValue<key_t, value_t> kv = *(++it);
             EXPECT_EQ(list_sorted.at(i).key_, kv.key_);
             EXPECT_EQ(list_sorted.at(i).value_, kv.value_);
             i++;
         }
-        EXPECT_EQ(4, i); 
-
-        // test overflow
-        auto it = bucket.end();
-        it++;
-        EXPECT_TRUE(it == bucket.end());
-        ++it;
-        EXPECT_TRUE(it == bucket.end());
+        EXPECT_EQ(4, i);
     }
 
     TEST(Bucket, get_valid_kvs) {
@@ -738,7 +731,7 @@ namespace buckindex {
         it = bucket.lower_bound(140);
         EXPECT_EQ(140, (*it).key_);
         it = bucket.lower_bound(141);
-        EXPECT_TRUE(it == bucket.end());
+        EXPECT_TRUE(it.has_next() == false);
 
         
     }

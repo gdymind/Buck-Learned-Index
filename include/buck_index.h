@@ -188,7 +188,7 @@ public:
 
         while (num_scanned < num_to_scan) {
             // scan keys in the d-bucket
-            while(num_scanned < num_to_scan && dbuck_iter != d_bucket->end()) {
+            while(num_scanned < num_to_scan && dbuck_iter.has_next()) {
                 KeyValueType kv = (*dbuck_iter);
                 kvs[num_scanned] = std::make_pair(kv.key_, kv.value_);
                 num_scanned++;
@@ -201,7 +201,7 @@ public:
                     if (!find_next_d_bucket(path)) return num_scanned;
                     d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
                     dbuck_iter = d_bucket->begin();
-                } while (dbuck_iter == d_bucket->end()); // empty d-bucket, visit the next one
+                } while (!dbuck_iter.has_next()); // empty d-bucket, visit the next one
             }
         }
         
