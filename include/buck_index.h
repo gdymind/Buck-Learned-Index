@@ -27,6 +27,7 @@ public:
     using SegmentType = Segment<KeyType, SEGMENT_BUCKET_SIZE>;
     using KeyValueType = KeyValue<KeyType, ValueType>;
     using KeyValuePtrType = KeyValue<KeyType, uintptr_t>;
+    int n_scan_ = 0;
 
     BuckIndex(double initial_filled_ratio=0.7, int error_bound=8) {
         init(initial_filled_ratio, error_bound);
@@ -171,6 +172,8 @@ public:
     */
     size_t scan(KeyType start_key, size_t num_to_scan, std::pair<KeyType, ValueType> *kvs) {
         if (!root_) return 0;
+
+        n_scan_++;
 
         int num_scanned = 0;
 
