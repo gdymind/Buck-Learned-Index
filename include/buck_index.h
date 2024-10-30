@@ -235,7 +235,7 @@ public:
         }
         
         // Sort each bucket's kvs in parallel
-        #pragma omp parallel for schedule(static)
+        #pragma omp parallel for schedule(static, 11)
         for (size_t i = 0; i < bucket_kvs_list.size(); i++) {
             std::sort(bucket_kvs_list[i].begin(), bucket_kvs_list[i].end());
         }
