@@ -174,7 +174,6 @@ public:
         if (!root_) return 0;
 
         n_scan_++;
-
         int num_scanned = 0;
 
         // traverse to leaf and record the path
@@ -183,7 +182,7 @@ public:
         bool success = lookup_path(start_key, path, dummy_model);
 
         // get the d-bucket iterator
-        DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
+        DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;
         auto dbuck_iter = d_bucket->lower_bound(start_key);
 
         while (num_scanned < num_to_scan) {
@@ -206,6 +205,59 @@ public:
         }
         
         return num_scanned;
+    }
+
+
+    size_t scan_parallel(KeyType start_key, size_t num_to_scan, std::pair<KeyType, ValueType> *result) {
+        if (!root_) return 0;
+
+        // Find the starting bucket
+        std::vector<KeyValuePtrType> path(num_levels_);
+        LinearModel<KeyType> dummy_model;
+        bool success = lookup_path(start_key, path, dummy_model);
+        
+        // Collect kvs from each bucket into separate vectors
+        std::vector<std::vector<KeyValueType>> bucket_kvs_list;
+        DataBucketType* curr_bucket = (DataBucketType*)(path[num_levels_-1]).value_;
+        size_t total_kvs = 0;
+        
+        // Process first bucket separately to handle start_key
+        while (curr_bucket && total_kvs < num_to_scan) {
+            std::vector<KeyValueType> curr_kvs;
+            curr_bucket->get_valid_kvs(curr_kvs);
+            
+            // Subsequent buckets: no filtering needed
+            bucket_kvs_list.push_back(std::move(curr_kvs));
+            total_kvs += bucket_kvs_list.back().size();
+            
+            if (!find_next_d_bucket(path)) break;
+            curr_bucket = (DataBucketType*)(path[num_levels_-1]).value_;
+        }
+        
+        // Sort each bucket's kvs in parallel
+        #pragma omp parallel for schedule(dynamic, 1)
+        for (size_t i = 0; i < bucket_kvs_list.size(); i++) {
+            std::sort(bucket_kvs_list[i].begin(), bucket_kvs_list[i].end());
+        }
+
+        int i = 0;
+        int j = lower_bound(bucket_kvs_list[i].begin(), bucket_kvs_list[i].end(), KeyValueType(start_key, 0)) - bucket_kvs_list[i].begin();
+        size_t num_copied = 0;
+        while (i < bucket_kvs_list.size() && j < bucket_kvs_list[i].size() && num_copied < num_to_scan) {
+            result[num_copied] = std::make_pair(bucket_kvs_list[i][j].key_, bucket_kvs_list[i][j].value_);
+            num_copied++;
+            j++;
+        }
+
+        // Use two for loops to copy the sorted kvs to the result array
+        for (size_t i = 1; i < bucket_kvs_list.size() && num_copied < num_to_scan; i++) {
+            for (size_t j = 0; j < bucket_kvs_list[i].size() && num_copied < num_to_scan; j++) {
+                // convert KeyValuePtrType to pair<KeyType, ValueType>
+                result[num_copied] = std::make_pair(bucket_kvs_list[i][j].key_, bucket_kvs_list[i][j].value_);
+                num_copied++;
+            }
+        }
+        return num_copied;
     }
 
     /**
