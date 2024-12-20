@@ -218,25 +218,33 @@ public:
         
         // Collect kvs from each bucket into separate vectors
         std::vector<std::vector<KeyValueType>> bucket_kvs_list;
-        DataBucketType* curr_bucket = (DataBucketType*)(path[num_levels_-1]).value_;
+        DataBucketType* curr_bucket = (DataBucketType *)(path[num_levels_-1]).value_;
+        auto dbuck_iter = curr_bucket->lower_bound(start_key);
+
         size_t total_kvs = 0;
-        
-        // Process first bucket separately to handle start_key
+        std::vector<DataBucketType*> target_buckets;
+        std::vector<size_t> bucket_sizes;
+
         while (curr_bucket && total_kvs < num_to_scan) {
-            std::vector<KeyValueType> curr_kvs;
-            curr_bucket->get_valid_kvs(curr_kvs);
-            
-            // Subsequent buckets: no filtering needed
-            bucket_kvs_list.push_back(std::move(curr_kvs));
-            total_kvs += bucket_kvs_list.back().size();
+            size_t bucket_size = curr_bucket->num_keys();
+            if (bucket_size > 0) {
+                target_buckets.push_back(curr_bucket);
+                bucket_sizes.push_back(bucket_size);
+                total_kvs += bucket_size;
+            }
             
             if (!find_next_d_bucket(path)) break;
             curr_bucket = (DataBucketType*)(path[num_levels_-1]).value_;
         }
         
-        // Sort each bucket's kvs in parallel
-        #pragma omp parallel for schedule(dynamic, 1)
-        for (size_t i = 0; i < bucket_kvs_list.size(); i++) {
+        // Pre-allocate vectors for all buckets
+        std::vector<std::vector<KeyValueType>> bucket_kvs_list(target_buckets.size());
+
+        // Get valid kvs and sort them in parallel
+        #pragma omp parallel for schedule(static)
+        for (size_t i = 0; i < target_buckets.size(); i++) {
+            bucket_kvs_list[i].reserve(bucket_sizes[i]);
+            target_buckets[i]->get_valid_kvs(bucket_kvs_list[i]);
             std::sort(bucket_kvs_list[i].begin(), bucket_kvs_list[i].end());
         }
 
