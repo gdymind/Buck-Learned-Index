@@ -217,7 +217,6 @@ public:
         bool success = lookup_path(start_key, path, dummy_model);
         
         // Collect kvs from each bucket into separate vectors
-        std::vector<std::vector<KeyValueType>> bucket_kvs_list;
         DataBucketType* curr_bucket = (DataBucketType *)(path[num_levels_-1]).value_;
         auto dbuck_iter = curr_bucket->lower_bound(start_key);
 
