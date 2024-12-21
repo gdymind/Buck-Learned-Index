@@ -240,11 +240,15 @@ public:
         std::vector<std::vector<KeyValueType>> bucket_kvs_list(target_buckets.size());
 
         // Get valid kvs and sort them in parallel
-        #pragma omp parallel for schedule(static)
-        for (size_t i = 0; i < target_buckets.size(); i++) {
-            bucket_kvs_list[i].reserve(bucket_sizes[i]);
-            target_buckets[i]->get_valid_kvs(bucket_kvs_list[i]);
-            std::sort(bucket_kvs_list[i].begin(), bucket_kvs_list[i].end());
+        #pragma omp parallel
+        {
+            // This distributes the loop across threads, but the parallel region is created only once.
+            #pragma omp for schedule(static)
+            for (size_t i = 0; i < target_buckets.size(); i++) {
+                bucket_kvs_list[i].reserve(bucket_sizes[i]);
+                target_buckets[i]->get_valid_kvs(bucket_kvs_list[i]);
+                std::sort(bucket_kvs_list[i].begin(), bucket_kvs_list[i].end());
+            }
         }
 
         int i = 0;
