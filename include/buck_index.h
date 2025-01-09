@@ -882,7 +882,7 @@ private:
 
     int error_bound_;
 
-    static const int NUM_WORKER_THREADS = 4;
+    static const int NUM_WORKER_THREADS = 11;
     struct SortTask {
         DataBucketType* bucket;
         size_t reserved_size;
