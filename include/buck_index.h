@@ -6,6 +6,14 @@
 #include "segmentation.h"
 #include "util.h"
 
+#include <atomic>
+#include <thread>
+#include <future>
+#include <mutex>
+#include <condition_variable>
+#include <queue>
+#include <vector>
+
 /**
  * Index configurations
  */
@@ -31,6 +39,40 @@ public:
 
     BuckIndex(double initial_filled_ratio=0.7, int error_bound=8) {
         init(initial_filled_ratio, error_bound);
+
+        // Initialize worker threads
+        shutdown_ = false;
+        for (int i = 0; i < NUM_WORKER_THREADS; i++) {
+            worker_threads_.emplace_back([this]() {
+                while (!shutdown_) {  
+                    SortTask task;
+                    {
+                        std::unique_lock<std::mutex> lock(queue_mutex_);
+                        queue_cv_.wait(lock, [this]() { 
+                            return !task_queue_.empty() || shutdown_; 
+                        });
+                        
+                        // Check shutdown condition first
+                        if (shutdown_) {
+                            return;
+                        }
+                        
+                        if (task_queue_.empty()) {
+                            continue;  
+                        }
+                        
+                        task = std::move(task_queue_.front());
+                        task_queue_.pop();
+                    }
+                    
+                    // Prepare and sort the bucket
+                    task.result_vector->reserve(task.reserved_size);
+                    task.bucket->get_valid_kvs(*task.result_vector);
+                    std::sort(task.result_vector->begin(), task.result_vector->end());
+                    task.promise.set_value();
+                }
+            });
+        }
 #ifdef BUCKINDEX_DEBUG
         std::cout << "BLI: Debug mode" << std::endl;
 #else
@@ -67,6 +109,21 @@ public:
 #endif
     }
 
+    ~BuckIndex() {
+        {
+            std::unique_lock<std::mutex> lock(queue_mutex_);
+            shutdown_ = true;
+        }
+        queue_cv_.notify_all();  // Wake up all worker threads
+        
+        // Wait for all worker threads to finish
+        for (auto& thread : worker_threads_) {
+            if (thread.joinable()) {
+                thread.join();
+            }
+        }
+    }
+
     void init(double initial_filled_ratio, int error_bound){
         root_ = NULL;
         num_levels_ = 0;
@@ -81,8 +138,6 @@ public:
         tn.init();
 #endif
     }
-
-    ~BuckIndex() { }
 
     /**
      * Lookup function
@@ -217,27 +272,49 @@ public:
         bool success = lookup_path(start_key, path, dummy_model);
         
         // Collect kvs from each bucket into separate vectors
-        std::vector<std::vector<KeyValueType>> bucket_kvs_list;
-        DataBucketType* curr_bucket = (DataBucketType*)(path[num_levels_-1]).value_;
+        DataBucketType* curr_bucket = (DataBucketType *)(path[num_levels_-1]).value_;
+        auto dbuck_iter = curr_bucket->lower_bound(start_key);
+
         size_t total_kvs = 0;
-        
-        // Process first bucket separately to handle start_key
+        std::vector<DataBucketType*> target_buckets;
+        std::vector<size_t> bucket_sizes;
+
         while (curr_bucket && total_kvs < num_to_scan) {
-            std::vector<KeyValueType> curr_kvs;
-            curr_bucket->get_valid_kvs(curr_kvs);
-            
-            // Subsequent buckets: no filtering needed
-            bucket_kvs_list.push_back(std::move(curr_kvs));
-            total_kvs += bucket_kvs_list.back().size();
+            size_t bucket_size = curr_bucket->num_keys();
+            if (bucket_size > 0) {
+                target_buckets.push_back(curr_bucket);
+                bucket_sizes.push_back(bucket_size);
+                total_kvs += bucket_size;
+            }
             
             if (!find_next_d_bucket(path)) break;
             curr_bucket = (DataBucketType*)(path[num_levels_-1]).value_;
         }
         
-        // Sort each bucket's kvs in parallel
-        #pragma omp parallel for schedule(dynamic, 1)
-        for (size_t i = 0; i < bucket_kvs_list.size(); i++) {
-            std::sort(bucket_kvs_list[i].begin(), bucket_kvs_list[i].end());
+        // Pre-allocate vectors for all buckets
+        std::vector<std::vector<KeyValueType>> bucket_kvs_list(target_buckets.size());
+        std::vector<std::future<void>> futures;
+
+        // Distribute sorting tasks to worker threads
+        for (size_t i = 0; i < target_buckets.size(); i++) {
+            std::promise<void> promise;
+            futures.push_back(promise.get_future());
+            
+            {
+                std::lock_guard<std::mutex> lock(queue_mutex_);
+                task_queue_.push({
+                    target_buckets[i],
+                    bucket_sizes[i],
+                    &bucket_kvs_list[i],
+                    std::move(promise)
+                });
+            }
+            queue_cv_.notify_one();
+        }
+
+        // Wait for all sorting tasks to complete
+        for (auto& future : futures) {
+            future.wait();
         }
 
         int i = 0;
@@ -678,7 +755,7 @@ private:
      * Helper function for scan() to find the next D-Bucket
      * @param path: the path from root to the leaf D-Bucket
      * @return true if the next D-Bucket is found, else false
-    */
+   */
     bool find_next_d_bucket(std::vector<KeyValuePtrType> &path) {
         assert(path.size() == num_levels_);
 
@@ -804,6 +881,20 @@ private:
     double initial_filled_ratio_;
 
     int error_bound_;
+
+    static const int NUM_WORKER_THREADS = 11;
+    struct SortTask {
+        DataBucketType* bucket;
+        size_t reserved_size;
+        std::vector<KeyValueType>* result_vector;
+        std::promise<void> promise;
+    };
+
+    std::vector<std::thread> worker_threads_;
+    std::queue<SortTask> task_queue_;
+    std::mutex queue_mutex_;
+    std::condition_variable queue_cv_;
+    bool shutdown_;
     
     //Statistics
     
