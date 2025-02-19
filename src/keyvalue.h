@@ -23,6 +23,11 @@ struct KeyValue
         return value_ < rhs.value_;
     }
 
+    bool operator>(const KeyValue<T, V>& rhs) const {
+        if (key_ != rhs.key_) return key_ > rhs.key_;
+        return value_ > rhs.value_;
+    }
+
     KeyValue<T, V>& operator=(const KeyValue<T, V>& rhs) {
         key_ = rhs.key_;
         value_ = rhs.value_;

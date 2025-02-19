@@ -263,7 +263,7 @@ public:
      * @param scan_num: the number of kvs to be scanned
     */
     void scan_kvs(std::vector<KeyValueType> &v, const T &start_key, int scan_num) {
-        std::priority_queue<KeyValueType, std::vector<KeyValueType>, std::greater<KeyValueType>> pq;
+        std::priority_queue<KeyValueType> pq;
         
         for (int i = 0; i < SIZE; i++) {
             if (valid(i) && list_.at(i).key_ >= start_key) {
