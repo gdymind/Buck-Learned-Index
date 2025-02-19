@@ -115,7 +115,7 @@ if(NOT TBB_FOUND)
   ##################################
   
   # Define search paths based on user input and environment variables
-  set(TBB_SEARCH_DIR ${TBB_ROOT_DIR} $ENV{TBB_INSTALL_DIR} $ENV{TBBROOT})
+  set(TBB_SEARCH_DIR "/opt/intel/oneapi/tbb/2020.3" ${TBB_ROOT_DIR} $ENV{TBB_INSTALL_DIR} $ENV{TBBROOT})
   
   # Define the search directories based on the current platform
   if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
@@ -174,10 +174,7 @@ if(NOT TBB_FOUND)
   # Find the TBB include dir
   ##################################
   
-  find_path(TBB_INCLUDE_DIRS tbb/tbb.h
-      HINTS ${TBB_INCLUDE_DIR} ${TBB_SEARCH_DIR}
-      PATHS ${TBB_DEFAULT_SEARCH_DIR}
-      PATH_SUFFIXES include)
+  set(TBB_INCLUDE_DIRS "/opt/intel/oneapi/tbb/2020.3/include")
 
   ##################################
   # Set version strings
