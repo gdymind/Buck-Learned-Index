@@ -275,6 +275,10 @@ namespace buckindex {
         for (int i = 0; i < n_result; i++) {
             auto &kv = result[i];
             EXPECT_EQ(idx, kv.first);
+            if (idx != kv.first) {
+                break;
+                exit(0);
+            }
             EXPECT_EQ(idx * 2 + 5, kv.second);
             idx += 3;
         }
@@ -287,6 +291,10 @@ namespace buckindex {
         for (int i = 0; i < n_result; i++) {
             auto &kv = result[i];
             EXPECT_EQ(idx, kv.first);
+            if (idx != kv.first) {
+                break;
+                exit(0);
+            }
             EXPECT_EQ(idx * 2 + 5, kv.second);
             idx += 3;
         }

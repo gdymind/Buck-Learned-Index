@@ -12,6 +12,7 @@
 #include <algorithm> 
 #include <bitset>
 #include <map>
+#include <queue>
 #include <immintrin.h> //SIMD
 #include "util.h"
 // #include "buck_index.h"
@@ -79,8 +80,6 @@ public:
      * @return true if the key is found; false otherwise
     */
     bool lb_lookup(const T &key, KeyValueType &lb_kv, KeyValueType &next_kv) const;
-
-
 
     /**
      * S/D-Bucket insert
@@ -255,7 +254,34 @@ public:
                 }
             }
         } while (memcmp(bitmap_, bitmap2, sizeof(bitmap_)) != 0);
-    }  
+    } 
+
+    /**
+     * Scan kvs in the bucket
+     * @param v: the vector to store the scanned key-value pairs
+     * @param start_key: the start key of the scan
+     * @param scan_num: the number of kvs to be scanned
+    */
+    void scan_kvs(std::vector<KeyValueType> &v, const T &start_key, int scan_num) {
+        std::priority_queue<KeyValueType> pq;
+        
+        for (int i = 0; i < SIZE; i++) {
+            if (valid(i) && list_.at(i).key_ >= start_key) {
+                if (pq.size() < scan_num) {
+                    pq.push(list_.at(i));
+                } else if (list_.at(i).key_ < pq.top().key_) {
+                    pq.pop();
+                    pq.push(list_.at(i));
+                }
+            }
+        }
+        
+        v.resize(pq.size());
+        for (int i = pq.size() - 1; i >= 0; i--) {
+            v[i] = pq.top();
+            pq.pop();
+        }
+    }
 
 
     inline T get_pivot() const { return pivot_; }
@@ -266,11 +292,6 @@ public:
     */
     inline size_t num_keys() const { //TODO: change to member variable
         return num_keys_;
-        // size_t cnt = 0;
-        // for (int i = 0; i < BITMAP_SIZE; i++) {
-        //     cnt += __builtin_popcountll(bitmap_[i]);
-        // }
-        // return cnt;
     }
 
     inline KeyValueType at(int pos) const { return list_.at(pos); }

@@ -236,26 +236,23 @@ public:
         LinearModel<KeyType> dummy_model;
         bool success = lookup_path(start_key, path, dummy_model);
 
-        // get the d-bucket iterator
+        // get the d-bucket
         DataBucketType* d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;
-        auto dbuck_iter = d_bucket->lower_bound(start_key);
 
         while (num_scanned < num_to_scan) {
-            // scan keys in the d-bucket
-            while(num_scanned < num_to_scan && dbuck_iter.has_next()) {
-                KeyValueType kv = (*dbuck_iter);
-                kvs[num_scanned] = std::make_pair(kv.key_, kv.value_);
+            std::vector<KeyValueType> scanned_kvs;
+            d_bucket->scan_kvs(scanned_kvs, start_key, num_to_scan - num_scanned);
+            for (auto &kv : scanned_kvs) {
+                kvs[num_scanned] = make_pair(kv.key_, kv.value_);
                 num_scanned++;
-                dbuck_iter++;
             }
 
             // get the next d-bucket
             if (num_scanned < num_to_scan) {
                 do {
                     if (!find_next_d_bucket(path)) return num_scanned;
-                    d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;;
-                    dbuck_iter = d_bucket->begin();
-                } while (!dbuck_iter.has_next()); // empty d-bucket, visit the next one
+                    d_bucket = (DataBucketType *)(path[num_levels_-1]).value_;
+                } while (d_bucket->num_keys() == 0); // empty d-bucket, visit the next one
             }
         }
         
