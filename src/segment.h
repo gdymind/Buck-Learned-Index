@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include<cmath>
@@ -308,36 +307,47 @@ private:
     inline unsigned int locate_buck(T key) const {
         // prediction may be incorrect, this function is to find the exact bucket whose range covers the key based on prediction
         // Step1: call predict_buck to get an intial position
-        // Step2: search neighbors to find the exact match (linear search)
-        unsigned int buckID = predict_buck(key); // ensure buckID is valid s
-       
-        // search forward
-        while(buckID+1<num_bucket_ && sbucket_list_[buckID+1].get_pivot() <= key){
-            buckID++;
-        }
-        // search backward
-        while(buckID>0 && sbucket_list_[buckID].get_pivot() > key){
-            buckID--;
+        // Step2: search neighbors to find the exact match (exponential search)
+        unsigned int buckID = predict_buck(key); // ensure buckID is valid
+        
+        if (buckID + 1 < num_bucket_ && sbucket_list_[buckID + 1].get_pivot() <= key) { // search forwards
+            unsigned int bound = 1;
+            while (buckID + bound < num_bucket_ && sbucket_list_[buckID + bound].get_pivot() <= key) {
+                buckID += bound;
+                bound *= 2;
+            }
+            // Binary search in the range [buckID, min(buckID + bound, num_bucket_)]
+            unsigned int left = buckID;
+            unsigned int right = std::min((unsigned int)(num_bucket_ - 1), (unsigned int)(buckID + bound)) + 1;
+            while (left + 1 < right) {
+                unsigned int mid = left + (right - left + 1) / 2;
+                if (sbucket_list_[mid].get_pivot() <= key) {
+                    left = mid;
+                } else {
+                    right = mid;
+                }
+            }
+            buckID = left;
+        } else if (buckID > 0 && sbucket_list_[buckID].get_pivot() > key) { // search backwards
+            unsigned int bound = 1;
+            while (buckID >= bound && sbucket_list_[buckID - bound].get_pivot() > key) {
+                buckID -= bound;
+                bound *= 2;
+            }
+            // Binary search in the range [max(0, buckID - bound), buckID]
+            unsigned int left = std::max(0u, (unsigned int)(buckID - bound));
+            unsigned int right = buckID + 1;
+            while (left + 1< right) {
+                unsigned int mid = left + (right - left) / 2;
+                if (sbucket_list_[mid].get_pivot() <= key) {
+                    left = mid;
+                } else {
+                    right = mid;
+                }
+            }
+            buckID = left;
         }
 
-        // //std::cout << "buckID: " << buckID << std::endl;
-        // if(sbucket_list_[buckID].get_pivot() <= key){ // search forwards
-        //     while(buckID+1<num_bucket_){
-        //         if(sbucket_list_[buckID+1].get_pivot() > key){
-        //             break;
-        //         }
-        //         buckID++;
-        //     }
-        // }
-        // else{ // search backwards
-        //     while(buckID>0){
-        //         if(sbucket_list_[buckID-1].get_pivot() <= key){
-        //             buckID--;
-        //             break;
-        //         }
-        //         buckID--;
-        //     }
-        // }
 #ifdef BUCKINDEX_DEBUG
         num_locate++;
         auto pred_buckID = predict_buck(key);
