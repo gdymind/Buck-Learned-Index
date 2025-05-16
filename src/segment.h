@@ -311,16 +311,16 @@ private:
         unsigned int buckID = predict_buck(key); // ensure buckID is valid
         
         if (buckID + 1 < num_bucket_ && sbucket_list_[buckID + 1].get_pivot() <= key) { // search forwards
-            unsigned int bound = 1;
+            int bound = 1;
             while (buckID + bound < num_bucket_ && sbucket_list_[buckID + bound].get_pivot() <= key) {
                 buckID += bound;
                 bound *= 2;
             }
             // Binary search in the range [buckID, min(buckID + bound, num_bucket_)]
-            unsigned int left = buckID;
-            unsigned int right = std::min((unsigned int)(num_bucket_ - 1), (unsigned int)(buckID + bound)) + 1;
+            int left = buckID;
+            int right = std::min((int)(num_bucket_), (int)(buckID + bound));
             while (left + 1 < right) {
-                unsigned int mid = left + (right - left + 1) / 2;
+                int mid = left + (right - left + 1) / 2;
                 if (sbucket_list_[mid].get_pivot() <= key) {
                     left = mid;
                 } else {
@@ -329,16 +329,16 @@ private:
             }
             buckID = left;
         } else if (buckID > 0 && sbucket_list_[buckID].get_pivot() > key) { // search backwards
-            unsigned int bound = 1;
+            int bound = 1;
             while (buckID >= bound && sbucket_list_[buckID - bound].get_pivot() > key) {
                 buckID -= bound;
                 bound *= 2;
             }
             // Binary search in the range [max(0, buckID - bound), buckID]
-            unsigned int left = std::max(0u, (unsigned int)(buckID - bound));
-            unsigned int right = buckID + 1;
-            while (left + 1< right) {
-                unsigned int mid = left + (right - left) / 2;
+            int left = std::max(0, (int)(buckID - bound));
+            int right = buckID;
+            while (left + 1 < right) {
+                int mid = left + (right - left) / 2;
                 if (sbucket_list_[mid].get_pivot() <= key) {
                     left = mid;
                 } else {
