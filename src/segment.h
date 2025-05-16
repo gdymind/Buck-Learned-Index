@@ -310,16 +310,16 @@ private:
         // Step2: search neighbors to find the exact match (exponential search)
         unsigned int buckID = predict_buck(key); // ensure buckID is valid
         
-        if (buckID + 1 < num_bucket_ && sbucket_list_[buckID + 1].get_pivot() <= key) { // search forwards
-            int bound = 1;
-            while (buckID + bound < num_bucket_ && sbucket_list_[buckID + bound].get_pivot() <= key) {
-                buckID += bound;
-                bound *= 2;
-            }
-            // Linear search forwards
-            while (buckID + 1 < num_bucket_ && sbucket_list_[buckID + 1].get_pivot() <= key) {
-                buckID++;
-            }
+        // if (buckID + 1 < num_bucket_ && sbucket_list_[buckID + 1].get_pivot() <= key) { // search forwards
+        int bound = 1;
+        while (buckID + bound < num_bucket_ && sbucket_list_[buckID + bound].get_pivot() <= key) {
+            buckID += bound;
+            bound *= 2;
+        }
+        // Linear search forwards
+        while (buckID + 1 < num_bucket_ && sbucket_list_[buckID + 1].get_pivot() <= key) {
+            buckID++;
+        }
 
             
             // // Binary search in the range [buckID, min(buckID + bound, num_bucket_)]
@@ -334,16 +334,17 @@ private:
             //     }
             // }
             // buckID = left;
-        } else if (buckID > 0 && sbucket_list_[buckID].get_pivot() > key) { // search backwards
-            int bound = 1;
-            while (buckID >= bound && sbucket_list_[buckID - bound].get_pivot() > key) {
-                buckID -= bound;
-                bound *= 2;
-            }
-            // Linear search backwards
-            while (buckID >= 0 && sbucket_list_[buckID].get_pivot() > key) {
-                buckID--;
-            }
+        // } else if (buckID > 0 && sbucket_list_[buckID].get_pivot() > key) { // search backwards
+        // bound = 1;
+        // while ((int)buckID - bound > 0 && sbucket_list_[buckID - bound].get_pivot() > key) {
+        //     buckID -= bound;
+        //     bound *= 2;
+        // }
+        // // Linear search backwards
+        while (buckID > 0 && sbucket_list_[buckID].get_pivot() > key) {
+            buckID--;
+        }
+        cout << "key: " << key << " buckID: " << buckID << std::endl;
             
             // // Binary search in the range [max(0, buckID - bound), buckID]
             // int left = std::max(0, (int)(buckID - bound));
@@ -357,7 +358,7 @@ private:
             //     }
             // }
             // buckID = left;
-        }
+        // }
 
 #ifdef BUCKINDEX_DEBUG
         num_locate++;

@@ -12,3 +12,5 @@
 ./unittests/unittests --gtest_filter=Bucket.insert_with_hint
 #example
 ```
+
+./unittests/unittests --gtest_filter=BuckIndex.insert_random_order > out1.txt
