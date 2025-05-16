@@ -316,36 +316,47 @@ private:
                 buckID += bound;
                 bound *= 2;
             }
-            // Binary search in the range [buckID, min(buckID + bound, num_bucket_)]
-            int left = buckID;
-            int right = std::min((int)(num_bucket_), (int)(buckID + bound));
-            while (left + 1 < right) {
-                int mid = left + (right - left + 1) / 2;
-                if (sbucket_list_[mid].get_pivot() <= key) {
-                    left = mid;
-                } else {
-                    right = mid;
-                }
+            // Linear search forwards
+            while (buckID + 1 < num_bucket_ && sbucket_list_[buckID + 1].get_pivot() <= key) {
+                buckID++;
             }
-            buckID = left;
+
+            
+            // // Binary search in the range [buckID, min(buckID + bound, num_bucket_)]
+            // int left = buckID;
+            // int right = std::min((int)(num_bucket_), (int)(buckID + bound));
+            // while (left + 1 < right) {
+            //     int mid = left + (right - left + 1) / 2;
+            //     if (sbucket_list_[mid].get_pivot() <= key) {
+            //         left = mid;
+            //     } else {
+            //         right = mid;
+            //     }
+            // }
+            // buckID = left;
         } else if (buckID > 0 && sbucket_list_[buckID].get_pivot() > key) { // search backwards
             int bound = 1;
             while (buckID >= bound && sbucket_list_[buckID - bound].get_pivot() > key) {
                 buckID -= bound;
                 bound *= 2;
             }
-            // Binary search in the range [max(0, buckID - bound), buckID]
-            int left = std::max(0, (int)(buckID - bound));
-            int right = buckID;
-            while (left + 1 < right) {
-                int mid = left + (right - left) / 2;
-                if (sbucket_list_[mid].get_pivot() <= key) {
-                    left = mid;
-                } else {
-                    right = mid;
-                }
+            // Linear search backwards
+            while (buckID >= 0 && sbucket_list_[buckID].get_pivot() > key) {
+                buckID--;
             }
-            buckID = left;
+            
+            // // Binary search in the range [max(0, buckID - bound), buckID]
+            // int left = std::max(0, (int)(buckID - bound));
+            // int right = buckID;
+            // while (left + 1 < right) {
+            //     int mid = left + (right - left) / 2;
+            //     if (sbucket_list_[mid].get_pivot() <= key) {
+            //         left = mid;
+            //     } else {
+            //         right = mid;
+            //     }
+            // }
+            // buckID = left;
         }
 
 #ifdef BUCKINDEX_DEBUG
